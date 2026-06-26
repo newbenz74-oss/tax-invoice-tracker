@@ -125,6 +125,10 @@
     <input id="loEmail" type="email" placeholder="you@company.com">
     <label>รหัสผ่าน</label>
     <input id="loPass" type="password" onkeydown="if(event.key==='Enter')doLogin()">
+    <div style="margin:12px 0;display:flex;align-items:center;gap:8px">
+      <input id="loRemember" type="checkbox" style="width:18px;height:18px;cursor:pointer">
+      <label style="margin:0;cursor:pointer;font-size:13px" onclick="$('loRemember').checked=!$('loRemember').checked">จำอีเมลของฉัน</label>
+    </div>
     <div class="gerr" id="loErr"></div>
     <button class="btn primary" onclick="doLogin()">เข้าสู่ระบบ</button>
     <button class="btn" style="width:100%;margin-top:10px" onclick="resetConfig()">เปลี่ยนการเชื่อมต่อ Supabase</button>
@@ -219,6 +223,16 @@
   </div>
 </div></div>
 
+<!-- Modal: Select Company After Login -->
+<div class="overlay" id="selectCoModal"><div class="modal" style="max-width:500px">
+  <h2>🏢 เลือกบริษัท</h2>
+  <div class="desc">เลือกบริษัทที่ต้องการจัดการ</div>
+  <div style="margin:16px 0" id="coList"></div>
+  <div class="modal-foot">
+    <button class="btn primary" style="width:100%" onclick="confirmSelectCo()">เลือก</button>
+  </div>
+</div></div>
+
 <!-- Modal: Company password verification -->
 <div class="overlay" id="cpwModal"><div class="modal" style="max-width:400px">
   <h2>🔐 ยืนยันตัวตน</h2>
@@ -261,13 +275,19 @@ async function boot(){
   showLoading(true);
   const {data:{session}}=await sb.auth.getSession();
   showLoading(false);
-  if(!session){ $('gateLogin').classList.remove('hidden'); return; }
+  if(!session){
+    const savedEmail=localStorage.getItem('lo_email');
+    if(savedEmail){$('loEmail').value=savedEmail;$('loRemember').checked=true;}
+    $('gateLogin').classList.remove('hidden');
+    return;
+  }
   await startApp(session);
 }
 async function doLogin(){
   gerr('loErr','');
   const email=$('loEmail').value.trim(), pass=$('loPass').value;
   if(!email||!pass){gerr('loErr','กรอกอีเมลและรหัสผ่าน');return;}
+  if($('loRemember').checked){localStorage.setItem('lo_email',email);}else{localStorage.removeItem('lo_email');}
   showLoading(true);
   const {data,error}=await sb.auth.signInWithPassword({email,password:pass});
   showLoading(false);
@@ -278,14 +298,36 @@ async function doLogin(){
 async function doLogout(){await sb.auth.signOut();location.reload();}
 async function startApp(session){
   $('curUser').textContent=session.user.email;
-  $('appRoot').classList.remove('hidden');
+  showLoading(true);
   await loadAll();
+  showLoading(false);
+  if(DB.companies.length===0){alert('ไม่มีบริษัทในระบบ');return;}
+  if(DB.companies.length===1){coFilter=DB.companies[0];showApp();return;}
+  showSelectCoModal();
+}
+function showSelectCoModal(){
+  $('coList').innerHTML=DB.companies.map(c=>`<div style="padding:12px;margin:8px 0;border:2px solid var(--line);border-radius:10px;cursor:pointer;transition:all 0.2s" class="co-option" data-co="${c}" onclick="selectCo('${c}')">${c}</div>`).join('');
+  $('selectCoModal').classList.add('open');
+}
+let selectedCo='';
+function selectCo(co){
+  document.querySelectorAll('.co-option').forEach(e=>e.style.borderColor='var(--line)');
+  document.querySelector(`[data-co="${co}"]`).style.borderColor='var(--primary)';
+  selectedCo=co;
+}
+function confirmSelectCo(){
+  if(!selectedCo){alert('กรุณาเลือกบริษัท');return;}
+  coFilter=selectedCo;
+  $('selectCoModal').classList.remove('open');
+  showApp();
+}
+function showApp(){
+  $('appRoot').classList.remove('hidden');
   buildCoFilter();render();
 }
 
 /* ================= data layer (Supabase) ================= */
 async function loadAll(){
-  showLoading(true);
   try{
     const [c,o,inv,fu]=await Promise.all([
       sb.from('companies').select('name').order('name'),
@@ -301,7 +343,6 @@ async function loadAll(){
       company:r.company,amount:+r.amount,vat:+r.vat,total:+r.total,status:r.status,owner:r.owner,due:r.due,
       note:r.note,receivedDate:r.received_date,followups:byInv[r.id]||[]}));
   }catch(e){alert('โหลดข้อมูลไม่สำเร็จ: '+e.message+'\n(ตรวจว่ารัน SQL schema แล้วหรือยัง)');}
-  showLoading(false);
 }
 function toRow(o){return {inv_no:o.invNo,inv_date:o.invDate,payment_date:o.payDate||null,vendor:o.vendor,tax_id:o.taxId||null,company:o.company||null,
   amount:o.amount,vat:o.vat,total:o.total,status:o.status,owner:o.owner||null,due:o.due||null,note:o.note||null,received_date:o.receivedDate||null};}
