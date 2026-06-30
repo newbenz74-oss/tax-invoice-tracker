@@ -247,6 +247,21 @@
   </div>
 </div></div>
 
+<!-- Modal: Change Company Password -->
+<div class="overlay" id="changeCoPasswordModal"><div class="modal" style="max-width:400px">
+  <h2>🔐 เปลี่ยนรหัสผ่านบริษัท</h2>
+  <div class="desc" id="ccpDesc">บริษัท: -</div>
+  <div class="form">
+    <div class="full"><label>รหัสผ่านใหม่ <span class="req">*</span></label><input id="ccpNewPw" type="password" placeholder="ใส่รหัสใหม่"></div>
+    <div class="full"><label>ยืนยันรหัสใหม่ <span class="req">*</span></label><input id="ccpConfirmPw" type="password" placeholder="ยืนยันรหัส" onkeydown="if(event.key==='Enter')submitChangeCoPassword()"></div>
+  </div>
+  <div class="gerr" id="ccpErr"></div>
+  <div class="modal-foot">
+    <button class="btn" onclick="closeChangeCoPasswordModal()">ยกเลิก</button>
+    <button class="btn primary" onclick="submitChangeCoPassword()">บันทึกรหัสใหม่</button>
+  </div>
+</div></div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ================= config / auth ================= */
@@ -381,6 +396,20 @@ async function verifyCompanyPW(){
   gerr('cpwErr','');$('cpwModal').classList.remove('open');coFilter=pendingCompany;updateCoDisplay();render();
 }
 function closeCompanyPW(){$('cpwModal').classList.remove('open');$('coFilter').value=coFilter;}
+let changeCoName='';
+function openChangeCoPasswordModal(co){changeCoName=co;$('ccpDesc').textContent='บริษัท: '+co;$('ccpNewPw').value='';$('ccpConfirmPw').value='';gerr('ccpErr','');$('changeCoPasswordModal').classList.add('open');}
+function closeChangeCoPasswordModal(){$('changeCoPasswordModal').classList.remove('open');changeCoName='';}
+async function submitChangeCoPassword(){
+  const newPw=$('ccpNewPw').value.trim();const confirmPw=$('ccpConfirmPw').value.trim();
+  if(!newPw){gerr('ccpErr','กรุณาใส่รหัสผ่านใหม่');return;}
+  if(newPw!==confirmPw){gerr('ccpErr','รหัสผ่านไม่ตรงกัน');return;}
+  if(newPw.length<4){gerr('ccpErr','รหัสผ่านต้องมีอย่างน้อย 4 ตัว');return;}
+  showLoading(true);
+  const {error}=await sb.from('companies').update({password:newPw}).eq('name',changeCoName);
+  showLoading(false);
+  if(error){gerr('ccpErr','เปลี่ยนรหัสไม่สำเร็จ: '+error.message);return;}
+  gerr('ccpErr','');alert('✅ เปลี่ยนรหัสสำเร็จแล้ว');closeChangeCoPasswordModal();await loadAll();render();
+}
 
 /* ================= dashboard ================= */
 function renderDash(){
@@ -492,7 +521,7 @@ function renderReport(){
 function renderSettings(){
   $('content').innerHTML=`
   <div class="panel"><h3>🏢 บริษัทในเครือ (ผู้ซื้อ)</h3>
-    <div>${DB.companies.map(c=>`<div class="row"><span class="tag-co">${c}</span><button class="btn sm" onclick="delCo('${c}')" style="color:var(--red)">ลบ</button></div>`).join('')||'<div class="empty">—</div>'}</div>
+    <div>${DB.companies.map(c=>`<div class="row"><span class="tag-co">${c}</span><button class="btn sm" onclick="openChangeCoPasswordModal('${c}')" style="color:var(--primary)">🔐 เปลี่ยนรหัส</button><button class="btn sm" onclick="delCo('${c}')" style="color:var(--red)">ลบ</button></div>`).join('')||'<div class="empty">—</div>'}</div>
     <div class="toolbar" style="margin-top:12px">
       <input type="text" id="newCo" placeholder="ชื่อบริษัทใหม่">
       <input type="password" id="newCoPw" placeholder="รหัสผ่านสำหรับบริษัท">
