@@ -339,7 +339,7 @@ function showSelectCoModal(){
   $('coList').innerHTML=DB.companies.map(c=>`<div style="padding:12px;margin:8px 0;border:2px solid var(--line);border-radius:10px;cursor:pointer;transition:all 0.2s" class="co-option" data-co="${c}" onclick="selectCo('${c}')">${c}</div>`).join('');
   $('selectCoModal').classList.add('open');
 }
-let selectedCo='';
+let selectedCo='';let isSelectingCo=false;
 function selectCo(co){
   document.querySelectorAll('.co-option').forEach(e=>e.style.borderColor='var(--line)');
   document.querySelector(`[data-co="${co}"]`).style.borderColor='var(--primary)';
@@ -347,9 +347,9 @@ function selectCo(co){
 }
 function confirmSelectCo(){
   if(!selectedCo){alert('กรุณาเลือกบริษัท');return;}
-  coFilter=selectedCo;
+  isSelectingCo=true;
   $('selectCoModal').classList.remove('open');
-  showApp();
+  openCompanyPWModal(selectedCo);
 }
 function showApp(){
   $('appRoot').classList.remove('hidden');
@@ -408,9 +408,18 @@ async function verifyCompanyPW(){
   const {data}=await sb.from('companies').select('password').eq('name',pendingCompany).single();
   showLoading(false);
   if(!data||data.password!==pw){gerr('cpwErr','รหัสผ่านไม่ถูกต้อง');$('cpwCheck').value='';return;}
-  gerr('cpwErr','');$('cpwModal').classList.remove('open');coFilter=pendingCompany;updateCoDisplay();render();
+  gerr('cpwErr','');$('cpwModal').classList.remove('open');coFilter=pendingCompany;updateCoDisplay();
+  if(isSelectingCo){isSelectingCo=false;showApp();}else{render();}
 }
 function closeCompanyPW(){$('cpwModal').classList.remove('open');$('coFilter').value=coFilter;}
+async function verifyCompanyPWAndEnter(){
+  const pw=$('cpwCheck').value.trim();if(!pw){gerr('cpwErr','ต้องใส่รหัสผ่าน');return;}
+  showLoading(true);
+  const {data}=await sb.from('companies').select('password').eq('name',pendingCompany).single();
+  showLoading(false);
+  if(!data||data.password!==pw){gerr('cpwErr','รหัสผ่านไม่ถูกต้อง');$('cpwCheck').value='';return;}
+  gerr('cpwErr','');$('cpwModal').classList.remove('open');coFilter=pendingCompany;updateCoDisplay();showApp();
+}
 let changeCoName='';
 function openChangeCoPasswordModal(co){changeCoName=co;$('ccpDesc').textContent='บริษัท: '+co;$('ccpNewPw').value='';$('ccpConfirmPw').value='';gerr('ccpErr','');$('changeCoPasswordModal').classList.add('open');}
 function closeChangeCoPasswordModal(){$('changeCoPasswordModal').classList.remove('open');changeCoName='';}
