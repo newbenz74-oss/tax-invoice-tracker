@@ -262,6 +262,21 @@
   </div>
 </div></div>
 
+<!-- Modal: Delete Company Confirmation -->
+<div class="overlay" id="deleteCoModal"><div class="modal" style="max-width:400px">
+  <h2>⚠️ ลบบริษัท</h2>
+  <div class="desc" id="delCoDesc">บริษัท: -</div>
+  <p style="color:var(--red);margin-bottom:16px">⚠️ การลบบริษัทนี้จะลบข้อมูลใบกำกับภาษีทั้งหมด ไม่สามารถกู้คืนได้</p>
+  <div class="form">
+    <div class="full"><label>ยืนยันรหัสผ่านบริษัท <span class="req">*</span></label><input id="delCoPw" type="password" placeholder="ใส่รหัสผ่านบริษัท" onkeydown="if(event.key==='Enter')submitDeleteCo()"></div>
+  </div>
+  <div class="gerr" id="delCoErr"></div>
+  <div class="modal-foot">
+    <button class="btn" onclick="closeDeleteCoModal()">ยกเลิก</button>
+    <button class="btn primary" style="background:var(--red)" onclick="submitDeleteCo()">ยืนยันการลบ</button>
+  </div>
+</div></div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ================= config / auth ================= */
@@ -410,6 +425,24 @@ async function submitChangeCoPassword(){
   if(error){gerr('ccpErr','เปลี่ยนรหัสไม่สำเร็จ: '+error.message);return;}
   gerr('ccpErr','');alert('✅ เปลี่ยนรหัสสำเร็จแล้ว');closeChangeCoPasswordModal();await loadAll();render();
 }
+let deleteCoName='';
+function openDeleteCoModal(co){deleteCoName=co;$('delCoDesc').textContent='บริษัท: '+co;$('delCoPw').value='';gerr('delCoErr','');$('deleteCoModal').classList.add('open');}
+function closeDeleteCoModal(){$('deleteCoModal').classList.remove('open');deleteCoName='';}
+async function submitDeleteCo(){
+  const pw=$('delCoPw').value.trim();
+  if(!pw){gerr('delCoErr','กรุณาใส่รหัสผ่านบริษัท');return;}
+  showLoading(true);
+  const {data}=await sb.from('companies').select('password').eq('name',deleteCoName).single();
+  showLoading(false);
+  if(!data||data.password!==pw){gerr('delCoErr','รหัสผ่านไม่ถูกต้อง');$('delCoPw').value='';return;}
+  if(!confirm('⚠️ ยืนยันการลบบริษัท '+deleteCoName+' และข้อมูลทั้งหมด?')){return;}
+  showLoading(true);
+  await sb.from('invoices').delete().eq('company',deleteCoName);
+  const {error}=await sb.from('companies').delete().eq('name',deleteCoName);
+  showLoading(false);
+  if(error){gerr('delCoErr','ลบไม่สำเร็จ: '+error.message);return;}
+  gerr('delCoErr','');alert('✅ ลบบริษัทสำเร็จแล้ว');closeDeleteCoModal();await loadAll();buildCoFilter();render();
+}
 
 /* ================= dashboard ================= */
 function renderDash(){
@@ -521,7 +554,7 @@ function renderReport(){
 function renderSettings(){
   $('content').innerHTML=`
   <div class="panel"><h3>🏢 บริษัทในเครือ (ผู้ซื้อ)</h3>
-    <div>${DB.companies.map(c=>`<div class="row"><span class="tag-co">${c}</span><button class="btn sm" onclick="openChangeCoPasswordModal('${c}')" style="color:var(--primary)">🔐 เปลี่ยนรหัส</button><button class="btn sm" onclick="delCo('${c}')" style="color:var(--red)">ลบ</button></div>`).join('')||'<div class="empty">—</div>'}</div>
+    <div>${DB.companies.map(c=>`<div class="row"><span class="tag-co">${c}</span><button class="btn sm" onclick="openChangeCoPasswordModal('${c}')" style="color:var(--primary)">🔐 เปลี่ยนรหัส</button><button class="btn sm" onclick="openDeleteCoModal('${c}')" style="color:var(--red)">ลบ</button></div>`).join('')||'<div class="empty">—</div>'}</div>
     <div class="toolbar" style="margin-top:12px">
       <input type="text" id="newCo" placeholder="ชื่อบริษัทใหม่">
       <input type="password" id="newCoPw" placeholder="รหัสผ่านสำหรับบริษัท">
