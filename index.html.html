@@ -554,7 +554,7 @@ function renderReport(){
 function renderSettings(){
   $('content').innerHTML=`
   <div class="panel"><h3>🏢 บริษัทในเครือ (ผู้ซื้อ)</h3>
-    <div>${DB.companies.map(c=>`<div class="row"><span class="tag-co">${c}</span><button class="btn sm" onclick="openChangeCoPasswordModal('${c}')" style="color:var(--primary)">🔐 เปลี่ยนรหัส</button><button class="btn sm" onclick="openDeleteCoModal('${c}')" style="color:var(--red)">ลบ</button></div>`).join('')||'<div class="empty">—</div>'}</div>
+    <div>${DB.companies.map(c=>`<div class="row" style="justify-content:space-between"><span class="tag-co">${c}</span><div style="display:flex;gap:8px"><button class="btn sm" onclick="openChangeCoPasswordModal('${c}')" style="color:var(--primary)">🔐 เปลี่ยนรหัส</button><button class="btn sm" onclick="openDeleteCoModal('${c}')" style="color:var(--red)">ลบ</button></div></div>`).join('')||'<div class="empty">—</div>'}</div>
     <div class="toolbar" style="margin-top:12px">
       <input type="text" id="newCo" placeholder="ชื่อบริษัทใหม่">
       <input type="password" id="newCoPw" placeholder="รหัสผ่านสำหรับบริษัท">
