@@ -171,7 +171,7 @@
     <div><label>เลขที่ใบกำกับ</label><input id="f_invNo" placeholder="กรอกตอนรับเอกสารตัวจริง"></div>
     <div><label>วันที่ในใบกำกับ</label><input id="f_invDate" type="date"></div>
     <div><label>วันที่จ่ายเงิน</label><input id="f_payDate" type="date"></div>
-    <div class="full"><label>ผู้ขาย / Vendor <span class="req">*</span></label><input id="f_vendor"></div>
+    <div class="full"><label>ผู้ขาย / Vendor <span class="req">*</span></label><input id="f_vendor" list="vendorList" autocomplete="off"><datalist id="vendorList"></datalist></div>
     <div><label>เลขประจำตัวผู้เสียภาษี</label><input id="f_taxId" maxlength="13" placeholder="13 หลัก"></div>
     <div><label>บริษัทผู้ซื้อ (ในเครือ)</label><select id="f_company"></select></div>
     <div><label>มูลค่าก่อน VAT (บาท)</label><input id="f_amount" type="number" step="0.01" oninput="calcVat()"></div>
@@ -280,7 +280,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ================= config / auth ================= */
-let sb=null, DB={companies:[],owners:[],invoices:[]};
+let sb=null, DB={companies:[],owners:[],vendors:[],invoices:[]};
 const STATUS={pending:{t:'รอรับตัวจริง',c:'b-pending'},followed:{t:'ทวงแล้ว',c:'b-followed'},
   received:{t:'ได้รับตัวจริงแล้ว',c:'b-received'},sent:{t:'ส่งบัญชีแล้ว',c:'b-sent'},nodoc:{t:'ใช้สำเนา/ไม่มีตัวจริง',c:'b-nodoc'}};
 const $=id=>document.getElementById(id);
@@ -359,15 +359,17 @@ function showApp(){
 /* ================= data layer (Supabase) ================= */
 async function loadAll(){
   try{
-    const [c,o,inv,fu]=await Promise.all([
+    const [c,o,v,inv,fu]=await Promise.all([
       sb.from('companies').select('name').order('name'),
       sb.from('owners').select('name').order('name'),
+      sb.from('vendors').select('name').order('name'),
       sb.from('invoices').select('*').order('inv_date',{ascending:false}),
       sb.from('followups').select('*').order('created_at',{ascending:true})
     ]);
     if(inv.error) throw inv.error;
     DB.companies=(c.data||[]).map(x=>x.name);
     DB.owners=(o.data||[]).map(x=>x.name);
+    DB.vendors=(v.data||[]).map(x=>x.name);
     const byInv={};(fu.data||[]).forEach(f=>{(byInv[f.invoice_id]=byInv[f.invoice_id]||[]).push({date:f.fdate,by:f.by_name,ch:f.channel,note:f.note});});
     DB.invoices=(inv.data||[]).map(r=>({id:r.id,invNo:r.inv_no,invDate:r.inv_date,payDate:r.payment_date,vendor:r.vendor,taxId:r.tax_id,
       company:r.company,amount:+r.amount,vat:+r.vat,total:+r.total,status:r.status,owner:r.owner,due:r.due,
@@ -572,6 +574,9 @@ function renderSettings(){
   <div class="panel" style="margin-top:16px"><h3>👥 ผู้รับผิดชอบติดตาม</h3>
     <div>${DB.owners.map(o=>`<div class="row"><span>${o}</span><button class="btn sm" onclick="delOwner('${o}')" style="color:var(--red)">ลบ</button></div>`).join('')||'<div class="empty">—</div>'}</div>
     <div class="toolbar" style="margin-top:12px"><input type="text" id="newOwner" placeholder="ชื่อผู้รับผิดชอบ"><button class="btn primary" onclick="addOwner()">+ เพิ่ม</button></div></div>
+  <div class="panel" style="margin-top:16px"><h3>🏪 รายชื่อผู้ขาย</h3>
+    <div>${DB.vendors.map(v=>`<div class="row"><span>${v}</span><button class="btn sm" onclick="delVendor('${v}')" style="color:var(--red)">ลบ</button></div>`).join('')||'<div class="empty">—</div>'}</div>
+    <div class="toolbar" style="margin-top:12px"><input type="text" id="newVendor" placeholder="ชื่อผู้ขาย"><button class="btn primary" onclick="addVendor()">+ เพิ่มผู้ขาย</button></div></div>
   <div class="panel" style="margin-top:16px"><h3>☁️ การเชื่อมต่อ</h3>
     <p class="muted" style="line-height:1.7;margin-bottom:12px">ข้อมูลเก็บบน Supabase (โปรเจกต์ <b>xuewsqoeilgeuopaauxq</b>) ใช้ร่วมกันทุกคนที่ล็อกอิน · เพิ่มผู้ใช้ใหม่ทำที่ Supabase &gt; Authentication &gt; Users</p>
     <button class="btn" onclick="resetConfig()">เปลี่ยน URL/Key</button>
@@ -585,6 +590,7 @@ function openModal(id){editId=id||null;
   $('mTitle').textContent=id?'แก้ไขใบกำกับภาษี':'เพิ่มใบกำกับภาษี';
   $('mDelete').style.display=id?'block':'none';
   $('f_company').innerHTML='<option value="">— เลือก —</option>'+DB.companies.map(c=>`<option>${c}</option>`).join('');
+  $('vendorList').innerHTML=DB.vendors.map(v=>`<option value="${v}"></option>`).join('');
   const i=id?DB.invoices.find(x=>x.id===id):{status:'pending',invDate:todayStr(),company:''};
   $('f_invNo').value=i.invNo||'';$('f_invDate').value=i.invDate||'';$('f_payDate').value=i.payDate||'';$('f_vendor').value=i.vendor||'';
   $('f_taxId').value=i.taxId||'';$('f_company').value=i.company||'';$('f_amount').value=i.amount||'';
@@ -709,6 +715,8 @@ async function addCo(){const v=$('newCo').value.trim();const pw=$('newCoPw').val
 async function delCo(c){if(!confirm('ลบบริษัท '+c+'?'))return;showLoading(true);await sb.from('companies').delete().eq('name',c);showLoading(false);await loadAll();buildCoFilter();render();}
 async function addOwner(){const v=$('newOwner').value.trim();if(!v)return;showLoading(true);const {error}=await sb.from('owners').insert({name:v});showLoading(false);if(error){alert(error.message);return;}await loadAll();render();}
 async function delOwner(o){if(!confirm('ลบ '+o+'?'))return;showLoading(true);await sb.from('owners').delete().eq('name',o);showLoading(false);await loadAll();render();}
+async function addVendor(){const v=$('newVendor').value.trim();if(!v)return;showLoading(true);const {error}=await sb.from('vendors').insert({name:v});showLoading(false);if(error){alert(error.message);return;}$('newVendor').value='';await loadAll();render();}
+async function delVendor(v){if(!confirm('ลบ '+v+'?'))return;showLoading(true);await sb.from('vendors').delete().eq('name',v);showLoading(false);await loadAll();render();}
 
 /* ================= init ================= */
 window.addEventListener('DOMContentLoaded',()=>{
