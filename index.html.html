@@ -529,7 +529,7 @@ function drawTable(){const rows=filtered();
     <td>${i.note||'-'}</td>
     <td>${thDate(i.payDate)||'-'}</td>
     <td ${age.isOld?'style="color:var(--red);font-weight:700"':''}>${age.months} เดือน ${age.days%30} วัน${age.isOld?' ⚠ เกิน 6 เดือน':''}</td>
-    <td class="num">${money(i.amount)}</td><td class="num">${money(i.vat)}</td><td class="num">${money(i.wht)}${i.wht_pct?' ('+i.wht_pct+'%)':''}</td><td class="num"><b>${money(i.total)}</b></td>
+    <td class="num">${money(i.amount)}</td><td class="num">${money(i.vat)}</td><td class="num">${money(i.wht)}${i.wht_pct>0?' ('+i.wht_pct+'%)':''}</td><td class="num"><b>${money(i.total)}</b></td>
     <td><span class="badge ${STATUS[i.status].c}">${STATUS[i.status].t}</span>${i.followups.length?`<div class="muted" style="font-size:10px;margin-top:3px">ทวง ${i.followups.length} ครั้ง</div>`:''}</td>
     <td class="${isOverdue(i)?'overdue':''}">${thDate(i.due)}${isOverdue(i)?' ⚠':''}</td>
     <td>${i.owner||'-'}</td>
