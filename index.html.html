@@ -605,7 +605,7 @@ async function saveInvoice(){
   const a=parseFloat($('f_amount').value)||0,vt=parseFloat($('f_vat').value)||0;
   const wht=parseFloat($('f_whtAmt').value)||0;
   const rec={invNo:$('f_invNo').value.trim(),invDate:$('f_invDate').value,payDate:$('f_payDate').value,vendor:$('f_vendor').value.trim(),taxId:$('f_taxId').value.trim(),
-    amount:a,vat:vt,wht:wht,total:Math.round((a+vt)*100)/100,
+    amount:a,vat:vt,wht:wht,total:Math.round((a+vt-wht)*100)/100,
     status:$('f_status').value,owner:$('f_owner').value.trim(),due:$('f_due').value,note:$('f_note').value.trim(),
     receivedDate:(($('f_status').value==='received'||$('f_status').value==='sent'))?(editId&&DB.invoices.find(x=>x.id===editId)?.receivedDate||todayStr()):null};
   showLoading(true);
