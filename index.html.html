@@ -522,19 +522,19 @@ function filtered(){const t=q.trim().toLowerCase();
     if(t){const b=(i.invNo+i.vendor+(i.taxId||'')+(i.note||'')+(i.owner||'')).toLowerCase();if(!b.includes(t))return false;}return true;})
     .sort((a,b)=>b.invDate.localeCompare(a.invDate));}
 function drawTable(){const rows=filtered();
-  $('tbl').innerHTML=`<thead><tr><th>เลขที่ใบกำกับภาษี / วันที่</th><th>ผู้ขาย / เลขภาษี</th><th>รายละเอียด</th><th>วันที่จ่ายเงิน</th><th>อายุใบ</th><th class="num">ก่อน VAT</th><th class="num">VAT</th><th class="num">รวม</th><th>สถานะ</th><th>ครบกำหนด</th><th>ผู้รับผิดชอบ</th><th>จัดการ</th></tr></thead><tbody>
+  $('tbl').innerHTML=`<thead><tr><th>เลขที่ใบกำกับภาษี / วันที่</th><th>ผู้ขาย / เลขภาษี</th><th>รายละเอียด</th><th>วันที่จ่ายเงิน</th><th>อายุใบ</th><th class="num">ก่อน VAT</th><th class="num">VAT</th><th class="num">หัก ณ ที่จ่าย</th><th class="num">รวม</th><th>สถานะ</th><th>ครบกำหนด</th><th>ผู้รับผิดชอบ</th><th>จัดการ</th></tr></thead><tbody>
   ${rows.length?rows.map(i=>{const age=getInvoiceAge(i.payDate,i.invDate);return `<tr>
     <td><b>${i.invNo}</b><div class="muted" style="font-size:11px">${thDate(i.invDate)}</div></td>
     <td>${i.vendor}<div class="muted" style="font-size:11px">${i.taxId||'-'}</div></td>
     <td>${i.note||'-'}</td>
     <td>${thDate(i.payDate)||'-'}</td>
     <td ${age.isOld?'style="color:var(--red);font-weight:700"':''}>${age.months} เดือน ${age.days%30} วัน${age.isOld?' ⚠ เกิน 6 เดือน':''}</td>
-    <td class="num">${money(i.amount)}</td><td class="num">${money(i.vat)}</td><td class="num"><b>${money(i.total)}</b></td>
+    <td class="num">${money(i.amount)}</td><td class="num">${money(i.vat)}</td><td class="num">${money(i.wht)||'-'}</td><td class="num"><b>${money(i.total)}</b></td>
     <td><span class="badge ${STATUS[i.status].c}">${STATUS[i.status].t}</span>${i.followups.length?`<div class="muted" style="font-size:10px;margin-top:3px">ทวง ${i.followups.length} ครั้ง</div>`:''}</td>
     <td class="${isOverdue(i)?'overdue':''}">${thDate(i.due)}${isOverdue(i)?' ⚠':''}</td>
     <td>${i.owner||'-'}</td>
     <td style="white-space:nowrap">${(i.status==='pending'||i.status==='followed')?`<button class="btn sm amber" onclick="openFu('${i.id}')">ทวง</button> <button class="btn sm green" onclick="markReceived('${i.id}')">✓รับแล้ว</button> `:''}<button class="btn sm" onclick="openModal('${i.id}')">แก้ไข</button></td>
-  </tr>`}).join(''):`<tr><td colspan="12"><div class="empty">ไม่พบรายการ — เพิ่มใบกำกับใหม่ หรือปรับตัวกรอง</div></td></tr>`}</tbody>`;
+  </tr>`}).join(''):`<tr><td colspan="13"><div class="empty">ไม่พบรายการ — เพิ่มใบกำกับใหม่ หรือปรับตัวกรอง</div></td></tr>`}</tbody>`;
   $('csvFile').onchange=e=>importCSV(e.target.files[0]);
 }
 
