@@ -172,6 +172,7 @@
     <div><label>วันที่ในใบกำกับ</label><input id="f_invDate" type="date"></div>
     <div><label>วันที่จ่ายเงิน</label><input id="f_payDate" type="date"></div>
     <div class="full"><label>ผู้ขาย / Vendor <span class="req">*</span></label><input id="f_vendor" list="vendorList" autocomplete="off" oninput="onVendorInput()" placeholder="เลือกหรือพิมพ์ชื่อผู้ขาย"><datalist id="vendorList"></datalist></div>
+    <div><label>เลขประจำตัวผู้เสียภาษี</label><input id="f_taxId" maxlength="13" placeholder="13 หลัก" readonly style="background:#f8fafc"></div>
     <div><label>มูลค่าก่อน VAT (บาท)</label><input id="f_amount" type="number" step="0.01" oninput="calcVat()"></div>
     <div><label>VAT 7% (บาท)</label><input id="f_vat" type="number" step="0.01" oninput="calcTotal()"></div>
     <div><label>ยอดรวม (บาท)</label><input id="f_total" type="number" step="0.01" readonly style="background:#f8fafc"></div>
