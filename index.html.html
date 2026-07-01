@@ -374,12 +374,12 @@ async function loadAll(){
     DB.vendors=(v.data||[]).map(x=>({code:x.code,name:x.name,tax_id:x.tax_id})).sort((a,b)=>a.name.localeCompare(b.name,'th'));
     const byInv={};(fu.data||[]).forEach(f=>{(byInv[f.invoice_id]=byInv[f.invoice_id]||[]).push({date:f.fdate,by:f.by_name,ch:f.channel,note:f.note});});
     DB.invoices=(inv.data||[]).map(r=>({id:r.id,invNo:r.inv_no,invDate:r.inv_date,payDate:r.payment_date,vendor:r.vendor,taxId:r.tax_id,
-      amount:+r.amount,vat:+r.vat,wht:+r.wht||0,total:+r.total,status:r.status,owner:r.owner,due:r.due,
+      amount:+r.amount,vat:+r.vat,wht:+r.wht||0,wht_pct:+r.wht_pct||0,total:+r.total,status:r.status,owner:r.owner,due:r.due,
       note:r.note,receivedDate:r.received_date,followups:byInv[r.id]||[]}));
   }catch(e){alert('โหลดข้อมูลไม่สำเร็จ: '+e.message+'\n(ตรวจว่ารัน SQL schema แล้วหรือยัง)');}
 }
 function toRow(o){return {inv_no:o.invNo,inv_date:o.invDate||todayStr(),payment_date:o.payDate||null,vendor:o.vendor,tax_id:o.taxId||null,
-  amount:o.amount,vat:o.vat,wht:o.wht||0,total:o.total,status:o.status,owner:o.owner||null,due:o.due||null,note:o.note||null,received_date:o.receivedDate||null};}
+  amount:o.amount,vat:o.vat,wht:o.wht||0,wht_pct:o.wht_pct||0,total:o.total,status:o.status,owner:o.owner||null,due:o.due||null,note:o.note||null,received_date:o.receivedDate||null};}
 
 /* ================= helpers ================= */
 function pad(n){return n.toString().padStart(2,'0');}
