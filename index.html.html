@@ -176,7 +176,7 @@
     <div><label>มูลค่าก่อน VAT (บาท)</label><input id="f_amount" type="number" step="0.01" oninput="calcVat()"></div>
     <div><label>VAT 7% (บาท)</label><input id="f_vat" type="number" step="0.01" oninput="calcTotal()"></div>
     <div><label>หัก ณ ที่จ่าย (%)</label><select id="f_wht" oninput="calcWht()"><option value="0">0%</option><option value="1">1%</option><option value="2">2%</option><option value="3">3%</option><option value="5">5%</option></select></div>
-    <div><label>หัก ณ ที่จ่าย (บาท)</label><input id="f_whtAmt" type="number" step="0.01" readonly style="background:#f8fafc"></div>
+    <div><label>หัก ณ ที่จ่าย (บาท)</label><input id="f_whtAmt" type="number" step="0.01" oninput="calcTotal()"></div>
     <div><label>ยอดรวม (บาท)</label><input id="f_total" type="number" step="0.01" readonly style="background:#f8fafc"></div>
     <div><label>สถานะ</label><select id="f_status">
       <option value="pending">รอรับตัวจริง</option><option value="followed">ทวงแล้ว</option>
@@ -596,7 +596,7 @@ function openModal(id){editId=id||null;
   $('vendorList').innerHTML=DB.vendors.map(v=>`<option value="${v.code}">${v.code} - ${v.name}</option>`).join('');
   const i=id?DB.invoices.find(x=>x.id===id):{status:'pending',invDate:todayStr()};
   $('f_invNo').value=i.invNo||'';$('f_invDate').value=i.invDate||'';$('f_payDate').value=i.payDate||'';$('f_vendor').value=i.vendor||'';$('f_taxId').value=i.taxId||'';
-  $('f_amount').value=i.amount||'';$('f_vat').value=i.vat||'';$('f_wht').value=i.wht||'0';$('f_whtAmt').value=i.wht||'';$('f_total').value=i.total||'';$('f_status').value=i.status||'pending';
+  $('f_amount').value=i.amount||'';$('f_vat').value=i.vat||'';$('f_wht').value=i.wht_pct||'0';$('f_whtAmt').value=i.wht||'';$('f_total').value=i.total||'';$('f_status').value=i.status||'pending';
   $('f_owner').value=i.owner||'';$('f_due').value=i.due||'';$('f_note').value=i.note||'';
   $('modal').classList.add('open');}
 function closeModal(){$('modal').classList.remove('open');}
@@ -604,8 +604,9 @@ async function saveInvoice(){
   if(!$('f_vendor').value.trim()){alert('กรุณากรอก ผู้ขาย');return;}
   const a=parseFloat($('f_amount').value)||0,vt=parseFloat($('f_vat').value)||0;
   const wht=parseFloat($('f_whtAmt').value)||0;
+  const pct=parseFloat($('f_wht').value)||0;
   const rec={invNo:$('f_invNo').value.trim(),invDate:$('f_invDate').value,payDate:$('f_payDate').value,vendor:$('f_vendor').value.trim(),taxId:$('f_taxId').value.trim(),
-    amount:a,vat:vt,wht:wht,total:Math.round((a+vt-wht)*100)/100,
+    amount:a,vat:vt,wht:wht,wht_pct:pct,total:Math.round((a+vt-wht)*100)/100,
     status:$('f_status').value,owner:$('f_owner').value.trim(),due:$('f_due').value,note:$('f_note').value.trim(),
     receivedDate:(($('f_status').value==='received'||$('f_status').value==='sent'))?(editId&&DB.invoices.find(x=>x.id===editId)?.receivedDate||todayStr()):null};
   showLoading(true);
