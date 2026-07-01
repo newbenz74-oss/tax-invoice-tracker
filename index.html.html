@@ -596,7 +596,7 @@ function openModal(id){editId=id||null;
   $('vendorList').innerHTML=DB.vendors.map(v=>`<option value="${v.code}">${v.code} - ${v.name}</option>`).join('');
   const i=id?DB.invoices.find(x=>x.id===id):{status:'pending',invDate:todayStr()};
   $('f_invNo').value=i.invNo||'';$('f_invDate').value=i.invDate||'';$('f_payDate').value=i.payDate||'';$('f_vendor').value=i.vendor||'';$('f_taxId').value=i.taxId||'';
-  $('f_amount').value=i.amount||'';$('f_vat').value=i.vat||'';$('f_wht').value=i.wht?'0':'0';$('f_whtAmt').value=i.wht||'';$('f_total').value=i.total||'';$('f_status').value=i.status||'pending';
+  $('f_amount').value=i.amount||'';$('f_vat').value=i.vat||'';$('f_wht').value=i.wht||'0';$('f_whtAmt').value=i.wht||'';$('f_total').value=i.total||'';$('f_status').value=i.status||'pending';
   $('f_owner').value=i.owner||'';$('f_due').value=i.due||'';$('f_note').value=i.note||'';
   $('modal').classList.add('open');}
 function closeModal(){$('modal').classList.remove('open');}
