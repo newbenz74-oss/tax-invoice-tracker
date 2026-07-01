@@ -587,7 +587,7 @@ function renderSettings(){
 /* ================= actions ================= */
 function calcVat(){const a=parseFloat($('f_amount').value)||0;$('f_vat').value=(Math.round(a*0.07*100)/100);calcWht();}
 function calcWht(){const a=parseFloat($('f_amount').value)||0,p=parseFloat($('f_wht').value)||0;$('f_whtAmt').value=(Math.round(a*p/100*100)/100);calcTotal();}
-function calcTotal(){const a=parseFloat($('f_amount').value)||0,v=parseFloat($('f_vat').value)||0;$('f_total').value=(Math.round((a+v)*100)/100);}
+function calcTotal(){const a=parseFloat($('f_amount').value)||0,v=parseFloat($('f_vat').value)||0,w=parseFloat($('f_whtAmt').value)||0;$('f_total').value=(Math.round((a+v-w)*100)/100);}
 function onVendorInput(){const code=$('f_vendor').value.trim();const vendor=DB.vendors.find(v=>v.code===code);if(vendor){$('f_vendor').value=vendor.name;$('f_taxId').value=vendor.tax_id||'';}}
 function openModal(id){editId=id||null;
   $('mTitle').textContent=id?'แก้ไขใบกำกับภาษี':'เพิ่มใบกำกับภาษี';
