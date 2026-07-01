@@ -365,7 +365,7 @@ async function loadAll(){
       sb.from('owners').select('name').order('name'),
       sb.from('vendors').select('code,name,tax_id').order('name'),
       sb.from('invoices').select('*').order('inv_date',{ascending:false}),
-      sb.from('followups').select('*').order('created_at',{ascending:true})
+      sb.from('followups').select('*')
     ]);
     if(inv.error) throw inv.error;
     DB.companies=(c.data||[]).map(x=>x.name);
@@ -402,7 +402,7 @@ let companyPasswords={};
 function updateCoDisplay(){$('coName').textContent=coFilter||'ทุกบริษัท';}
 function buildCoFilter(){const s=$('coFilter');s.innerHTML='<option value="">ทุกบริษัท</option>'+DB.companies.map(c=>`<option ${c===coFilter?'selected':''}>${c}</option>`).join('');
   s.onchange=()=>{const selected=s.value;if(!selected){coFilter='';updateCoDisplay();render();return;}openCompanyPWModal(selected);};}
-function scoped(){return DB.invoices.filter(i=>!coFilter||i.company===coFilter);}
+function scoped(){return DB.invoices;}
 let pendingCompany='';
 function openCompanyPWModal(co){pendingCompany=co;$('cpwCheck').value='';gerr('cpwErr','');$('coFilter').value=coFilter;$('cpwModal').classList.add('open');}
 async function verifyCompanyPW(){
