@@ -362,7 +362,7 @@ async function loadAll(){
     const [c,o,v,inv,fu]=await Promise.all([
       sb.from('companies').select('name').order('name'),
       sb.from('owners').select('name').order('name'),
-      sb.from('vendors').select('name').order('name'),
+      sb.from('vendors').select('code,name').order('name'),
       sb.from('invoices').select('*').order('inv_date',{ascending:false}),
       sb.from('followups').select('*').order('created_at',{ascending:true})
     ]);
@@ -575,7 +575,7 @@ function renderSettings(){
     <div>${DB.owners.map(o=>`<div class="row"><span>${o}</span><button class="btn sm" onclick="delOwner('${o}')" style="color:var(--red)">ลบ</button></div>`).join('')||'<div class="empty">—</div>'}</div>
     <div class="toolbar" style="margin-top:12px"><input type="text" id="newOwner" placeholder="ชื่อผู้รับผิดชอบ"><button class="btn primary" onclick="addOwner()">+ เพิ่ม</button></div></div>
   <div class="panel" style="margin-top:16px"><h3>🏪 รายชื่อผู้ขาย</h3>
-    <div>${DB.vendors.map(v=>`<div class="row" style="justify-content:space-between"><span><strong>${v.code}</strong> - ${v.name}</span><button class="btn sm" onclick="delVendor('${v.name}')" style="color:var(--red)">ลบ</button></div>`).join('')||'<div class="empty">—</div>'}</div>
+    <div>${typeof DB.vendors[0]==='object'?DB.vendors.map(v=>`<div class="row" style="justify-content:space-between"><span><strong>${v.code||'-'}</strong> - ${v.name}</span><button class="btn sm" onclick="delVendor('${v.name}')" style="color:var(--red)">ลบ</button></div>`).join(''):DB.vendors.map(v=>`<div class="row"><span>${v}</span><button class="btn sm" onclick="delVendor('${v}')" style="color:var(--red)">ลบ</button></div>`).join('')||'<div class="empty">—</div>'}</div>
     <div class="toolbar" style="margin-top:12px"><input type="text" id="newVendorCode" placeholder="รหัสผู้ขาย"><input type="text" id="newVendor" placeholder="ชื่อผู้ขาย"><button class="btn primary" onclick="addVendor()">+ เพิ่มผู้ขาย</button></div></div>
   <div class="panel" style="margin-top:16px"><h3>☁️ การเชื่อมต่อ</h3>
     <p class="muted" style="line-height:1.7;margin-bottom:12px">ข้อมูลเก็บบน Supabase (โปรเจกต์ <b>xuewsqoeilgeuopaauxq</b>) ใช้ร่วมกันทุกคนที่ล็อกอิน · เพิ่มผู้ใช้ใหม่ทำที่ Supabase &gt; Authentication &gt; Users</p>
