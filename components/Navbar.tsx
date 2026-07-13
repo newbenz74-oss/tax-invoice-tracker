@@ -18,7 +18,7 @@ export default function Navbar() {
     <header className="border-b border-gray-200 bg-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <div>
-          <h1 className="text-base font-bold text-gray-900">เว็บติดตามใบกำกับภาษี</h1>
+          <h1 className="text-2xl font-bold text-gray-900">ใบกำกับภาษี</h1>
           <p className="text-xs text-gray-400">BENZ</p>
         </div>
         <div className="flex items-center gap-3">
