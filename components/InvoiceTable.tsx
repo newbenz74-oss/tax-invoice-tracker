@@ -103,6 +103,7 @@ export default function InvoiceTable({
                 {sortField === col.field && (sortDirection === 'asc' ? ' ▲' : ' ▼')}
               </th>
             ))}
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">เลขที่อ้างอิง</th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">สถานะ / Aging</th>
             <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">การจัดการ</th>
           </tr>
@@ -118,6 +119,7 @@ export default function InvoiceTable({
                 <td className="px-4 py-3 text-gray-600">{formatDate(invoice.transaction_date)}</td>
                 <td className="px-4 py-3 text-gray-900">{THB.format(invoice.total_amount)}</td>
                 <td className="px-4 py-3 text-gray-600">{formatDate(invoice.expected_date)}</td>
+                <td className="px-4 py-3 text-gray-600">{invoice.reference_no || '-'}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-1">
                     <span className="inline-block w-fit rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
