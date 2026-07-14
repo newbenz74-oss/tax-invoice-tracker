@@ -14,6 +14,7 @@ Stack: Next.js 16 (App Router, client-heavy) + Supabase (database + auth) + Tail
 4. [รันเทสต์](#4-รันเทสต์)
 5. [โครงสร้างโปรเจกต์](#5-โครงสร้างโปรเจกต์)
 6. [นำเข้ารายการจาก Excel](#6-นำเข้ารายการจาก-excel)
+7. [เมนู Sidebar](#7-เมนู-sidebar)
 
 ---
 
@@ -93,12 +94,16 @@ npm run test:e2e  # browser E2E test (Playwright) — ใช้ mock Supabase cl
 ```
 app/
   login/page.tsx        หน้าเข้าสู่ระบบ / สมัครสมาชิก
-  dashboard/page.tsx     หน้าหลัก — สถิติ, filter, ตารางรายการ
-components/              UI components (ฟอร์ม, ตาราง, navbar, การ์ดสถิติ, แผงนำเข้า Excel)
+  dashboard/page.tsx     Sidebar + Header + ตัวสลับเนื้อหา (DashboardShell) และหน้าหลักเดิม
+                         (DashboardContent — สถิติ, filter, ตารางรายการ)
+components/              UI components (ฟอร์ม, ตาราง, การ์ดสถิติ, แผงนำเข้า Excel,
+                         Sidebar, Header, ComingSoon)
+  Navbar.tsx              แถบบนเดิม (ก่อนมี Sidebar) — ไม่ได้ใช้งานแล้วแต่เก็บไว้ไม่ลบ
 lib/
   invoiceLogic.ts         business logic ล้วน (VAT, aging, filter/sort, validation) — มี unit test
   invoiceApi.ts            เรียก Supabase (CRUD + บันทึกหลายรายการพร้อมกันตอน import)
   excelImport.ts           อ่าน/ตรวจสอบ/สร้างไฟล์ Excel สำหรับนำเข้ารายการ — มี unit test
+  navigation.ts            โครงสร้างเมนู Sidebar ทั้งหมด (แก้ตรงนี้ที่เดียวถ้าต้องการเพิ่ม/ลบเมนู)
   supabaseClient.ts        สร้าง Supabase client (รองรับ mock override สำหรับทดสอบ)
   AuthContext.tsx           React context เก็บ session ปัจจุบัน
 supabase/migration.sql     SQL สร้างตาราง + RLS
@@ -140,3 +145,24 @@ e2e/                       Playwright E2E tests + mock Supabase client
 > ประมวลผลเฉพาะไฟล์ที่ผู้ใช้ในทีมอัปโหลดเอง และผลกระทบจำกัดอยู่แค่ browser tab ของผู้ใช้เอง
 > (ไม่กระทบฐานข้อมูลหรือผู้ใช้คนอื่น) — ทางเลือกอื่น (`exceljs`) มี dependency tree ที่หนักกว่าและ
 > deprecated มากกว่าโดยไม่ได้ลดความเสี่ยงจริงลงในบริบทนี้
+
+## 7. เมนู Sidebar
+
+หน้าเว็บมีแถบเมนูด้านซ้าย (Sidebar) แบบระบบ ERP ครอบคลุมทั้งเว็บ — เนื้อหาเดิม (หน้าติดตาม
+ใบกำกับภาษี, สถิติ, ตาราง, สรุป VAT รายเดือน ฯลฯ) ไม่มีการเปลี่ยนแปลง Logic/ฟังก์ชันใด ๆ เลย
+แค่ถูกย้ายไปแสดงในเมนู **"ใบกำกับภาษี"** (เมนูแรกสุด, active เป็นค่าเริ่มต้นเสมอ)
+
+โครงสร้างเมนู:
+
+- **ใบกำกับภาษี** — หน้าเดิมทั้งหมด (มีฟีเจอร์จริง)
+- **บันทึกการจ่ายเงิน** — บันทึกค่าใช้จ่าย, รายงานจ่ายเงิน
+- **กระทบยอด** — Bank Reconcile, VAT Reconcile, ภาษีซื้อไม่ถึงกำหนด, ตรวจสอบข้อมูล
+
+เมนูย่อยนอกเหนือจาก "ใบกำกับภาษี" ยังไม่มีฟีเจอร์จริง คลิกได้ตามปกติแต่จะขึ้นหน้า **"เร็วๆ นี้"**
+แทน (ไม่ใช่ปุ่มที่กดแล้วไม่มีอะไรเกิดขึ้น) — เพิ่มฟีเจอร์จริงทีหลังได้โดยไม่ต้องแก้ Sidebar เลย
+แค่สร้างหน้า/component ใหม่แล้วเปลี่ยน `implemented: false` เป็น `true` ที่ `lib/navigation.ts`
+
+พฤติกรรมอื่น ๆ: หมวด "บันทึกการจ่ายเงิน" และ "กระทบยอด" ยุบ/ขยายได้อิสระจากกัน, ระบบจำเมนูที่
+เลือกและสถานะยุบ/ขยายไว้ในเบราว์เซอร์ (ข้าม refresh ได้ แต่เป็นการจำต่อเบราว์เซอร์ ไม่ใช่ต่อบัญชี),
+และเมื่อจอแคบกว่า 992px (มือถือ/แท็บเล็ต) sidebar จะซ่อนเป็นค่าเริ่มต้น เปิดผ่านปุ่มแฮมเบอร์เกอร์มุม
+บนซ้าย ปิดได้ด้วยการแตะพื้นหลังมืด, ปุ่ม X, ปัดนิ้วไปทางซ้ายบน sidebar, หรือเลือกเมนูใด ๆ

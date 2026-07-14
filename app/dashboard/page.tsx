@@ -1,9 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import Navbar from '@/components/Navbar';
+import Sidebar from '@/components/Sidebar';
+import Header from '@/components/Header';
+import ComingSoon from '@/components/ComingSoon';
 import StatsCards from '@/components/StatsCards';
 import InvoiceForm from '@/components/InvoiceForm';
 import InvoiceTable from '@/components/InvoiceTable';
@@ -21,9 +23,11 @@ import {
 } from '@/lib/invoiceApi';
 import { computeMonthlyVatSummary, computeStats, filterInvoices, sortInvoices } from '@/lib/invoiceLogic';
 import { excelRowToWriteInput, type ExcelImportRow } from '@/lib/excelImport';
+import { DEFAULT_ACTIVE_ID, findNavLeaf } from '@/lib/navigation';
 import type { InvoiceFormInput, InvoiceStatus, PendingTaxInvoice, SortDirection, SortField } from '@/types/invoice';
 
 const INVOICES_KEY = 'pending_tax_invoices';
+const ACTIVE_NAV_STORAGE_KEY = 'benz_sidebar_active';
 
 function todayISO(): string {
   const now = new Date();
@@ -33,12 +37,64 @@ function todayISO(): string {
   return `${y}-${m}-${d}`;
 }
 
+// โครง Sidebar + Header ใหม่ (DashboardShell) — DashboardContent ด้านล่างนี้ (state, handler,
+// การเรียก SWR/API ทั้งหมด) ไม่ถูกแก้ไขแม้แต่บรรทัดเดียว แค่ย้ายไปแสดงในพื้นที่เนื้อหาด้านขวา
+// แทนที่ Navbar เดิม โดยจะแสดงก็ต่อเมื่อเมนูที่ active คือ "ใบกำกับภาษี" (หน้า Dashboard เดิม)
 export default function DashboardPage() {
   return (
     <ProtectedRoute>
-      <Navbar />
-      <DashboardContent />
+      <DashboardShell />
     </ProtectedRoute>
+  );
+}
+
+// อ่านเมนูที่ active ล่าสุดจาก localStorage (client-only) — ถ้ายังไม่เคยมีค่า (เช่นล็อกอินครั้งแรก
+// ในเบราว์เซอร์นี้) จะใช้ DEFAULT_ACTIVE_ID คือหน้า Dashboard เดิมเสมอ
+function readInitialActiveId(): string {
+  if (typeof window === 'undefined') return DEFAULT_ACTIVE_ID;
+  try {
+    const saved = localStorage.getItem(ACTIVE_NAV_STORAGE_KEY);
+    if (saved && findNavLeaf(saved)) return saved;
+  } catch {
+    // localStorage ใช้ไม่ได้ (เช่น private mode) — ใช้ค่า default ต่อไป
+  }
+  return DEFAULT_ACTIVE_ID;
+}
+
+function DashboardShell() {
+  const [activeId, setActiveId] = useState<string>(readInitialActiveId);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // บันทึกเมนูที่ active ไว้ทุกครั้งที่เปลี่ยน เพื่อให้จำได้ข้าม refresh
+  useEffect(() => {
+    try {
+      localStorage.setItem(ACTIVE_NAV_STORAGE_KEY, activeId);
+    } catch {
+      // เขียน localStorage ไม่ได้ก็ไม่เป็นไร แค่จำเมนูข้าม refresh ไม่ได้
+    }
+  }, [activeId]);
+
+  const activeEntry = findNavLeaf(activeId);
+  const title = activeEntry?.label ?? '';
+
+  function handleSelect(id: string) {
+    setActiveId(id);
+    setMobileNavOpen(false);
+  }
+
+  return (
+    <div className="flex min-h-screen bg-gray-50">
+      <Sidebar
+        activeId={activeId}
+        onSelect={handleSelect}
+        isOpen={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+      />
+      <div className="flex min-h-screen flex-1 flex-col min-[992px]:ml-[250px]">
+        <Header title={title} onMenuClick={() => setMobileNavOpen(true)} />
+        {activeEntry?.implemented ? <DashboardContent /> : <ComingSoon label={title} />}
+      </div>
+    </div>
   );
 }
 
