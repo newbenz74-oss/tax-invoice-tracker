@@ -103,6 +103,8 @@ export default function InvoiceTable({
                 {sortField === col.field && (sortDirection === 'asc' ? ' ▲' : ' ▼')}
               </th>
             ))}
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">ยอดก่อน VAT</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">VAT</th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">เลขที่อ้างอิง</th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">สถานะ / Aging</th>
             <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">การจัดการ</th>
@@ -119,6 +121,15 @@ export default function InvoiceTable({
                 <td className="px-4 py-3 text-gray-600">{formatDate(invoice.transaction_date)}</td>
                 <td className="px-4 py-3 text-gray-900">{THB.format(invoice.total_amount)}</td>
                 <td className="px-4 py-3 text-gray-600">{formatDate(invoice.expected_date)}</td>
+                <td
+                  className="px-4 py-3 text-right text-gray-600"
+                  data-testid={`amount-excl-vat-${invoice.id}`}
+                >
+                  {THB.format(invoice.amount_excl_vat)}
+                </td>
+                <td className="px-4 py-3 text-right text-gray-600" data-testid={`vat-amount-${invoice.id}`}>
+                  {THB.format(invoice.vat_amount)}
+                </td>
                 <td className="px-4 py-3 text-gray-600">{invoice.reference_no || '-'}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-1">

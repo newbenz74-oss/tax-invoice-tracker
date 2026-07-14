@@ -93,6 +93,52 @@ test.describe('Invoice CRUD และ business logic', () => {
     expect(errors).toEqual([]);
   });
 
+  test('แสดงยอดก่อน VAT / VAT ในตาราง การ์ดสถิติ VAT ที่รอรับ และสรุป VAT รายเดือนถูกต้อง', async ({ page }) => {
+    const errors = attachConsoleErrorCollector(page);
+    const currentMonth = isoDaysFromNow(0).slice(0, 7);
+    await setupMockSupabase(page, {
+      loggedInAs: OWNER,
+      users: [{ email: OWNER, password: 'x' }],
+      invoices: [
+        {
+          id: 'inv-vat-pending',
+          vendor_name: 'ผู้ขาย VAT ค้างรับ',
+          transaction_date: isoDaysFromNow(0),
+          amount_excl_vat: 1000,
+          vat_amount: 70,
+          status: 'pending',
+        },
+        {
+          id: 'inv-vat-received',
+          vendor_name: 'ผู้ขาย VAT ได้รับแล้ว',
+          transaction_date: isoDaysFromNow(0),
+          amount_excl_vat: 2000,
+          vat_amount: 140,
+          status: 'received',
+          received_date: isoDaysFromNow(0),
+          tax_invoice_number: 'INV-777',
+        },
+      ],
+    });
+    await page.goto('/dashboard');
+    await page.getByTestId('filter-all').click();
+
+    // คอลัมน์ยอดก่อน VAT และ VAT ต่อแถวในตารางหลัก
+    await expect(page.getByTestId('amount-excl-vat-inv-vat-pending')).toHaveText('1,000.00');
+    await expect(page.getByTestId('vat-amount-inv-vat-pending')).toHaveText('70.00');
+    await expect(page.getByTestId('amount-excl-vat-inv-vat-received')).toHaveText('2,000.00');
+    await expect(page.getByTestId('vat-amount-inv-vat-received')).toHaveText('140.00');
+
+    // การ์ดสถิติ "VAT ที่รอรับ" นับเฉพาะรายการ pending (70 บาท ไม่รวมของ received)
+    await expect(page.getByTestId('stat-pending-vat')).toContainText('70.00');
+
+    // สรุป VAT รายเดือน — แยกค้างรับ (70) กับได้รับแล้ว (140) ถูกต้อง
+    await expect(page.getByTestId(`vat-pending-${currentMonth}`)).toHaveText('70.00');
+    await expect(page.getByTestId(`vat-received-${currentMonth}`)).toHaveText('140.00');
+
+    expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
+  });
+
   test('กรองตามสถานะและค้นหาผู้ขาย', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, {

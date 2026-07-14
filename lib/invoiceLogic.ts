@@ -149,6 +149,7 @@ export function sortInvoices(
 export interface InvoiceStats {
   totalPending: number;
   totalPendingAmount: number;
+  totalPendingVat: number;
   totalReceived: number;
   totalCancelled: number;
   totalOverdue: number;
@@ -166,8 +167,37 @@ export function computeStats(invoices: PendingTaxInvoice[], today: string): Invo
   return {
     totalPending: pending.length,
     totalPendingAmount: round2(pending.reduce((sum, i) => sum + i.total_amount, 0)),
+    totalPendingVat: round2(pending.reduce((sum, i) => sum + i.vat_amount, 0)),
     totalReceived: received.length,
     totalCancelled: cancelled.length,
     totalOverdue: overdue.length,
   };
+}
+
+/** สรุปยอด VAT รายเดือน (ตามเดือนของวันที่ทำรายการ) แยกเป็นค้างรับ (pending) กับได้รับแล้ว (received)
+ * — ไม่นับรายการที่ยกเลิก เรียงเดือนล่าสุดขึ้นก่อน */
+export interface MonthlyVatSummaryRow {
+  month: string; // 'YYYY-MM'
+  vatPending: number;
+  vatReceived: number;
+}
+
+export function computeMonthlyVatSummary(invoices: PendingTaxInvoice[]): MonthlyVatSummaryRow[] {
+  const byMonth = new Map<string, { vatPending: number; vatReceived: number }>();
+
+  for (const invoice of invoices) {
+    if (invoice.status === 'cancelled') continue;
+    const month = invoice.transaction_date.slice(0, 7);
+    const entry = byMonth.get(month) ?? { vatPending: 0, vatReceived: 0 };
+    if (invoice.status === 'pending') {
+      entry.vatPending += invoice.vat_amount;
+    } else if (invoice.status === 'received') {
+      entry.vatReceived += invoice.vat_amount;
+    }
+    byMonth.set(month, entry);
+  }
+
+  return Array.from(byMonth.entries())
+    .map(([month, v]) => ({ month, vatPending: round2(v.vatPending), vatReceived: round2(v.vatReceived) }))
+    .sort((a, b) => b.month.localeCompare(a.month));
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   calcTotal,
+  computeMonthlyVatSummary,
   computeStats,
   daysBetween,
   filterInvoices,
@@ -301,6 +302,7 @@ describe('computeStats', () => {
     const stats = computeStats(invoices, TODAY);
     expect(stats.totalPending).toBe(2);
     expect(stats.totalPendingAmount).toBe(300);
+    expect(stats.totalPendingVat).toBe(140); // ทั้งสองรายการ pending ใช้ vat_amount default 70 จาก makeInvoice
     expect(stats.totalReceived).toBe(1);
     expect(stats.totalCancelled).toBe(1);
     expect(stats.totalOverdue).toBe(1);
@@ -310,6 +312,52 @@ describe('computeStats', () => {
     const stats = computeStats([], TODAY);
     expect(stats.totalPending).toBe(0);
     expect(stats.totalPendingAmount).toBe(0);
+    expect(stats.totalPendingVat).toBe(0);
     expect(stats.totalOverdue).toBe(0);
+  });
+});
+
+describe('computeMonthlyVatSummary', () => {
+  it('รวม VAT แยกตามเดือนและสถานะ (ค้างรับ vs ได้รับแล้ว)', () => {
+    const invoices = [
+      makeInvoice({ id: '1', transaction_date: '2026-07-01', vat_amount: 70, status: 'pending' }),
+      makeInvoice({ id: '2', transaction_date: '2026-07-15', vat_amount: 30, status: 'pending' }),
+      makeInvoice({ id: '3', transaction_date: '2026-07-20', vat_amount: 50, status: 'received' }),
+    ];
+    const summary = computeMonthlyVatSummary(invoices);
+    expect(summary).toHaveLength(1);
+    expect(summary[0].month).toBe('2026-07');
+    expect(summary[0].vatPending).toBe(100);
+    expect(summary[0].vatReceived).toBe(50);
+  });
+
+  it('แยกกลุ่มตามเดือนที่ต่างกัน เรียงเดือนล่าสุดขึ้นก่อน', () => {
+    const invoices = [
+      makeInvoice({ id: '1', transaction_date: '2026-05-01', vat_amount: 10, status: 'pending' }),
+      makeInvoice({ id: '2', transaction_date: '2026-07-01', vat_amount: 20, status: 'pending' }),
+      makeInvoice({ id: '3', transaction_date: '2026-06-01', vat_amount: 30, status: 'pending' }),
+    ];
+    const summary = computeMonthlyVatSummary(invoices);
+    expect(summary.map((s) => s.month)).toEqual(['2026-07', '2026-06', '2026-05']);
+  });
+
+  it('ไม่นับรายการที่ยกเลิกแล้ว — เดือนที่มีแต่รายการยกเลิกจะไม่ปรากฏเลย', () => {
+    const invoices = [makeInvoice({ id: '1', transaction_date: '2026-07-01', vat_amount: 70, status: 'cancelled' })];
+    expect(computeMonthlyVatSummary(invoices)).toHaveLength(0);
+  });
+
+  it('เดือนที่มีทั้งรายการยกเลิกและไม่ยกเลิก — นับเฉพาะที่ไม่ยกเลิก', () => {
+    const invoices = [
+      makeInvoice({ id: '1', transaction_date: '2026-07-01', vat_amount: 70, status: 'pending' }),
+      makeInvoice({ id: '2', transaction_date: '2026-07-05', vat_amount: 999, status: 'cancelled' }),
+    ];
+    const summary = computeMonthlyVatSummary(invoices);
+    expect(summary).toHaveLength(1);
+    expect(summary[0].vatPending).toBe(70);
+    expect(summary[0].vatReceived).toBe(0);
+  });
+
+  it('ไม่มีรายการคืนค่า array ว่าง', () => {
+    expect(computeMonthlyVatSummary([])).toEqual([]);
   });
 });

@@ -8,6 +8,7 @@ import StatsCards from '@/components/StatsCards';
 import InvoiceForm from '@/components/InvoiceForm';
 import InvoiceTable from '@/components/InvoiceTable';
 import ExcelImportPanel from '@/components/ExcelImportPanel';
+import MonthlyVatSummary from '@/components/MonthlyVatSummary';
 import { useAuth } from '@/lib/AuthContext';
 import {
   bulkCreateInvoices,
@@ -18,7 +19,7 @@ import {
   markReceived as apiMarkReceived,
   updateInvoice,
 } from '@/lib/invoiceApi';
-import { computeStats, filterInvoices, sortInvoices } from '@/lib/invoiceLogic';
+import { computeMonthlyVatSummary, computeStats, filterInvoices, sortInvoices } from '@/lib/invoiceLogic';
 import { excelRowToWriteInput, type ExcelImportRow } from '@/lib/excelImport';
 import type { InvoiceFormInput, InvoiceStatus, PendingTaxInvoice, SortDirection, SortField } from '@/types/invoice';
 
@@ -65,6 +66,7 @@ function DashboardContent() {
   const [showImportPanel, setShowImportPanel] = useState(false);
 
   const stats = useMemo(() => computeStats(invoices, today), [invoices, today]);
+  const monthlyVat = useMemo(() => computeMonthlyVatSummary(invoices), [invoices]);
 
   const visibleInvoices = useMemo(() => {
     const filtered = filterInvoices(invoices, { status: statusFilter, search });
@@ -217,21 +219,28 @@ function DashboardContent() {
       {loading ? (
         <p className="py-12 text-center text-sm text-gray-400">กำลังโหลดข้อมูล...</p>
       ) : (
-        <InvoiceTable
-          invoices={visibleInvoices}
-          today={today}
-          sortField={sortField}
-          sortDirection={sortDirection}
-          onSortChange={handleSortChange}
-          onEdit={(invoice) => {
-            setEditingInvoice(invoice);
-            setShowForm(true);
-            setShowImportPanel(false);
-          }}
-          onMarkReceived={handleMarkReceived}
-          onCancelInvoice={handleCancelInvoice}
-          onDelete={handleDelete}
-        />
+        <>
+          <InvoiceTable
+            invoices={visibleInvoices}
+            today={today}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSortChange={handleSortChange}
+            onEdit={(invoice) => {
+              setEditingInvoice(invoice);
+              setShowForm(true);
+              setShowImportPanel(false);
+            }}
+            onMarkReceived={handleMarkReceived}
+            onCancelInvoice={handleCancelInvoice}
+            onDelete={handleDelete}
+          />
+
+          <div className="mt-8">
+            <h2 className="mb-3 text-sm font-bold text-gray-900">สรุป VAT รายเดือน</h2>
+            <MonthlyVatSummary rows={monthlyVat} />
+          </div>
+        </>
       )}
     </main>
   );
