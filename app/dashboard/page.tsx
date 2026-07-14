@@ -39,7 +39,9 @@ function todayISO(): string {
 
 // โครง Sidebar + Header ใหม่ (DashboardShell) — DashboardContent ด้านล่างนี้ (state, handler,
 // การเรียก SWR/API ทั้งหมด) ไม่ถูกแก้ไขแม้แต่บรรทัดเดียว แค่ย้ายไปแสดงในพื้นที่เนื้อหาด้านขวา
-// แทนที่ Navbar เดิม โดยจะแสดงก็ต่อเมื่อเมนูที่ active คือ "ใบกำกับภาษี" (หน้า Dashboard เดิม)
+// แทนที่ Navbar เดิม โดยจะแสดงก็ต่อเมื่อเมนูที่ active คือ "บันทึกค่าใช้จ่าย" (เมนูในหมวด
+// "บันทึกการจ่ายเงิน" ที่ผูกกับหน้า Dashboard เดิมนี้ไว้ และเป็นหน้าแรกของระบบตอนนี้ — เดิมเคย
+// ผูกกับเมนู "ใบกำกับภาษี" ที่ถูกลบออกไปแล้ว ดู lib/navigation.ts)
 export default function DashboardPage() {
   return (
     <ProtectedRoute>
@@ -49,7 +51,8 @@ export default function DashboardPage() {
 }
 
 // อ่านเมนูที่ active ล่าสุดจาก localStorage (client-only) — ถ้ายังไม่เคยมีค่า (เช่นล็อกอินครั้งแรก
-// ในเบราว์เซอร์นี้) จะใช้ DEFAULT_ACTIVE_ID คือหน้า Dashboard เดิมเสมอ
+// ในเบราว์เซอร์นี้ หรือค่าเดิมที่บันทึกไว้ชี้ไปเมนูที่ถูกลบไปแล้วอย่าง 'dashboard') จะ fallback ไปใช้
+// DEFAULT_ACTIVE_ID คือ 'record-expense' (บันทึกค่าใช้จ่าย, หน้าเดิมของ Dashboard) เสมอ
 function readInitialActiveId(): string {
   if (typeof window === 'undefined') return DEFAULT_ACTIVE_ID;
   try {

@@ -2,7 +2,6 @@ import {
   FileClock,
   FileCheck2,
   Landmark,
-  LayoutDashboard,
   ScrollText,
   SearchCheck,
   Send,
@@ -37,17 +36,14 @@ export function isNavSection(entry: NavEntry): entry is NavSection {
 
 export const NAV_STRUCTURE: NavEntry[] = [
   {
-    id: 'dashboard',
-    label: 'ใบกำกับภาษี',
-    icon: LayoutDashboard,
-    implemented: true,
-  },
-  {
     id: 'payments',
     label: 'บันทึกการจ่ายเงิน',
     icon: Send,
     children: [
-      { id: 'record-expense', label: 'บันทึกค่าใช้จ่าย', icon: Wallet, implemented: false },
+      // เมนูนี้ใช้หน้าเดิมของ Dashboard เป็นเนื้อหาหลัก (สถิติ/ตาราง/filter/นำเข้า Excel/สรุป VAT
+      // รายเดือน — logic เดิมทั้งหมดไม่ถูกแก้ ดู DashboardContent ใน app/dashboard/page.tsx) —
+      // implemented: true และเป็น DEFAULT_ACTIVE_ID ด้านล่าง ทำให้เป็นหน้าแรกของระบบ
+      { id: 'record-expense', label: 'บันทึกค่าใช้จ่าย', icon: Wallet, implemented: true },
       { id: 'payment-report', label: 'รายงานจ่ายเงิน', icon: ScrollText, implemented: false },
     ],
   },
@@ -64,8 +60,8 @@ export const NAV_STRUCTURE: NavEntry[] = [
   },
 ];
 
-/** เมนูที่ active เป็นค่าเริ่มต้นตอนล็อกอินครั้งแรก (ยังไม่มีค่าใน localStorage) */
-export const DEFAULT_ACTIVE_ID = 'dashboard';
+/** เมนูที่ active เป็นค่าเริ่มต้นตอนล็อกอินครั้งแรก (ยังไม่มีค่าใน localStorage) — หน้าแรกของระบบ */
+export const DEFAULT_ACTIVE_ID = 'record-expense';
 
 /** หา NavLeaf จาก id (ทั้ง top-level และที่อยู่ในหมวดย่อย) — คืน null ถ้าไม่พบ */
 export function findNavLeaf(id: string): NavLeaf | null {

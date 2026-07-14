@@ -4,13 +4,13 @@ import { attachConsoleErrorCollector, setupMockSupabase } from './helpers';
 const OWNER = 'user@example.com';
 
 test.describe('Sidebar navigation', () => {
-  test('เมนู "ใบกำกับภาษี" active เป็นค่าเริ่มต้น และเห็นเนื้อหา Dashboard เดิม', async ({ page }) => {
+  test('เมนู "บันทึกค่าใช้จ่าย" active เป็นค่าเริ่มต้น และเห็นเนื้อหา Dashboard เดิม', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
     await page.goto('/dashboard');
 
-    await expect(page.getByTestId('nav-item-dashboard')).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByRole('heading', { level: 1, name: 'ใบกำกับภาษี' })).toBeVisible();
+    await expect(page.getByTestId('nav-item-record-expense')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกค่าใช้จ่าย' })).toBeVisible();
     await expect(page.getByTestId('open-add-form')).toBeVisible();
     await expect(page.getByTestId('coming-soon')).toHaveCount(0);
 
@@ -22,12 +22,12 @@ test.describe('Sidebar navigation', () => {
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
     await page.goto('/dashboard');
 
-    await page.getByTestId('nav-item-record-expense').click();
+    await page.getByTestId('nav-item-payment-report').click();
 
     await expect(page.getByTestId('coming-soon')).toBeVisible();
-    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกค่าใช้จ่าย' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'รายงานจ่ายเงิน' })).toBeVisible();
     await expect(page.getByTestId('open-add-form')).toHaveCount(0);
-    await expect(page.getByTestId('nav-item-record-expense')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('nav-item-payment-report')).toHaveAttribute('aria-current', 'page');
     // Header (อีเมล/ปุ่มออกจากระบบ) ต้องยังอยู่ครบแม้ไม่ได้อยู่หน้า Dashboard
     await expect(page.getByRole('button', { name: 'ออกจากระบบ' })).toBeVisible();
 
@@ -91,7 +91,7 @@ test.describe('Sidebar navigation', () => {
     await expect
       .poll(async () => (await page.getByTestId('sidebar').boundingBox())?.x)
       .toBe(0);
-    await expect(page.getByTestId('nav-item-dashboard')).toBeVisible();
+    await expect(page.getByTestId('nav-item-record-expense')).toBeVisible();
 
     await page.getByTestId('sidebar-overlay').click();
     await expect(page.getByTestId('sidebar-overlay')).toHaveCount(0);
@@ -111,7 +111,7 @@ test.describe('Sidebar navigation', () => {
     await page.getByTestId('mobile-menu-button').click();
     await expect(page.getByTestId('sidebar-overlay')).toBeVisible();
 
-    await page.getByTestId('nav-item-record-expense').click();
+    await page.getByTestId('nav-item-payment-report').click();
 
     await expect(page.getByTestId('sidebar-overlay')).toHaveCount(0);
     await expect(page.getByTestId('coming-soon')).toBeVisible();
