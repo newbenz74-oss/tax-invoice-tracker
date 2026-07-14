@@ -132,7 +132,7 @@ export function installMockSupabase(seed: MockSeed = {}) {
   class QueryBuilder {
     private table: string;
     private op: 'select' | 'insert' | 'update' | 'delete' = 'select';
-    private payload: Record<string, unknown> | null = null;
+    private payload: Record<string, unknown> | Record<string, unknown>[] | null = null;
     private filters: [string, unknown][] = [];
     private orderBy: { field: string; ascending: boolean } | null = null;
     private wantSingle = false;
@@ -145,7 +145,9 @@ export function installMockSupabase(seed: MockSeed = {}) {
       return this;
     }
 
-    insert(payload: Record<string, unknown>) {
+    // Supabase จริงรองรับทั้ง insert แถวเดียว (object) และ insert หลายแถวพร้อมกัน (array of object)
+    // เช่นที่ bulkCreateInvoices() ใช้ตอน import จาก Excel — mock นี้ต้องรองรับทั้งสองแบบให้ตรงพฤติกรรมจริง
+    insert(payload: Record<string, unknown> | Record<string, unknown>[]) {
       this.op = 'insert';
       this.payload = payload;
       return this;
@@ -188,18 +190,22 @@ export function installMockSupabase(seed: MockSeed = {}) {
       }
 
       if (this.op === 'insert') {
-        const newRow: Record<string, unknown> = {
-          id: genId(),
-          created_at: nowISO(),
-          updated_at: nowISO(),
-          status: 'pending',
-          ...this.payload,
-        };
-        const amount = Number(newRow.amount_excl_vat ?? 0);
-        const vat = Number(newRow.vat_amount ?? 0);
-        newRow.total_amount = round2(amount + vat);
-        rows.push(newRow);
-        return { data: this.wantSingle ? newRow : [newRow], error: null };
+        const payloadRows = Array.isArray(this.payload) ? this.payload : [this.payload ?? {}];
+        const newRows = payloadRows.map((p) => {
+          const newRow: Record<string, unknown> = {
+            id: genId(),
+            created_at: nowISO(),
+            updated_at: nowISO(),
+            status: 'pending',
+            ...p,
+          };
+          const amount = Number(newRow.amount_excl_vat ?? 0);
+          const vat = Number(newRow.vat_amount ?? 0);
+          newRow.total_amount = round2(amount + vat);
+          return newRow;
+        });
+        rows.push(...newRows);
+        return { data: this.wantSingle ? newRows[0] ?? null : newRows, error: null };
       }
 
       if (this.op === 'update') {

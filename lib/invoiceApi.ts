@@ -43,6 +43,29 @@ export async function createInvoice(
   return data as PendingTaxInvoice;
 }
 
+/** เพิ่มหลายรายการพร้อมกันในครั้งเดียว (ใช้ตอน import จาก Excel) — insert เดียวกันทั้งหมด
+ * ถ้าแถวใดผิดพลาด (เช่น constraint ที่ฐานข้อมูล) จะไม่มีแถวไหนถูกบันทึกเลย (all-or-nothing) */
+export async function bulkCreateInvoices(
+  inputs: InvoiceWriteInput[],
+  createdBy: { id: string | null; email: string | null }
+): Promise<PendingTaxInvoice[]> {
+  if (inputs.length === 0) return [];
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .insert(
+      inputs.map((input) => ({
+        ...input,
+        status: 'pending' as InvoiceStatus,
+        created_by: createdBy.id,
+        created_by_email: createdBy.email,
+      }))
+    )
+    .select();
+  if (error) throw error;
+  return (data ?? []) as PendingTaxInvoice[];
+}
+
 export async function updateInvoice(
   id: string,
   patch: Partial<InvoiceWriteInput>

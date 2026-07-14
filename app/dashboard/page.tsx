@@ -7,8 +7,10 @@ import Navbar from '@/components/Navbar';
 import StatsCards from '@/components/StatsCards';
 import InvoiceForm from '@/components/InvoiceForm';
 import InvoiceTable from '@/components/InvoiceTable';
+import ExcelImportPanel from '@/components/ExcelImportPanel';
 import { useAuth } from '@/lib/AuthContext';
 import {
+  bulkCreateInvoices,
   cancelInvoice as apiCancelInvoice,
   createInvoice,
   deleteInvoice as apiDeleteInvoice,
@@ -17,6 +19,7 @@ import {
   updateInvoice,
 } from '@/lib/invoiceApi';
 import { computeStats, filterInvoices, sortInvoices } from '@/lib/invoiceLogic';
+import { excelRowToWriteInput, type ExcelImportRow } from '@/lib/excelImport';
 import type { InvoiceFormInput, InvoiceStatus, PendingTaxInvoice, SortDirection, SortField } from '@/types/invoice';
 
 const INVOICES_KEY = 'pending_tax_invoices';
@@ -59,6 +62,7 @@ function DashboardContent() {
 
   const [showForm, setShowForm] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<PendingTaxInvoice | null>(null);
+  const [showImportPanel, setShowImportPanel] = useState(false);
 
   const stats = useMemo(() => computeStats(invoices, today), [invoices, today]);
 
@@ -98,6 +102,16 @@ function DashboardContent() {
     }
     setShowForm(false);
     setEditingInvoice(null);
+    await mutate();
+  }
+
+  async function handleImportRows(rows: ExcelImportRow[]) {
+    const inputs = rows.map(excelRowToWriteInput);
+    await bulkCreateInvoices(inputs, {
+      id: session?.user?.id ?? null,
+      email: session?.user?.email ?? null,
+    });
+    setShowImportPanel(false);
     await mutate();
   }
 
@@ -147,8 +161,19 @@ function DashboardContent() {
             />
             <button
               onClick={() => {
+                setShowImportPanel(true);
+                setShowForm(false);
+              }}
+              className="rounded-lg border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              data-testid="open-import-panel"
+            >
+              นำเข้าจาก Excel
+            </button>
+            <button
+              onClick={() => {
                 setEditingInvoice(null);
                 setShowForm(true);
+                setShowImportPanel(false);
               }}
               className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
               data-testid="open-add-form"
@@ -176,6 +201,13 @@ function DashboardContent() {
         </div>
       )}
 
+      {showImportPanel && (
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+          <h2 className="mb-4 text-sm font-bold text-gray-900">นำเข้ารายการจาก Excel</h2>
+          <ExcelImportPanel onImport={handleImportRows} onClose={() => setShowImportPanel(false)} />
+        </div>
+      )}
+
       {loadError && (
         <p role="alert" className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
           {loadError}
@@ -194,6 +226,7 @@ function DashboardContent() {
           onEdit={(invoice) => {
             setEditingInvoice(invoice);
             setShowForm(true);
+            setShowImportPanel(false);
           }}
           onMarkReceived={handleMarkReceived}
           onCancelInvoice={handleCancelInvoice}

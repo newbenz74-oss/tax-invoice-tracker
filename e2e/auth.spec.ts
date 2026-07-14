@@ -13,7 +13,7 @@ test.describe('Auth', () => {
     await page.locator('button[type="submit"]').click();
 
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByText('เว็บติดตามใบกำกับภาษี').first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'ใบกำกับภาษี' })).toBeVisible();
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
 
