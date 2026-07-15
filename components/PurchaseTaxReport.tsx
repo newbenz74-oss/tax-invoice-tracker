@@ -64,7 +64,7 @@ export default function PurchaseTaxReport() {
           <select
             value={month}
             onChange={(e) => setMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+            className="focus-ring-primary rounded-[10px] border border-border bg-white px-3.5 py-2.5 text-sm text-text"
             data-testid="report-month-filter"
           >
             <option value="all">ทั้งปี</option>
@@ -77,7 +77,7 @@ export default function PurchaseTaxReport() {
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+            className="focus-ring-primary rounded-[10px] border border-border bg-white px-3.5 py-2.5 text-sm text-text"
             data-testid="report-year-filter"
           >
             {buddhistYearOptions().map((y) => (
@@ -93,7 +93,7 @@ export default function PurchaseTaxReport() {
             type="button"
             onClick={handleExportExcel}
             disabled={rows.length === 0}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-text hover:bg-page-bg disabled:opacity-50"
             data-testid="export-excel"
           >
             <FileSpreadsheet size={16} aria-hidden="true" />
@@ -103,7 +103,7 @@ export default function PurchaseTaxReport() {
             type="button"
             onClick={handleExportPdf}
             disabled={rows.length === 0}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-text hover:bg-page-bg disabled:opacity-50"
             data-testid="export-pdf"
           >
             <FileText size={16} aria-hidden="true" />
@@ -113,65 +113,71 @@ export default function PurchaseTaxReport() {
       </div>
 
       {loadError && (
-        <p role="alert" className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+        <p role="alert" className="mb-4 rounded-[10px] border border-danger/20 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
           {loadError}
         </p>
       )}
 
       {loading ? (
-        <p className="py-12 text-center text-sm text-gray-400">กำลังโหลดข้อมูล...</p>
+        <p className="py-12 text-center text-sm text-text-sub">กำลังโหลดข้อมูล...</p>
       ) : rows.length === 0 ? (
         <div
-          className="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center text-sm text-gray-400"
+          className="rounded-2xl border border-dashed border-border bg-card-bg p-12 text-center text-sm text-text-sub"
           data-testid="report-empty"
         >
           ไม่พบรายการในช่วงเวลาที่เลือก
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
+        <div className="card-surface overflow-x-auto rounded-2xl">
+          <table className="min-w-full divide-y divide-border text-sm">
+            <thead className="bg-table-header">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">วันที่ใบกำกับภาษี</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">เลขที่ใบกำกับภาษี</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">ผู้ขาย</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">เลขประจำตัวผู้เสียภาษี</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">รายการ</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">ฐานภาษี</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">VAT 7%</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">ยอดรวม</th>
+                <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">วันที่ใบกำกับภาษี</th>
+                <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">เลขที่ใบกำกับภาษี</th>
+                <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">ผู้ขาย</th>
+                <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">เลขประจำตัวผู้เสียภาษี</th>
+                <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">รายการ</th>
+                <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">ฐานภาษี</th>
+                <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">VAT 7%</th>
+                <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">ยอดรวม</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {rows.map((r) => (
-                <tr key={r.id} data-testid={`report-row-${r.id}`}>
-                  <td className="px-4 py-3 text-gray-600">{formatDate(r.taxInvoiceDate)}</td>
-                  <td className="px-4 py-3 text-gray-900">{r.taxInvoiceNumber}</td>
-                  <td className="px-4 py-3 text-gray-900">{r.vendorName}</td>
-                  <td className="px-4 py-3 text-gray-600">{r.vendorTaxId}</td>
-                  <td className="px-4 py-3 text-gray-600">{r.description}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">{THB.format(r.amountExclVat)}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">{THB.format(r.vatAmount)}</td>
-                  <td className="px-4 py-3 text-right font-medium text-gray-900">{THB.format(r.totalAmount)}</td>
+            <tbody className="divide-y divide-border/60">
+              {rows.map((r, index) => (
+                <tr
+                  key={r.id}
+                  data-testid={`report-row-${r.id}`}
+                  className={`transition-colors duration-150 hover:bg-table-row-hover ${
+                    index % 2 === 1 ? 'bg-table-row-zebra' : ''
+                  }`}
+                >
+                  <td className="px-[18px] py-[18px] text-text-sub">{formatDate(r.taxInvoiceDate)}</td>
+                  <td className="px-[18px] py-[18px] text-text">{r.taxInvoiceNumber}</td>
+                  <td className="px-[18px] py-[18px] text-text">{r.vendorName}</td>
+                  <td className="px-[18px] py-[18px] text-text-sub">{r.vendorTaxId}</td>
+                  <td className="px-[18px] py-[18px] text-text-sub">{r.description}</td>
+                  <td className="font-numeric px-[18px] py-[18px] text-right text-text-sub">{THB.format(r.amountExclVat)}</td>
+                  <td className="font-numeric px-[18px] py-[18px] text-right text-text-sub">{THB.format(r.vatAmount)}</td>
+                  <td className="font-numeric px-[18px] py-[18px] text-right font-medium text-text">{THB.format(r.totalAmount)}</td>
                 </tr>
               ))}
             </tbody>
-            <tfoot className="bg-gray-50">
+            <tfoot className="bg-primary-light">
               <tr>
-                <td colSpan={5} className="px-4 py-3 text-right text-sm font-bold text-gray-900">
+                <td colSpan={5} className="px-[18px] py-[18px] text-right text-sm font-bold text-text">
                   รวมทั้งสิ้น ({summary.count} รายการ)
                 </td>
                 <td
-                  className="px-4 py-3 text-right text-sm font-bold text-gray-900"
+                  className="font-numeric px-[18px] py-[18px] text-right text-sm font-bold text-primary"
                   data-testid="report-total-excl-vat"
                 >
                   {THB.format(summary.totalAmountExclVat)}
                 </td>
-                <td className="px-4 py-3 text-right text-sm font-bold text-gray-900" data-testid="report-total-vat">
+                <td className="font-numeric px-[18px] py-[18px] text-right text-sm font-bold text-primary" data-testid="report-total-vat">
                   {THB.format(summary.totalVatAmount)}
                 </td>
                 <td
-                  className="px-4 py-3 text-right text-sm font-bold text-gray-900"
+                  className="font-numeric px-[18px] py-[18px] text-right text-sm font-bold text-primary"
                   data-testid="report-total-amount"
                 >
                   {THB.format(summary.totalAmount)}

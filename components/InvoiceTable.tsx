@@ -38,6 +38,12 @@ const COLUMNS: { field: SortField; label: string }[] = [
   { field: 'expected_date', label: 'คาดว่าจะได้รับ' },
 ];
 
+// อินพุตในตาราง (แถบ "มาร์กว่าได้รับแล้ว") ตั้งใจให้กระชับกว่า input ทั่วไปของระบบ (สูง 48px)
+// เพราะอยู่ในเซลล์ตารางแคบๆ ที่มี 5 ฟิลด์เรียงต่อกัน ใช้ความสูงเต็ม 48px ตรงนี้จะทำให้แถวสูง
+// เกินไปจนตารางดูอึดอัด — คงขนาดกระชับเดิมไว้ แต่ปรับสี/ขอบ/โฟกัสให้เป็นชุดสีใหม่ทั้งหมด
+const inlineInputClass =
+  'w-40 rounded-[10px] border border-border bg-white px-2.5 py-1.5 text-xs text-text focus-ring-primary';
+
 export default function InvoiceTable({
   invoices,
   today,
@@ -94,67 +100,76 @@ export default function InvoiceTable({
 
   if (invoices.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center text-sm text-gray-400">
+      <div className="rounded-2xl border border-dashed border-border bg-card-bg p-12 text-center text-sm text-text-sub">
         ไม่พบรายการ
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50">
+    <div className="card-surface overflow-x-auto rounded-2xl">
+      <table className="min-w-full divide-y divide-border text-sm">
+        <thead className="bg-table-header">
           <tr>
             {COLUMNS.map((col) => (
               <th
                 key={col.field}
                 onClick={() => onSortChange(col.field)}
-                className="cursor-pointer select-none px-4 py-3 text-left text-xs font-semibold text-gray-500 hover:text-gray-700"
+                className="cursor-pointer select-none px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub hover:text-primary"
                 data-testid={`sort-${col.field}`}
               >
                 {col.label}
                 {sortField === col.field && (sortDirection === 'asc' ? ' ▲' : ' ▼')}
               </th>
             ))}
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">ยอดก่อน VAT</th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">VAT</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">เลขที่อ้างอิง</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">สถานะ / Aging</th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">การจัดการ</th>
+            <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">ยอดก่อน VAT</th>
+            <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">VAT</th>
+            <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">เลขที่อ้างอิง</th>
+            <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">สถานะ / Aging</th>
+            <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">การจัดการ</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
-          {invoices.map((invoice) => {
+        <tbody className="divide-y divide-border/60">
+          {invoices.map((invoice, index) => {
             const bucket = getAgingBucket(invoice.expected_date, invoice.status, today);
             const isReceiving = receivingId === invoice.id;
             const isBusy = busyId === invoice.id;
             return (
-              <tr key={invoice.id} data-testid={`invoice-row-${invoice.id}`}>
-                <td className="px-4 py-3 font-medium text-gray-900">{invoice.vendor_name}</td>
-                <td className="px-4 py-3 text-gray-600">{formatDate(invoice.transaction_date)}</td>
-                <td className="px-4 py-3 text-gray-900">{THB.format(invoice.total_amount)}</td>
-                <td className="px-4 py-3 text-gray-600">{formatDate(invoice.expected_date)}</td>
+              <tr
+                key={invoice.id}
+                data-testid={`invoice-row-${invoice.id}`}
+                className={`transition-colors duration-150 hover:bg-table-row-hover ${
+                  index % 2 === 1 ? 'bg-table-row-zebra' : ''
+                }`}
+              >
+                <td className="px-[18px] py-[18px] font-medium text-text">{invoice.vendor_name}</td>
+                <td className="px-[18px] py-[18px] text-text-sub">{formatDate(invoice.transaction_date)}</td>
+                <td className="font-numeric px-[18px] py-[18px] text-text">{THB.format(invoice.total_amount)}</td>
+                <td className="px-[18px] py-[18px] text-text-sub">{formatDate(invoice.expected_date)}</td>
                 <td
-                  className="px-4 py-3 text-right text-gray-600"
+                  className="font-numeric px-[18px] py-[18px] text-right text-text-sub"
                   data-testid={`amount-excl-vat-${invoice.id}`}
                 >
                   {THB.format(invoice.amount_excl_vat)}
                 </td>
-                <td className="px-4 py-3 text-right text-gray-600" data-testid={`vat-amount-${invoice.id}`}>
+                <td
+                  className="font-numeric px-[18px] py-[18px] text-right text-text-sub"
+                  data-testid={`vat-amount-${invoice.id}`}
+                >
                   {THB.format(invoice.vat_amount)}
                 </td>
-                <td className="px-4 py-3 text-gray-600">{invoice.reference_no || '-'}</td>
-                <td className="px-4 py-3">
+                <td className="px-[18px] py-[18px] text-text-sub">{invoice.reference_no || '-'}</td>
+                <td className="px-[18px] py-[18px]">
                   <div className="flex flex-col gap-1">
                     <span
-                      className={`inline-block w-fit rounded-full px-2 py-0.5 text-xs ${getTaxInvoiceStatusBadgeClass(invoice)}`}
+                      className={`inline-block w-fit rounded-full px-3.5 py-2 text-xs font-medium ${getTaxInvoiceStatusBadgeClass(invoice)}`}
                       data-testid={`tax-status-badge-${invoice.id}`}
                     >
                       {getTaxInvoiceStatusLabel(invoice)}
                     </span>
                     {invoice.status === 'pending' && (
                       <span
-                        className={`inline-block w-fit rounded-full px-2 py-0.5 text-xs ${AGING_BADGE_CLASS[bucket]}`}
+                        className={`inline-block w-fit rounded-full px-3.5 py-2 text-xs font-medium ${AGING_BADGE_CLASS[bucket]}`}
                         data-testid={`aging-badge-${invoice.id}`}
                       >
                         {AGING_LABELS[bucket]}
@@ -162,41 +177,41 @@ export default function InvoiceTable({
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-[18px] py-[18px]">
                   {isReceiving ? (
                     <div className="flex flex-col items-end gap-1.5">
                       <input
                         placeholder="เลขที่ใบกำกับภาษี"
                         value={taxInvoiceNumber}
                         onChange={(e) => setTaxInvoiceNumber(e.target.value)}
-                        className="w-40 rounded-lg border border-gray-300 px-2 py-1 text-xs"
+                        className={inlineInputClass}
                         data-testid={`tax-invoice-number-input-${invoice.id}`}
                       />
-                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-gray-400">
+                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-text-sub">
                         วันที่ได้รับเอกสาร
                         <input
                           type="date"
                           value={receivedDate}
                           onChange={(e) => setReceivedDate(e.target.value)}
-                          className="w-40 rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-900"
+                          className={inlineInputClass}
                         />
                       </label>
-                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-gray-400">
+                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-text-sub">
                         วันที่ใบกำกับภาษี *
                         <input
                           type="date"
                           value={taxInvoiceDate}
                           onChange={(e) => setTaxInvoiceDate(e.target.value)}
-                          className="w-40 rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-900"
+                          className={inlineInputClass}
                           data-testid={`tax-invoice-date-input-${invoice.id}`}
                         />
                       </label>
-                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-gray-400">
+                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-text-sub">
                         เดือนที่ใช้เครดิต VAT *
                         <select
                           value={vatClaimMonth}
                           onChange={(e) => setVatClaimMonth(e.target.value ? Number(e.target.value) : '')}
-                          className="w-40 rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-900"
+                          className={inlineInputClass}
                           data-testid={`vat-claim-month-select-${invoice.id}`}
                         >
                           <option value="">เลือกเดือน</option>
@@ -207,12 +222,12 @@ export default function InvoiceTable({
                           ))}
                         </select>
                       </label>
-                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-gray-400">
+                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-text-sub">
                         ปีที่ใช้เครดิต VAT *
                         <select
                           value={vatClaimYear}
                           onChange={(e) => setVatClaimYear(e.target.value ? Number(e.target.value) : '')}
-                          className="w-40 rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-900"
+                          className={inlineInputClass}
                           data-testid={`vat-claim-year-select-${invoice.id}`}
                         >
                           <option value="">เลือกปี</option>
@@ -230,7 +245,7 @@ export default function InvoiceTable({
                             setReceivingId(null);
                             setTaxInvoiceNumber('');
                           }}
-                          className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-500"
+                          className="btn-press rounded-[10px] border border-border px-2 py-1 text-xs text-text-sub hover:bg-page-bg"
                         >
                           ยกเลิก
                         </button>
@@ -238,7 +253,7 @@ export default function InvoiceTable({
                           type="button"
                           disabled={!taxInvoiceNumber.trim() || !taxInvoiceDate || !vatClaimMonth || !vatClaimYear || isBusy}
                           onClick={() => handleConfirmReceived(invoice)}
-                          className="rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
+                          className="btn-press rounded-[10px] bg-success px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
                           data-testid={`confirm-received-${invoice.id}`}
                         >
                           ยืนยัน
@@ -263,7 +278,7 @@ export default function InvoiceTable({
                               setVatClaimMonth(currentMonth());
                               setVatClaimYear(currentBuddhistYear());
                             }}
-                            className="rounded-md border border-green-300 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"
+                            className="btn-press rounded-[10px] border border-success/40 px-2 py-1 text-xs font-medium text-success hover:bg-success/10"
                             data-testid={`mark-received-${invoice.id}`}
                           >
                             ได้รับแล้ว
@@ -272,7 +287,7 @@ export default function InvoiceTable({
                             type="button"
                             disabled={isBusy}
                             onClick={() => onCancelInvoice(invoice)}
-                            className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-50"
+                            className="btn-press rounded-[10px] border border-border px-2 py-1 text-xs font-medium text-text-sub hover:bg-page-bg"
                           >
                             ยกเลิกรายการ
                           </button>
@@ -281,7 +296,7 @@ export default function InvoiceTable({
                       <button
                         type="button"
                         onClick={() => onEdit(invoice)}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                        className="btn-press rounded-[10px] border border-border px-2 py-1 text-xs font-medium text-text-sub hover:bg-page-bg"
                         data-testid={`edit-${invoice.id}`}
                       >
                         แก้ไข
@@ -291,10 +306,10 @@ export default function InvoiceTable({
                         disabled={isBusy}
                         onClick={() => handleDeleteClick(invoice)}
                         onBlur={() => setConfirmingDeleteId(null)}
-                        className={`rounded-md border px-2 py-1 text-xs font-medium ${
+                        className={`btn-press rounded-[10px] border px-2 py-1 text-xs font-medium ${
                           confirmingDeleteId === invoice.id
-                            ? 'border-red-600 bg-red-600 text-white'
-                            : 'border-red-300 text-red-600 hover:bg-red-50'
+                            ? 'border-danger bg-danger text-white'
+                            : 'border-danger/40 text-danger hover:bg-danger/10'
                         }`}
                         data-testid={`delete-${invoice.id}`}
                       >

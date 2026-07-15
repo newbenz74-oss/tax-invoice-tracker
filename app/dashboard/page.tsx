@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
+import { Search } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -102,7 +103,7 @@ function DashboardShell() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-page-bg">
       <Sidebar
         activeId={activeId}
         onSelect={handleSelect}
@@ -111,7 +112,7 @@ function DashboardShell() {
       />
       <div className="flex min-h-screen flex-1 flex-col min-[992px]:ml-[250px]">
         <Header title={title} onMenuClick={() => setMobileNavOpen(true)} />
-        {renderActiveContent(activeId, Boolean(activeEntry?.implemented), title)}
+        {renderActiveContent(activeId, Boolean(activeEntry?.implemented), title, handleSelect)}
       </div>
     </div>
   );
@@ -120,11 +121,18 @@ function DashboardShell() {
 // เดิมเป็น ternary เดียว (implemented ? DashboardContent : ComingSoon) เพราะมีแค่เมนูเดียวที่
 // implemented: true — ตอนนี้มี 2 เมนูแล้ว (record-expense, purchase-tax-report) จึงขยายเป็นฟังก์ชัน
 // เลือกตาม activeId แทน เมนูที่ implemented: false ทุกอันยังคงขึ้น ComingSoon เหมือนเดิมทุกประการ
-function renderActiveContent(activeId: string, implemented: boolean, title: string) {
+function renderActiveContent(
+  activeId: string,
+  implemented: boolean,
+  title: string,
+  // เสริมใหม่ (optional): เผื่อให้เนื้อหาด้านในเปลี่ยนเมนูที่ active ได้เอง เช่นปุ่ม
+  // "ดูรายงานทั้งหมด →" ใน MonthlyVatSummary — ไม่บังคับใช้ ไม่กระทบของเดิมถ้าไม่ส่งมา
+  onNavigate?: (id: string) => void,
+) {
   if (!implemented) return <ComingSoon label={title} />;
   switch (activeId) {
     case 'record-expense':
-      return <DashboardContent />;
+      return <DashboardContent onNavigate={onNavigate} />;
     case 'purchase-tax-report':
       return <PurchaseTaxReport />;
     default:
@@ -132,7 +140,7 @@ function renderActiveContent(activeId: string, implemented: boolean, title: stri
   }
 }
 
-function DashboardContent() {
+function DashboardContent({ onNavigate }: { onNavigate?: (id: string) => void } = {}) {
   const { session } = useAuth();
   const today = useMemo(() => todayISO(), []);
 
@@ -257,8 +265,8 @@ function DashboardContent() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
-      <div className="mb-6 flex flex-col gap-4">
+    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-8">
+      <div className="mb-8 flex flex-col gap-5">
         <StatsCards stats={stats} />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -267,8 +275,10 @@ function DashboardContent() {
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium ${
-                  statusFilter === s ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border border-gray-300'
+                className={`btn-press rounded-full px-4 py-2 text-sm font-medium transition-colors duration-[250ms] ${
+                  statusFilter === s
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'border border-border bg-white text-text-sub hover:bg-page-bg'
                 }`}
                 data-testid={`filter-${s}`}
               >
@@ -278,19 +288,26 @@ function DashboardContent() {
           </div>
 
           <div className="flex gap-2">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="ค้นหาผู้ขาย / เลขที่อ้างอิง / เลขใบกำกับภาษี"
-              className="w-64 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              data-testid="search-input"
-            />
+            <div className="relative">
+              <Search
+                size={18}
+                className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-text-sub"
+                aria-hidden="true"
+              />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="ค้นหาผู้ขาย / เลขที่อ้างอิง / เลขใบกำกับภาษี"
+                className="focus-ring-primary h-12 w-64 rounded-xl border border-border bg-white pr-4 pl-10 text-sm text-text placeholder:text-text-sub"
+                data-testid="search-input"
+              />
+            </div>
             <button
               onClick={() => {
                 setShowImportPanel(true);
                 setShowForm(false);
               }}
-              className="rounded-lg border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="btn-press h-12 rounded-[10px] border border-border bg-white px-4 text-sm font-medium text-text hover:bg-page-bg"
               data-testid="open-import-panel"
             >
               นำเข้าจาก Excel
@@ -301,7 +318,7 @@ function DashboardContent() {
                 setShowForm(true);
                 setShowImportPanel(false);
               }}
-              className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+              className="btn-press h-12 rounded-[10px] bg-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover"
               data-testid="open-add-form"
             >
               + เพิ่มรายการ
@@ -311,8 +328,8 @@ function DashboardContent() {
       </div>
 
       {showForm && (
-        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-          <h2 className="mb-4 text-sm font-bold text-gray-900">
+        <div className="card-surface mb-8 rounded-2xl p-6">
+          <h2 className="mb-4 text-sm font-bold text-text">
             {editingInvoice ? 'แก้ไขรายการ' : 'เพิ่มรายการใหม่'}
           </h2>
           <InvoiceForm
@@ -328,8 +345,8 @@ function DashboardContent() {
       )}
 
       {showImportPanel && (
-        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-          <h2 className="mb-4 text-sm font-bold text-gray-900">นำเข้ารายการจาก Excel</h2>
+        <div className="card-surface mb-8 rounded-2xl p-6">
+          <h2 className="mb-4 text-sm font-bold text-text">นำเข้ารายการจาก Excel</h2>
           <ExcelImportPanel
             onImport={handleImportRows}
             onClose={() => setShowImportPanel(false)}
@@ -339,13 +356,13 @@ function DashboardContent() {
       )}
 
       {loadError && (
-        <p role="alert" className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+        <p role="alert" className="mb-4 rounded-[10px] border border-danger/20 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
           {loadError}
         </p>
       )}
 
       {loading ? (
-        <p className="py-12 text-center text-sm text-gray-400">กำลังโหลดข้อมูล...</p>
+        <p className="py-12 text-center text-sm text-text-sub">กำลังโหลดข้อมูล...</p>
       ) : (
         <>
           <InvoiceTable
@@ -364,9 +381,11 @@ function DashboardContent() {
             onDelete={handleDelete}
           />
 
-          <div className="mt-8">
-            <h2 className="mb-3 text-sm font-bold text-gray-900">สรุป VAT รายเดือน</h2>
-            <MonthlyVatSummary rows={monthlyVat} />
+          <div className="mt-10">
+            <MonthlyVatSummary
+              rows={monthlyVat}
+              onViewAllReport={onNavigate ? () => onNavigate('purchase-tax-report') : undefined}
+            />
           </div>
         </>
       )}

@@ -110,7 +110,7 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4" noValidate data-testid="invoice-form">
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate data-testid="invoice-form">
       <Field label="ประเภทภาษี" error={errors.tax_type} required={taxTypeRequired}>
         <select
           value={form.tax_type}
@@ -129,12 +129,12 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
         </select>
       </Field>
       {isNoVat && (
-        <p className="text-xs text-gray-400">
+        <p className="rounded-[10px] border border-border bg-page-bg px-3.5 py-2.5 text-xs text-text-sub">
           รายการนี้ไม่มี VAT — ยอดรวมจะเท่ากับยอดเงินที่กรอกทั้งหมด และจะไม่ปรากฏในรายงานภาษีซื้อ
         </p>
       )}
       {isNonClaimable && (
-        <p className="text-xs text-gray-400">
+        <p className="rounded-[10px] border border-border bg-page-bg px-3.5 py-2.5 text-xs text-text-sub">
           รายการนี้มี VAT แต่นำไปใช้เครดิตภาษีซื้อไม่ได้ — จะไม่ปรากฏในรายงานภาษีซื้อ และไม่ต้องรอรับใบกำกับภาษีก็บันทึกได้เลย
         </p>
       )}
@@ -195,7 +195,7 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
           </Field>
           <Field label="ยอดรวม (บาท)">
             <div
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700"
+              className="font-numeric flex h-12 w-full items-center rounded-[10px] border border-border bg-page-bg px-3.5 text-sm font-semibold text-text"
               data-testid="computed-total"
             >
               {total.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -228,7 +228,7 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
           </Field>
           <Field label="ยอดรวม (บาท)">
             <div
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700"
+              className="font-numeric flex h-12 w-full items-center rounded-[10px] border border-border bg-page-bg px-3.5 text-sm font-semibold text-text"
               data-testid="computed-total"
             >
               {total.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -292,23 +292,23 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
       </Field>
 
       {submitError && (
-        <p role="alert" className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+        <p role="alert" className="rounded-[10px] border border-danger/20 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
           {submitError}
         </p>
       )}
 
-      <div className="flex justify-end gap-2 pt-2">
+      <div className="flex justify-end gap-2.5 pt-2">
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+          className="btn-press rounded-[10px] border border-border bg-white px-5 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg"
         >
           ยกเลิก
         </button>
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+          className="btn-press rounded-[10px] bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover disabled:opacity-60"
           data-testid="submit-invoice-form"
         >
           {submitting ? 'กำลังบันทึก...' : editingInvoice ? 'บันทึกการแก้ไข' : 'เพิ่มรายการ'}
@@ -319,11 +319,12 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
 }
 
 function inputClass(hasError: boolean): string {
-  return `w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1 ${
-    hasError
-      ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
-      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-  }`;
+  const base =
+    'w-full rounded-[10px] border bg-white px-3.5 py-3.5 text-sm text-text placeholder:text-text-sub transition-colors duration-[250ms] focus:outline-none';
+  if (hasError) {
+    return `${base} border-danger focus:border-danger focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]`;
+  }
+  return `${base} border-border focus-ring-primary`;
 }
 
 function Field({
@@ -339,11 +340,11 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-gray-700">
-        {label} {required && <span className="text-red-500">*</span>}
+      <span className="mb-1.5 block text-sm font-medium text-text">
+        {label} {required && <span className="text-danger">*</span>}
       </span>
       {children}
-      {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
+      {error && <span className="mt-1 block text-xs text-danger">{error}</span>}
     </label>
   );
 }

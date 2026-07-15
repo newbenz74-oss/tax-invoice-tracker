@@ -87,7 +87,7 @@ export default function Sidebar({ activeId, onSelect, isOpen, onClose }: Sidebar
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[250px] flex-col overflow-hidden bg-gray-900 text-gray-50 transition-transform duration-[250ms] ease-in-out min-[992px]:!translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[250px] flex-col overflow-hidden bg-linear-to-b from-sidebar-start to-sidebar-end text-gray-50 shadow-xl transition-transform duration-[250ms] ease-in-out min-[992px]:!translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         onTouchStart={handleTouchStart}
@@ -95,16 +95,20 @@ export default function Sidebar({ activeId, onSelect, isOpen, onClose }: Sidebar
         data-testid="sidebar"
         aria-label="เมนูหลัก"
       >
-        <div className="flex items-start justify-between gap-2 px-4 py-5">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-gray-50">ระบบบัญชีและกระทบยอด</p>
-            <p className="truncate text-xs text-gray-400">Accounting &amp; Reconciliation</p>
-            <p className="mt-1.5 text-[11px] font-medium tracking-wide text-gray-500">BENZ</p>
+        <div className="flex items-center justify-between gap-2 px-4 py-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-primary to-brand text-base font-bold text-white shadow-[0_4px_14px_-2px_rgba(47,167,226,0.55)]">
+              B
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold tracking-wide text-white">BENZ</p>
+              <p className="truncate text-[11px] text-gray-400">ระบบบัญชีและกระทบยอด</p>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-md p-1 text-gray-400 hover:bg-white/[0.08] min-[992px]:hidden"
+            className="shrink-0 rounded-md p-1 text-gray-400 transition-colors duration-[250ms] hover:bg-white/[0.08] min-[992px]:hidden"
             aria-label="ปิดเมนู"
             data-testid="sidebar-close"
           >
@@ -150,7 +154,7 @@ function NavItem({
         <button
           type="button"
           onClick={() => onToggleSection(entry.id)}
-          className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-sm font-medium text-gray-50 transition-colors duration-[250ms] hover:bg-white/[0.08]"
+          className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-sm font-medium text-gray-50 transition-colors duration-[250ms] hover:bg-primary/15"
           data-testid={`nav-section-${entry.id}`}
           aria-expanded={isExpanded}
         >
@@ -204,8 +208,10 @@ function NavLeafButton({
     <button
       type="button"
       onClick={() => onSelect(entry.id)}
-      className={`flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-sm font-medium transition-colors duration-[250ms] ${
-        isActive ? 'bg-blue-600 text-white' : 'text-gray-50 hover:bg-white/[0.08]'
+      className={`flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-sm font-medium transition-all duration-[250ms] ${
+        isActive
+          ? 'bg-primary text-white shadow-[0_0_14px_1px_rgba(47,167,226,0.5)]'
+          : 'text-gray-50 hover:bg-primary/15'
       }`}
       data-testid={`nav-item-${entry.id}`}
       aria-current={isActive ? 'page' : undefined}

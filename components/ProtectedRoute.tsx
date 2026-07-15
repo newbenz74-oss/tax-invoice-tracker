@@ -16,8 +16,8 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex flex-1 items-center justify-center">
-        <p className="text-gray-500">กำลังโหลด...</p>
+      <div className="flex flex-1 items-center justify-center bg-page-bg">
+        <p className="text-text-sub">กำลังโหลด...</p>
       </div>
     );
   }

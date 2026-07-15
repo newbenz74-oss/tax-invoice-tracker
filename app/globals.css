@@ -1,30 +1,217 @@
 @import "tailwindcss";
 
+/* ============================================================
+   BENZ Design Tokens — SaaS Dashboard โทนสว่าง (2026 UI Refresh)
+   ปรับเฉพาะสี/ฟอนต์/สไตล์เท่านั้น ไม่กระทบ Logic ใดๆ ของระบบ
+   ============================================================ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --font-sans: "Segoe UI", system-ui, -apple-system, "Noto Sans Thai", "Sarabun", Roboto, Arial, sans-serif;
+  /* Primary (ฟ้า BENZ) */
+  --primary: #2fa7e2;
+  --primary-hover: #1e90cf;
+  --primary-light: #eaf7fd;
+
+  /* Brand accent background (ฟ้าสว่าง ใช้แบบจุดเน้น เช่น ไอคอนการ์ด "ยอดรวม") */
+  --brand: #52b4e7;
+
+  /* พื้นหลัง/พื้นผิว */
+  --page-bg: #f5f9fc;
+  --card-bg: #ffffff;
+  --border: #d9e8f4;
+
+  /* ตัวหนังสือ */
+  --text: #1f2937;
+  --text-sub: #6b7280;
+
+  /* สถานะ */
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+
+  /* Sidebar gradient (คงโทนกรมท่าเดิมไว้ แต่ทันสมัยขึ้น) */
+  --sidebar-start: #172554;
+  --sidebar-end: #0f172a;
+
+  /* โทนตาราง (ใช้ร่วมกันในทุกตารางของระบบ: InvoiceTable, PurchaseTaxReport, ExcelImportPanel) */
+  --table-header-bg: #f8fbfe;
+  --table-row-hover: #f3faff;
+  --table-row-zebra: #fafcfe;
+
+  /* ค่าเริ่มต้นของ body ด้านล่าง ตั้งใจให้สว่างเสมอ ไม่สลับเป็นมืดตาม
+     prefers-color-scheme ของเครื่องผู้ใช้ เพื่อให้ตรงกับธีมสว่างที่ออกแบบใหม่ */
+  --background: var(--page-bg);
+  --foreground: var(--text);
+
+  /* Typography: Prompt/Noto Sans Thai สำหรับข้อความไทย, Inter สำหรับตัวเลข
+     ฟอนต์ทั้งหมด self-host จากไฟล์ใน public/fonts/ ไม่ดึงจาก Google Fonts
+     ตอน build (สอดคล้องกับหมายเหตุใน app/layout.tsx ที่ตั้งใจไม่ใช้ next/font/google) */
+  --font-sans: "Prompt", "Noto Sans Thai", "Segoe UI", system-ui, -apple-system, "Sarabun", Roboto, Arial, sans-serif;
+  --font-numeric: "Inter", "Prompt", "Noto Sans Thai", system-ui, -apple-system, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--primary-light);
+  --color-brand: var(--brand);
+  --color-page-bg: var(--page-bg);
+  --color-card-bg: var(--card-bg);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-sub: var(--text-sub);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-sidebar-start: var(--sidebar-start);
+  --color-sidebar-end: var(--sidebar-end);
+  --color-table-header: var(--table-header-bg);
+  --color-table-row-hover: var(--table-row-hover);
+  --color-table-row-zebra: var(--table-row-zebra);
+
+  --font-sans: var(--font-sans);
+  --font-numeric: var(--font-numeric);
+  --font-mono: var(--font-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* ===== Self-hosted fonts: Prompt (ไทย) + Inter (ตัวเลข/Latin) =====
+   ไฟล์ฟอนต์อยู่ใน public/fonts/ สัญญาอนุญาต SIL Open Font License
+   (ใช้งาน/แจกจ่ายได้ฟรี) ไม่มีการดึงข้อมูลจาก Google Fonts ตอน build เลย */
+@font-face {
+  font-family: "Prompt";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/prompt-thai-400-normal.woff2") format("woff2");
+  unicode-range: U+0E01-0E5B, U+200C-200D, U+25CC;
+}
+@font-face {
+  font-family: "Prompt";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/prompt-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Prompt";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/prompt-thai-500-normal.woff2") format("woff2");
+  unicode-range: U+0E01-0E5B, U+200C-200D, U+25CC;
+}
+@font-face {
+  font-family: "Prompt";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/prompt-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Prompt";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/prompt-thai-600-normal.woff2") format("woff2");
+  unicode-range: U+0E01-0E5B, U+200C-200D, U+25CC;
+}
+@font-face {
+  font-family: "Prompt";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/prompt-latin-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Prompt";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/prompt-thai-700-normal.woff2") format("woff2");
+  unicode-range: U+0E01-0E5B, U+200C-200D, U+25CC;
+}
+@font-face {
+  font-family: "Prompt";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/prompt-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/inter-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/inter-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/inter-latin-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/inter-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+
+/* ===== Utility helpers: การ์ด/ปุ่ม/อินพุต สไตล์ Premium SaaS =====
+   คลาสช่วยเหล่านี้เป็น CSS ล้วน ไม่เกี่ยวข้องกับ Logic ของระบบ ใช้ประกอบกับ
+   className เดิมของแต่ละ component เพื่อให้ Hover/Shadow/Focus เป็นแบบ
+   เดียวกันทั้งเว็บตาม Design Spec (การ์ดยกตัว translateY(-3px), ปุ่ม scale 1.02,
+   ช่อง input โฟกัสแล้วมี border + shadow ฟ้าอ่อน) */
+.card-surface {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04), 0 4px 16px -4px rgba(47, 167, 226, 0.1);
+}
+
+.card-hover-lift {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.card-hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px -6px rgba(47, 167, 226, 0.2), 0 4px 10px -2px rgba(15, 23, 42, 0.06);
+}
+
+.btn-press {
+  transition: transform 0.15s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.btn-press:hover {
+  transform: scale(1.02);
+}
+
+.focus-ring-primary:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-light);
 }
 
 /* Design tokens สำหรับหน้า Login โดยเฉพาะ (app/login/page.tsx) — ตั้งชื่อขึ้นต้นด้วย

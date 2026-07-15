@@ -145,7 +145,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
 
   return (
     <div className="space-y-4" data-testid="excel-import-panel">
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-text-sub">
         นำเข้ารายการยอดซื้อหลายรายการพร้อมกันจากไฟล์ Excel — ดาวน์โหลดเทมเพลต กรอกข้อมูล แล้วอัปโหลดกลับมา
         ระบบจะตรวจจากยอดในคอลัมน์ &quot;VAT&quot; ให้อัตโนมัติเสมอ: กรอกยอด VAT มา (มากกว่า 0) ถือเป็น
         &quot;มี VAT&quot; ส่วนเว้นว่างไว้ หรือใส่ 0 หรือเครื่องหมาย &quot;-&quot; ถือเป็น &quot;ไม่มี VAT&quot; —
@@ -156,13 +156,13 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
         <button
           type="button"
           onClick={handleDownloadTemplate}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-text hover:bg-page-bg"
           data-testid="download-template"
         >
           ดาวน์โหลดเทมเพลต Excel
         </button>
 
-        <label className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 cursor-pointer">
+        <label className="btn-press cursor-pointer rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover">
           เลือกไฟล์ Excel...
           <input
             ref={fileInputRef}
@@ -174,11 +174,11 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
           />
         </label>
 
-        {fileName && <span className="text-sm text-gray-500">ไฟล์: {fileName}</span>}
+        {fileName && <span className="text-sm text-text-sub">ไฟล์: {fileName}</span>}
       </div>
 
       {parseError && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+        <p role="alert" className="rounded-[10px] border border-danger/20 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
           {parseError}
         </p>
       )}
@@ -198,10 +198,10 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
                 key={tab.key}
                 type="button"
                 onClick={() => setReviewFilter(tab.key)}
-                className={`rounded-full px-3 py-1 text-xs font-medium ${
+                className={`btn-press rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors duration-[250ms] ${
                   reviewFilter === tab.key
-                    ? 'bg-blue-600 text-white'
-                    : 'border border-gray-300 bg-white text-gray-600'
+                    ? 'bg-primary text-white'
+                    : 'border border-border bg-white text-text-sub hover:bg-page-bg'
                 }`}
                 data-testid={`import-filter-${tab.key}`}
               >
@@ -210,50 +210,50 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-border bg-page-bg p-3 text-xs sm:grid-cols-4">
             <div>
-              <span className="text-gray-500">จะนำเข้า</span>{' '}
-              <span className="font-semibold text-gray-900" data-testid="import-summary-count">
+              <span className="text-text-sub">จะนำเข้า</span>{' '}
+              <span className="font-numeric font-semibold text-text" data-testid="import-summary-count">
                 {summary.includedCount} รายการ
               </span>
             </div>
             <div>
-              <span className="text-gray-500">ยอดรวม</span>{' '}
-              <span className="font-semibold text-gray-900" data-testid="import-summary-amount">
+              <span className="text-text-sub">ยอดรวม</span>{' '}
+              <span className="font-numeric font-semibold text-text" data-testid="import-summary-amount">
                 {summary.totalAmount.toLocaleString('th-TH', THB2)} บาท
               </span>
             </div>
             <div>
-              <span className="text-gray-500">VAT รวม</span>{' '}
-              <span className="font-semibold text-gray-900" data-testid="import-summary-vat">
+              <span className="text-text-sub">VAT รวม</span>{' '}
+              <span className="font-numeric font-semibold text-text" data-testid="import-summary-vat">
                 {summary.totalVat.toLocaleString('th-TH', THB2)} บาท
               </span>
             </div>
             <div>
-              <span className="text-gray-500">มีปัญหา/ซ้ำ</span>{' '}
-              <span className="font-semibold text-red-600" data-testid="import-summary-error-count">
+              <span className="text-text-sub">มีปัญหา/ซ้ำ</span>{' '}
+              <span className="font-numeric font-semibold text-danger" data-testid="import-summary-error-count">
                 {summary.errorCount} รายการ
               </span>
             </div>
           </div>
 
-          <div className="max-h-[28rem] overflow-auto rounded-lg border border-gray-200">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50 sticky top-0">
+          <div className="card-surface max-h-[28rem] overflow-auto rounded-2xl">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="sticky top-0 bg-table-header">
                 <tr>
-                  <th className="px-3 py-2 text-center font-medium text-gray-500">นำเข้า</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-500">ลำดับ</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-500">ผู้ขาย</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-500">วันที่</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-500">ยอดก่อน VAT</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-500">VAT</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-500">ยอดรวม</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-500">ประเภทที่ระบบตรวจพบ</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-500">สถานะตรวจสอบ</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-500">ข้อผิดพลาด</th>
+                  <th className="px-3.5 py-2.5 text-center font-medium text-text-sub">นำเข้า</th>
+                  <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">ลำดับ</th>
+                  <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">ผู้ขาย</th>
+                  <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">วันที่</th>
+                  <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">ยอดก่อน VAT</th>
+                  <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">VAT</th>
+                  <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">ยอดรวม</th>
+                  <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">ประเภทที่ระบบตรวจพบ</th>
+                  <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">สถานะตรวจสอบ</th>
+                  <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">ข้อผิดพลาด</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border/60">
                 {displayedRows.map((r) => {
                   const amount = parseFloat(r.amount_excl_vat) || 0;
                   const vat = parseFloat(r.vat_amount) || 0;
@@ -266,39 +266,40 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
                   return (
                     <tr
                       key={r.rowNumber}
-                      className={hasError ? 'bg-red-50' : r.isDuplicate ? 'bg-amber-50' : undefined}
+                      className={hasError ? 'bg-danger/10' : r.isDuplicate ? 'bg-warning/10' : undefined}
                       data-testid={`import-row-${r.rowNumber}`}
                     >
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-3.5 py-2.5 text-center">
                         <input
                           type="checkbox"
                           checked={r.included}
                           disabled={hasError}
                           onChange={() => handleToggleIncluded(r.rowNumber)}
+                          className="accent-primary"
                           data-testid={`import-row-include-${r.rowNumber}`}
                         />
                       </td>
-                      <td className="px-3 py-2 text-gray-400">{r.rowNumber}</td>
-                      <td className="px-3 py-2 text-gray-900">{r.vendor_name || '-'}</td>
-                      <td className="px-3 py-2 text-gray-700">{r.transaction_date || '-'}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">
+                      <td className="px-3.5 py-2.5 text-text-sub">{r.rowNumber}</td>
+                      <td className="px-3.5 py-2.5 text-text">{r.vendor_name || '-'}</td>
+                      <td className="px-3.5 py-2.5 text-text-sub">{r.transaction_date || '-'}</td>
+                      <td className="font-numeric px-3.5 py-2.5 text-right text-text-sub">
                         {r.amount_excl_vat ? amount.toLocaleString('th-TH', THB2) : '-'}
                       </td>
-                      <td className="px-3 py-2 text-right text-gray-700">
+                      <td className="font-numeric px-3.5 py-2.5 text-right text-text-sub">
                         {/* VAT อ่านเป็นตัวเลขไม่ได้ (มี error) — โชว์ข้อความดิบที่กรอกมาแทน ให้เห็นว่าผิดตรงไหน */}
                         {r.vat_amount !== '' && Number.isFinite(parseFloat(r.vat_amount))
                           ? vat.toLocaleString('th-TH', THB2)
                           : r.vat_amount || '-'}
                       </td>
-                      <td className="px-3 py-2 text-right text-gray-700">
+                      <td className="font-numeric px-3.5 py-2.5 text-right text-text-sub">
                         {r.amount_excl_vat || r.vat_amount ? (amount + vat).toLocaleString('th-TH', THB2) : '-'}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3.5 py-2.5">
                         {/* ตรวจจับอัตโนมัติจากยอด VAT เท่านั้น — อ่านอย่างเดียว ไม่ให้ผู้ใช้เลือก/แก้เอง
                             ตามที่ตกลงกันไว้ (ลดขั้นตอนกรอกข้อมูลซ้ำซ้อน) */}
                         {r.tax_type === 'claimable_vat' && (
                           <span
-                            className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700"
+                            className="rounded-full bg-primary-light px-2.5 py-1 text-xs font-medium text-primary"
                             data-testid={`import-row-tax-type-${r.rowNumber}`}
                           >
                             มี VAT
@@ -306,28 +307,28 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
                         )}
                         {r.tax_type === 'no_vat' && (
                           <span
-                            className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
+                            className="rounded-full bg-page-bg px-2.5 py-1 text-xs font-medium text-text-sub"
                             data-testid={`import-row-tax-type-${r.rowNumber}`}
                           >
                             ไม่มี VAT
                           </span>
                         )}
                         {r.tax_type === '' && (
-                          <span className="text-xs text-gray-400" data-testid={`import-row-tax-type-${r.rowNumber}`}>
+                          <span className="text-xs text-text-sub" data-testid={`import-row-tax-type-${r.rowNumber}`}>
                             -
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3.5 py-2.5">
                         {hasError ? (
-                          <span className="text-red-600">ผิดพลาด</span>
+                          <span className="text-danger">ผิดพลาด</span>
                         ) : r.isDuplicate ? (
-                          <span className="text-amber-700">อาจซ้ำ</span>
+                          <span className="text-warning">อาจซ้ำ</span>
                         ) : (
-                          <span className="text-green-700">✓ พร้อมนำเข้า</span>
+                          <span className="text-success">✓ พร้อมนำเข้า</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-xs text-gray-600">{messages.join(' / ') || '-'}</td>
+                      <td className="px-3.5 py-2.5 text-xs text-text-sub">{messages.join(' / ') || '-'}</td>
                     </tr>
                   );
                 })}
@@ -338,16 +339,16 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
       )}
 
       {importError && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+        <p role="alert" className="rounded-[10px] border border-danger/20 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
           {importError}
         </p>
       )}
 
-      <div className="flex justify-end gap-2 pt-2">
+      <div className="flex justify-end gap-2.5 pt-2">
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+          className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg"
         >
           ปิด
         </button>
@@ -355,7 +356,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
           <button
             type="button"
             onClick={handlePickAnotherFile}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg"
           >
             เลือกไฟล์ใหม่
           </button>
@@ -364,7 +365,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
           type="button"
           onClick={handleConfirmImport}
           disabled={importableRows.length === 0 || importing}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+          className="btn-press rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover disabled:opacity-60"
           data-testid="confirm-import"
         >
           {importing ? 'กำลังนำเข้า...' : `นำเข้า ${importableRows.length} รายการ`}
