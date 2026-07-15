@@ -42,8 +42,11 @@ test.describe('นำเข้ารายการจาก Excel', () => {
     const downloadedWorkbook = XLSX.read(downloadedBuffer, { type: 'buffer' });
     const downloadedSheet = downloadedWorkbook.Sheets[downloadedWorkbook.SheetNames[0]];
     const downloadedRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(downloadedSheet, { defval: '' });
-    expect(downloadedRows).toHaveLength(1);
+    // เทมเพลตมีตัวอย่าง 2 แถวเสมอ: แถวแรกมี VAT (สอน "มี VAT"), แถวสองเว้น VAT ว่างไว้ (สอน "ไม่มี VAT")
+    // ไม่มีคอลัมน์ "ประเภทภาษี" ให้กรอกเองอีกต่อไปแล้ว
+    expect(downloadedRows).toHaveLength(2);
     expect(downloadedRows[0][EXCEL_HEADERS.vendor_name]).toBe('บริษัท ตัวอย่าง จำกัด');
+    expect(downloadedRows[1][EXCEL_HEADERS.vendor_name]).toBe('ร้านค้า ตัวอย่าง 2');
 
     const buffer = buildWorkbookBuffer([
       {
@@ -51,7 +54,7 @@ test.describe('นำเข้ารายการจาก Excel', () => {
         [EXCEL_HEADERS.transaction_date]: isoDaysFromNow(0),
         [EXCEL_HEADERS.description]: 'ค่าสินค้า',
         [EXCEL_HEADERS.amount_excl_vat]: 1000,
-        [EXCEL_HEADERS.vat_amount]: '',
+        [EXCEL_HEADERS.vat_amount]: 70,
         [EXCEL_HEADERS.reference_no]: 'PO-100',
         [EXCEL_HEADERS.expected_date]: '',
         [EXCEL_HEADERS.notes]: '',
@@ -99,7 +102,8 @@ test.describe('นำเข้ารายการจาก Excel', () => {
     // แถวที่ไม่ผ่านการตรวจสอบต้องไม่ถูกบันทึกลงระบบ
     await expect(page.getByText('500.00')).not.toBeVisible();
 
-    // แถวที่ 1: ไม่กรอก VAT มา ต้องถูกเสนอ 7% อัตโนมัติ (1000 + 70 = 1,070.00)
+    // แถวที่ 1: กรอก VAT เองมา 70 (1000 + 70 = 1,070.00) — ตรวจพบว่ามี VAT จึงเข้าสถานะรอรับ (pending)
+    // และแสดงในตารางทันทีตาม filter เริ่มต้น "รอรับ"
     await expect(page.getByText('1,070.00')).toBeVisible();
     // แถวที่ 2: กรอก VAT เองมา 100 (2000 + 100 = 2,100.00)
     await expect(page.getByText('2,100.00')).toBeVisible();
@@ -174,13 +178,16 @@ test.describe('นำเข้ารายการจาก Excel', () => {
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
 
-  test('นำเข้าไฟล์ที่มีทั้งประเภทมี VAT และไม่มี VAT ปะปนกัน ผ่านหน้าตรวจสอบก่อนบันทึกจริง', async ({ page }) => {
+  test('นำเข้าไฟล์ที่มีทั้งรายการมี VAT และไม่มี VAT ปะปนกัน ระบบตรวจจับประเภทจากคอลัมน์ VAT อัตโนมัติ ผ่านหน้าตรวจสอบก่อนบันทึกจริง', async ({
+    page,
+  }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
     await page.goto('/dashboard');
 
     await page.getByTestId('open-import-panel').click();
 
+    // ไม่มีคอลัมน์ "ประเภทภาษี" ให้กรอกเองอีกต่อไป — ระบบต้องจำแนกจากยอดในคอลัมน์ VAT ล้วนๆ เท่านั้น
     const buffer = buildWorkbookBuffer([
       {
         [EXCEL_HEADERS.vendor_name]: 'บริษัท กขค จำกัด',
@@ -188,9 +195,8 @@ test.describe('นำเข้ารายการจาก Excel', () => {
         [EXCEL_HEADERS.vendor_tax_id]: '',
         [EXCEL_HEADERS.description]: '',
         [EXCEL_HEADERS.amount_excl_vat]: 300,
-        [EXCEL_HEADERS.vat_amount]: '',
+        [EXCEL_HEADERS.vat_amount]: '', // เว้นว่าง — ต้องตรวจพบว่า "ไม่มี VAT" อัตโนมัติ
         [EXCEL_HEADERS.total_amount]: '',
-        [EXCEL_HEADERS.tax_type]: 'ไม่มี VAT',
         [EXCEL_HEADERS.reference_no]: '',
         [EXCEL_HEADERS.expected_date]: '',
         [EXCEL_HEADERS.notes]: '',
@@ -201,22 +207,8 @@ test.describe('นำเข้ารายการจาก Excel', () => {
         [EXCEL_HEADERS.vendor_tax_id]: '',
         [EXCEL_HEADERS.description]: '',
         [EXCEL_HEADERS.amount_excl_vat]: 1000,
-        [EXCEL_HEADERS.vat_amount]: '',
+        [EXCEL_HEADERS.vat_amount]: 70, // กรอกมามากกว่า 0 — ต้องตรวจพบว่า "มี VAT" อัตโนมัติ
         [EXCEL_HEADERS.total_amount]: '',
-        [EXCEL_HEADERS.tax_type]: 'มี VAT และใช้เครดิต VAT',
-        [EXCEL_HEADERS.reference_no]: '',
-        [EXCEL_HEADERS.expected_date]: '',
-        [EXCEL_HEADERS.notes]: '',
-      },
-      {
-        [EXCEL_HEADERS.vendor_name]: 'บริษัท ญฎฏ จำกัด',
-        [EXCEL_HEADERS.transaction_date]: isoDaysFromNow(0),
-        [EXCEL_HEADERS.vendor_tax_id]: '',
-        [EXCEL_HEADERS.description]: '',
-        [EXCEL_HEADERS.amount_excl_vat]: 500,
-        [EXCEL_HEADERS.vat_amount]: 35,
-        [EXCEL_HEADERS.total_amount]: '',
-        [EXCEL_HEADERS.tax_type]: 'มี VAT แต่ไม่ใช้เครดิต VAT',
         [EXCEL_HEADERS.reference_no]: '',
         [EXCEL_HEADERS.expected_date]: '',
         [EXCEL_HEADERS.notes]: '',
@@ -224,18 +216,25 @@ test.describe('นำเข้ารายการจาก Excel', () => {
     ]);
 
     await page.getByTestId('excel-file-input').setInputFiles({
-      name: 'นำเข้าผสมประเภทภาษี.xlsx',
+      name: 'นำเข้าผสมมีVATไม่มีVAT.xlsx',
       mimeType: XLSX_MIME,
       buffer,
     });
 
-    await expect(page.getByTestId('import-summary-count')).toContainText('3 รายการ');
-    await expect(page.getByTestId('import-filter-vat')).toContainText('มี VAT (2)');
+    await expect(page.getByTestId('import-summary-count')).toContainText('2 รายการ');
+    await expect(page.getByTestId('import-filter-vat')).toContainText('มี VAT (1)');
     await expect(page.getByTestId('import-filter-no_vat')).toContainText('ไม่มี VAT (1)');
+
+    // หน้าตรวจสอบ: ป้ายประเภทที่ระบบตรวจพบ เป็นแบบอ่านอย่างเดียว (อ้างอิง rowNumber: แถวข้อมูลแถวแรก
+    // ในไฟล์ = แถวที่ 2 เสมอ เพราะแถวที่ 1 คือ header)
+    await expect(page.getByTestId('import-row-tax-type-2')).toHaveText('ไม่มี VAT');
+    await expect(page.getByTestId('import-row-tax-type-3')).toHaveText('มี VAT');
 
     await page.getByTestId('confirm-import').click();
     await expect(page.getByTestId('excel-import-panel')).not.toBeVisible();
 
+    // แถวไม่มี VAT เข้าสถานะ "ได้รับแล้ว" ทันที (ไม่มีขั้นตอนรอรับใบกำกับภาษี) จึงต้องสลับไปดู filter
+    // "ทั้งหมด" ก่อน เพราะ filter เริ่มต้นของตารางหลักคือ "รอรับ" เท่านั้น
     await page.getByTestId('filter-all').click();
 
     const noVatRow = page.getByRole('row', { name: /บริษัท กขค จำกัด/ });
@@ -245,10 +244,6 @@ test.describe('นำเข้ารายการจาก Excel', () => {
     const claimableRow = page.getByRole('row', { name: /บริษัท จฉช จำกัด/ });
     const claimableId = (await claimableRow.getAttribute('data-testid'))?.replace('invoice-row-', '') ?? '';
     await expect(page.getByTestId(`tax-status-badge-${claimableId}`)).toHaveText('รอรับใบกำกับภาษี');
-
-    const nonClaimableRow = page.getByRole('row', { name: /บริษัท ญฎฏ จำกัด/ });
-    const nonClaimableId = (await nonClaimableRow.getAttribute('data-testid'))?.replace('invoice-row-', '') ?? '';
-    await expect(page.getByTestId(`tax-status-badge-${nonClaimableId}`)).toHaveText('ไม่ใช้เครดิต VAT');
 
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
@@ -286,7 +281,6 @@ test.describe('นำเข้ารายการจาก Excel', () => {
         [EXCEL_HEADERS.amount_excl_vat]: 1000,
         [EXCEL_HEADERS.vat_amount]: 70,
         [EXCEL_HEADERS.total_amount]: '',
-        [EXCEL_HEADERS.tax_type]: 'claimable_vat',
         [EXCEL_HEADERS.reference_no]: 'PO-DUP-1',
         [EXCEL_HEADERS.expected_date]: '',
         [EXCEL_HEADERS.notes]: '',

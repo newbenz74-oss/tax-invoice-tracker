@@ -1,12 +1,18 @@
 import * as XLSX from 'xlsx';
-import { deriveStatusForTaxType, suggestVatAmount } from './invoiceLogic';
+import { deriveStatusForTaxType } from './invoiceLogic';
 import type { InvoiceWriteInput } from './invoiceApi';
 import type { PendingTaxInvoice, TaxType } from '@/types/invoice';
 
 /** หัวคอลัมน์ในไฟล์ Excel (ทั้งไฟล์เทมเพลตที่สร้างให้ และไฟล์ที่ผู้ใช้อัปโหลดกลับมา)
- * เพิ่ม vendor_tax_id/tax_type/total_amount เข้ามาพร้อมฟีเจอร์จำแนกประเภทภาษี — total_amount เป็น
- * คอลัมน์อ้างอิงเฉยๆ (ตรงกับ total_amount ที่ฐานข้อมูลคำนวณอัตโนมัติอยู่แล้ว) parseExcelRow() ไม่อ่าน
- * ค่าจากคอลัมน์นี้เลย จึงใส่อะไรมาก็ไม่มีผลต่อข้อมูลที่บันทึกจริง */
+ * total_amount เป็นคอลัมน์อ้างอิงเฉยๆ (ตรงกับ total_amount ที่ฐานข้อมูลคำนวณอัตโนมัติอยู่แล้วเสมอ
+ * จากยอดก่อน VAT + VAT) parseExcelRow() ไม่เขียนทับค่านี้ลงฐานข้อมูลเลย แต่จะ "เตือน" (ไม่ error) ถ้าค่า
+ * ที่กรอกมาในไฟล์ไม่ตรงกับผลรวมที่คำนวณได้ ดูฟังก์ชัน parseExcelRow ด้านล่าง
+ *
+ * ⚠️ ตั้งแต่ 2026-07-15 ไม่มีคอลัมน์ "ประเภทภาษี" ให้กรอก/เลือกเองอีกต่อไปแล้ว (เคยมีช่วงสั้นๆ ก่อนหน้านี้)
+ * — ระบบจำแนกว่ารายการมี VAT หรือไม่มี VAT จากยอดในคอลัมน์ "VAT" โดยตรงเสมอ (VAT > 0 → มี VAT,
+ * VAT ว่าง/0/"-" → ไม่มี VAT) ดู parseVatCell/parseExcelRow ด้านล่างสำหรับ logic เต็ม ถ้าผู้ใช้ยังมี
+ * ไฟล์เทมเพลตเก่าที่มีคอลัมน์ "ประเภทภาษี" อยู่ อัปโหลดได้ตามปกติ ระบบจะไม่อ่าน/ไม่สนใจคอลัมน์นั้นเลย
+ * (ไม่ error ไม่มีผลใดๆ ต่อการนำเข้า) */
 export const EXCEL_HEADERS = {
   vendor_name: 'ผู้ขาย',
   transaction_date: 'วันที่ทำรายการ',
@@ -15,7 +21,6 @@ export const EXCEL_HEADERS = {
   amount_excl_vat: 'ยอดก่อน VAT',
   vat_amount: 'VAT',
   total_amount: 'ยอดรวม',
-  tax_type: 'ประเภทภาษี',
   reference_no: 'เลขที่อ้างอิง',
   expected_date: 'วันที่คาดว่าจะได้รับใบกำกับภาษี',
   notes: 'หมายเหตุ',
@@ -31,12 +36,10 @@ export interface ExcelImportRow {
   description: string;
   amount_excl_vat: string;
   vat_amount: string;
-  // '' หมายถึงคอลัมน์ "ประเภทภาษี" มีค่าที่ไม่รู้จัก (ดู errors) — ยังไม่เคยเป็น '' เพราะแค่ "ว่าง"
-  // เฉยๆ เพราะกรณีว่างจะถูกอนุมานให้ค่าเสมอ (ดู taxTypeSource)
+  // ตรวจจับอัตโนมัติจากยอดในคอลัมน์ VAT เท่านั้นเสมอ (VAT > 0 → claimable_vat, VAT ว่าง/0/"-" →
+  // no_vat) ไม่มีคอลัมน์ให้ผู้ใช้กรอก/เลือกเองอีกต่อไป — '' หมายถึงคอลัมน์ VAT มีค่าที่อ่านเป็นตัวเลข
+  // ไม่ได้ (ดู errors) ยังจำแนกประเภทไม่ได้ แถวนี้จะ import ไม่ได้จนกว่าจะแก้ไขค่า VAT ให้ถูกต้อง
   tax_type: TaxType | '';
-  // 'column' = อ่านมาจากคอลัมน์ประเภทภาษีตรงๆ (หรือผู้ใช้แก้ไขเองในหน้าตรวจสอบแล้ว)
-  // 'inferred' = คอลัมน์ว่าง/ไม่มีคอลัมน์นี้ในไฟล์ ระบบอนุมานจากยอด VAT ให้ — ควรชวนผู้ใช้ตรวจสอบอีกที
-  taxTypeSource: 'column' | 'inferred';
   reference_no: string;
   expected_date: string;
   notes: string;
@@ -115,47 +118,44 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-const TAX_TYPE_HINT =
-  'ไม่มี VAT / มี VAT และใช้เครดิต VAT / มี VAT แต่ไม่ใช้เครดิต VAT (หรือรหัส no_vat / claimable_vat / non_claimable_vat)';
+type VatCellResult = { kind: 'ok'; amount: number } | { kind: 'invalid'; raw: string };
 
-// เทียบแบบ exact match เท่านั้น (ไม่ใช่ substring) — ตั้งใจหลีกเลี่ยงปัญหาค่าที่สั้นกว่าไปจับคู่ผิดกับ
-// ค่าที่ยาวกว่าโดยไม่ตั้งใจ (เช่น "มี vat" ต้องไม่ไปจับคู่ผิดกับ "มี vat แต่ไม่ใช้เครดิต vat")
-// key ทุกตัวเขียนเป็นตัวพิมพ์เล็กอยู่แล้ว — ส่วนอักษรไทยไม่มีผลจาก .toLowerCase() (แปลงเฉพาะ ASCII)
-const TAX_TYPE_ALIASES: Record<string, TaxType> = {
-  no_vat: 'no_vat',
-  claimable_vat: 'claimable_vat',
-  non_claimable_vat: 'non_claimable_vat',
-  'ไม่มี vat': 'no_vat',
-  'มี vat และใช้เครดิต vat': 'claimable_vat',
-  'มี vat': 'claimable_vat',
-  'มี vat แต่ไม่ใช้เครดิต vat': 'non_claimable_vat',
-  'มี vat ไม่ใช้เครดิต': 'non_claimable_vat',
-  'มี vat ไม่ใช้เครดิต vat': 'non_claimable_vat',
-};
-
-type TaxTypeCellResult = { kind: 'value'; value: TaxType } | { kind: 'blank' } | { kind: 'invalid'; raw: string };
-
-/** แปลงค่าจากคอลัมน์ "ประเภทภาษี" — รองรับทั้งป้ายภาษาไทย (ดู TAX_TYPE_ALIASES) และรหัสภาษาอังกฤษ
- * (no_vat/claimable_vat/non_claimable_vat) ไม่สนตัวพิมพ์เล็ก-ใหญ่ของอักษรอังกฤษ และตัดช่องว่างซ้ำ */
-export function parseTaxTypeCell(value: unknown): TaxTypeCellResult {
-  const raw = cellToString(value);
-  const normalized = raw.toLowerCase().trim().replace(/\s+/g, ' ');
-  if (!normalized) return { kind: 'blank' };
-  const found = TAX_TYPE_ALIASES[normalized];
-  if (found) return { kind: 'value', value: found };
-  return { kind: 'invalid', raw };
+/** แปลงค่าจากคอลัมน์ "VAT" อย่างปลอดภัย — นี่คือแหล่งเดียวที่ใช้จำแนกว่ารายการ "มี VAT" หรือ "ไม่มี VAT"
+ * (ไม่มีคอลัมน์ "ประเภทภาษี" ให้กรอก/เลือกเองอีกต่อไปตั้งแต่ 2026-07-15) รองรับ:
+ * - ตัวเลขปกติ (7, 70, 140) และตัวเลขที่มี comma คั่นหลักพัน (เช่น "1,400.00")
+ * - ค่าว่าง / ไม่มีค่า / เครื่องหมาย "-" / ข้อความที่มีแต่ช่องว่าง / 0 / 0.00 → ถือเป็น 0 ทั้งหมด (ไม่ error)
+ * ห้ามคืนค่า NaN เด็ดขาด — ถ้าค่าที่กรอกมาไม่ใช่ตัวเลขล้วนๆ เลย (เช่น "abc" หรือ "12abc" ที่มีตัวอักษรปน)
+ * จะคืนเป็น invalid ให้ parseExcelRow ใส่ error บล็อกแถวนั้นไว้จนกว่าจะแก้ไข */
+export function parseVatCell(value: unknown): VatCellResult {
+  if (value === null || value === undefined) return { kind: 'ok', amount: 0 };
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value >= 0 ? { kind: 'ok', amount: value } : { kind: 'invalid', raw: String(value) };
+  }
+  const raw = String(value).trim();
+  if (raw === '' || raw === '-') return { kind: 'ok', amount: 0 };
+  const cleaned = raw.replace(/,/g, '');
+  // ต้องเป็นตัวเลขล้วนๆ ทั้งสตริง (parseFloat("12abc") จะได้ 12 ทั้งที่ไม่ใช่ตัวเลขล้วน จึงเช็คด้วย
+  // regex ควบคู่ไปด้วยเสมอ ไม่พึ่ง parseFloat อย่างเดียว)
+  if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return { kind: 'invalid', raw };
+  const parsed = parseFloat(cleaned);
+  if (!Number.isFinite(parsed) || parsed < 0) return { kind: 'invalid', raw };
+  return { kind: 'ok', amount: parsed };
 }
 
 /**
  * แปลง 1 แถวดิบจาก Excel (object ที่ key ตรงกับหัวคอลัมน์ EXCEL_HEADERS) ให้เป็น ExcelImportRow
- * พร้อมตรวจสอบความถูกต้อง — ถ้า VAT ไม่ได้กรอกจะเสนอ 7% อัตโนมัติจากยอดก่อน VAT
- * แถวที่ว่างทั้งแถว (เช่นแถวว่างท้ายไฟล์) จะคืนค่า null เพื่อข้ามไปได้
+ * พร้อมตรวจสอบความถูกต้อง แถวที่ว่างทั้งแถว (เช่นแถวว่างท้ายไฟล์) จะคืนค่า null เพื่อข้ามไปได้
  *
- * ลำดับการอ่านประเภทภาษี: อ่านจากคอลัมน์ "ประเภทภาษี" ก่อนเสมอถ้ามีค่า — ถ้าระบุ "ไม่มี VAT" มาชัดเจน
- * จะบังคับ VAT เป็น 0 ทันที (เหมือนพฤติกรรมฟอร์มเพิ่มรายการด้วยตนเอง) ถ้าคอลัมน์นี้ว่างหรือไม่มีในไฟล์
- * จะปล่อยให้ VAT ผ่านการเสนอ 7% อัตโนมัติตามปกติก่อน แล้วค่อยอนุมานประเภทภาษีจากผลลัพธ์ VAT สุดท้าย
- * (VAT > 0 → มี VAT และใช้เครดิตได้, VAT = 0 → ไม่มี VAT) ซึ่งตรงกับพฤติกรรมเดิมของไฟล์นำเข้าก่อนมี
- * ฟีเจอร์นี้ทุกประการ (แถวที่ไม่กรอก VAT มาจะถูกเสนอ 7% แล้วกลายเป็นรายการที่รอรับใบกำกับภาษีตามเดิม)
+ * การจำแนกประเภทภาษี (ตั้งแต่ 2026-07-15): ไม่มีคอลัมน์ "ประเภทภาษี" ให้กรอก/เลือกเองอีกต่อไปแล้ว —
+ * ระบบตรวจจากยอดในคอลัมน์ "VAT" โดยตรงเสมอเพียงอย่างเดียว (ดู parseVatCell ด้านบนสำหรับการแปลงค่าที่
+ * ปลอดภัย): VAT มากกว่า 0 → "มี VAT" (claimable_vat, เข้าขั้นตอนรอรับใบกำกับภาษีเดิมทุกประการ) VAT
+ * เป็นค่าว่าง/0/0.00/เครื่องหมาย "-" → "ไม่มี VAT" (no_vat, ไม่มีขั้นตอนรอรับใดๆ) ข้อสังเกต: ก่อนหน้านี้
+ * VAT ว่างจะถูกเสนอ 7% อัตโนมัติให้ (ระบบเดิมสมมติว่าผู้ใช้แค่ลืมกรอก) — ตอนนี้เปลี่ยนพฤติกรรมตามที่ระบุ
+ * มาโดยตรง: VAT ว่าง = ไม่มี VAT จริงๆ ไม่ใช่ลืมกรอกอีกต่อไป (ฟอร์มเพิ่มรายการด้วยตนเองยังคงเสนอ 7%
+ * อัตโนมัติเหมือนเดิมทุกประการ ไม่ถูกกระทบ — เปลี่ยนเฉพาะเส้นทางนำเข้าจาก Excel เท่านั้น)
+ *
+ * ถ้าคอลัมน์ VAT อ่านค่าเป็นตัวเลขไม่ได้เลย (เช่น "abc") จะถือเป็น error บล็อกแถวนั้นไว้ ยังไม่สามารถ
+ * จำแนกประเภทภาษีได้ (tax_type จะเป็น '' ชั่วคราว) จนกว่าจะแก้ไขค่าให้ถูกต้อง
  */
 export function parseExcelRow(raw: Record<string, unknown>, rowNumber: number): ExcelImportRow | null {
   const vendor_name = cellToString(raw[EXCEL_HEADERS.vendor_name]);
@@ -164,7 +164,7 @@ export function parseExcelRow(raw: Record<string, unknown>, rowNumber: number): 
   const description = cellToString(raw[EXCEL_HEADERS.description]);
   const amountRaw = raw[EXCEL_HEADERS.amount_excl_vat];
   const vatRaw = raw[EXCEL_HEADERS.vat_amount];
-  const taxTypeRaw = raw[EXCEL_HEADERS.tax_type];
+  const totalRaw = raw[EXCEL_HEADERS.total_amount];
   const reference_no = cellToString(raw[EXCEL_HEADERS.reference_no]);
   const expectedDateRaw = raw[EXCEL_HEADERS.expected_date];
   const notes = cellToString(raw[EXCEL_HEADERS.notes]);
@@ -176,7 +176,6 @@ export function parseExcelRow(raw: Record<string, unknown>, rowNumber: number): 
     !description &&
     (amountRaw === undefined || amountRaw === null || amountRaw === '') &&
     (vatRaw === undefined || vatRaw === null || vatRaw === '') &&
-    !cellToString(taxTypeRaw) &&
     !reference_no &&
     !expectedDateRaw &&
     !notes;
@@ -200,39 +199,34 @@ export function parseExcelRow(raw: Record<string, unknown>, rowNumber: number): 
   const amountValid = amount_excl_vat !== '' && Number.isFinite(amountNum) && amountNum > 0;
   if (!amountValid) errors.push('ยอดก่อน VAT ต้องเป็นตัวเลขมากกว่า 0');
 
-  const taxTypeCell = parseTaxTypeCell(taxTypeRaw);
-  let tax_type: TaxType | '' = '';
-  let taxTypeSource: 'column' | 'inferred' = 'column';
-  if (taxTypeCell.kind === 'invalid') {
-    errors.push(`ประเภทภาษีไม่ถูกต้อง: "${taxTypeCell.raw}" (ต้องเป็น ${TAX_TYPE_HINT})`);
-  } else if (taxTypeCell.kind === 'value') {
-    tax_type = taxTypeCell.value;
+  // จำแนกประเภทภาษีจากยอด VAT เพียงอย่างเดียวเสมอ (ดู parseVatCell) — ไม่มีทางอื่นให้ระบุอีกแล้ว
+  const vatCell = parseVatCell(vatRaw);
+  let vat_amount: string;
+  let tax_type: TaxType | '';
+  if (vatCell.kind === 'invalid') {
+    errors.push(
+      `VAT ไม่ถูกต้อง: "${vatCell.raw}" (ต้องเป็นตัวเลขที่ไม่ติดลบ เช่น 7, 70, 1,400.00 หรือเว้นว่าง/"-" ถ้าไม่มี VAT)`
+    );
+    vat_amount = cellToString(vatRaw); // เก็บค่าดิบไว้แสดงในหน้าตรวจสอบ ให้เห็นว่ากรอกอะไรมาผิด
+    tax_type = ''; // ยังจำแนกไม่ได้ — แถวนี้ import ไม่ได้อยู่แล้วเพราะมี error ค้างอยู่
   } else {
-    taxTypeSource = 'inferred';
+    vat_amount = String(vatCell.amount);
+    tax_type = vatCell.amount > 0 ? 'claimable_vat' : 'no_vat';
   }
 
-  let vat_amount = cellToNumberString(vatRaw);
-  if (tax_type === 'no_vat') {
-    if (vat_amount !== '' && parseFloat(vat_amount) > 0) {
-      warnings.push('ประเภทเป็น "ไม่มี VAT" แต่ระบุยอด VAT มากกว่า 0 — ระบบปรับเป็น 0 ให้อัตโนมัติ');
-    }
-    vat_amount = '0';
-  } else if (vat_amount === '') {
-    vat_amount = amountValid ? String(suggestVatAmount(amountNum)) : '';
-  } else {
-    const vatNum = parseFloat(vat_amount);
-    if (Number.isNaN(vatNum) || vatNum < 0) errors.push('VAT ไม่ถูกต้อง');
-  }
-
-  if (taxTypeSource === 'inferred') {
-    const vatNum = parseFloat(vat_amount);
-    tax_type = Number.isFinite(vatNum) && vatNum > 0 ? 'claimable_vat' : 'no_vat';
-  }
-
-  if (tax_type === 'claimable_vat') {
-    const vatNum = parseFloat(vat_amount);
-    if (!Number.isFinite(vatNum) || vatNum <= 0) {
-      warnings.push('ประเภทมี VAT และใช้เครดิตได้ แต่ยอด VAT เป็น 0 — ตรวจสอบยอด VAT อีกครั้ง');
+  // ตรวจสอบยอดรวมที่ผู้ใช้กรอกมาในไฟล์ (ถ้ามี) เทียบกับผลรวมที่คำนวณได้จริง (ยอดก่อน VAT + VAT) — แค่
+  // เตือนเฉยๆ ไม่ error และไม่มีทาง "เขียนทับ" อะไรอยู่แล้ว เพราะยอดรวมจริงในฐานข้อมูลเป็นคอลัมน์ที่
+  // Supabase คำนวณอัตโนมัติเสมอ (generated column) ไม่เคยอ่านค่าจากคอลัมน์นี้ไปบันทึกตรงๆ
+  const totalCellText = cellToString(totalRaw);
+  if (totalCellText && amountValid && vatCell.kind === 'ok') {
+    const totalNum = parseFloat(totalCellText.replace(/,/g, ''));
+    if (Number.isFinite(totalNum)) {
+      const computedTotal = round2(amountNum + vatCell.amount);
+      if (Math.abs(totalNum - computedTotal) > 0.01) {
+        warnings.push(
+          `ยอดรวมที่กรอกมา (${totalNum.toFixed(2)}) ไม่ตรงกับยอดที่คำนวณได้ (${computedTotal.toFixed(2)} = ยอดก่อน VAT + VAT) — ระบบจะบันทึกยอดรวมตามที่คำนวณได้เสมอ`
+        );
+      }
     }
   }
 
@@ -256,7 +250,6 @@ export function parseExcelRow(raw: Record<string, unknown>, rowNumber: number): 
     amount_excl_vat,
     vat_amount,
     tax_type,
-    taxTypeSource,
     reference_no,
     expected_date,
     notes,
@@ -302,9 +295,12 @@ export function findDuplicateRowNumbers(rows: ExcelImportRow[], existingInvoices
 }
 
 /** แปลง ExcelImportRow ที่ผ่านการตรวจสอบและมีประเภทภาษีที่ชัดเจนแล้ว ให้เป็น payload สำหรับบันทึกลง
- * Supabase — สถานะ (pending/received) คำนวณอัตโนมัติตามประเภทภาษี (ดู deriveStatusForTaxType) */
+ * Supabase — สถานะ (pending/received) คำนวณอัตโนมัติตามประเภทภาษี (ดู deriveStatusForTaxType)
+ * หมายเหตุ: ฟังก์ชันนี้ควรถูกเรียกเฉพาะแถวที่ tax_type ไม่ใช่ '' เท่านั้น (หน้าตรวจสอบกรองแถว error/
+ * ยังจำแนกไม่ได้ออกไปก่อนแล้วเสมอ) ค่า default 'no_vat' ด้านล่างเป็นแค่ fallback ป้องกันไว้เฉยๆ ในทาง
+ * ปฏิบัติไม่ควรถูกใช้จริง */
 export function excelRowToWriteInput(row: ExcelImportRow): InvoiceWriteInput {
-  const taxType: TaxType = row.tax_type || 'claimable_vat';
+  const taxType: TaxType = row.tax_type || 'no_vat';
   const isNoVat = taxType === 'no_vat';
   return {
     vendor_name: row.vendor_name.trim(),
@@ -330,22 +326,38 @@ export function readWorkbookRows(data: ArrayBuffer): Record<string, unknown>[] {
   return XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
 }
 
-/** สร้างไฟล์ Excel เทมเพลตพร้อมตัวอย่าง 1 แถว คืนค่าเป็น Blob พร้อมดาวน์โหลด */
+/** สร้างไฟล์ Excel เทมเพลตพร้อมตัวอย่าง 2 แถว (มี VAT / ไม่มี VAT) คืนค่าเป็น Blob พร้อมดาวน์โหลด —
+ * ไม่มีคอลัมน์ "ประเภทภาษี" ให้กรอกเองแล้ว ใส่ตัวอย่าง 2 แถวไว้แทนเพื่อให้เห็นชัดว่าระบบตรวจจากคอลัมน์
+ * VAT เพียงอย่างเดียว: แถวแรกกรอก VAT มา (ตรวจพบว่า "มี VAT") แถวสองเว้นว่างคอลัมน์ VAT ไว้ (ตรวจพบว่า
+ * "ไม่มี VAT") */
 export function buildTemplateBlob(): Blob {
-  const exampleRow: Record<string, unknown> = {
-    [EXCEL_HEADERS.vendor_name]: 'บริษัท ตัวอย่าง จำกัด',
-    [EXCEL_HEADERS.transaction_date]: new Date(),
-    [EXCEL_HEADERS.vendor_tax_id]: '',
-    [EXCEL_HEADERS.description]: 'ค่าสินค้า/บริการ (ตัวอย่าง — ลบแถวนี้ทิ้งแล้วกรอกของจริงแทนได้เลย)',
-    [EXCEL_HEADERS.amount_excl_vat]: 1000,
-    [EXCEL_HEADERS.vat_amount]: '',
-    [EXCEL_HEADERS.total_amount]: '(ไม่ต้องกรอก ระบบคำนวณให้อัตโนมัติ)',
-    [EXCEL_HEADERS.tax_type]: 'มี VAT และใช้เครดิต VAT',
-    [EXCEL_HEADERS.reference_no]: 'PO-0001',
-    [EXCEL_HEADERS.expected_date]: '',
-    [EXCEL_HEADERS.notes]: '',
-  };
-  const worksheet = XLSX.utils.json_to_sheet([exampleRow], { header: EXCEL_HEADER_ORDER });
+  const exampleRows: Record<string, unknown>[] = [
+    {
+      [EXCEL_HEADERS.vendor_name]: 'บริษัท ตัวอย่าง จำกัด',
+      [EXCEL_HEADERS.transaction_date]: new Date(),
+      [EXCEL_HEADERS.vendor_tax_id]: '',
+      [EXCEL_HEADERS.description]: 'ค่าสินค้า/บริการ ตัวอย่างรายการมี VAT (ลบแถวนี้ทิ้งแล้วกรอกของจริงแทนได้เลย)',
+      [EXCEL_HEADERS.amount_excl_vat]: 1000,
+      [EXCEL_HEADERS.vat_amount]: 70,
+      [EXCEL_HEADERS.total_amount]: '(ไม่ต้องกรอก ระบบคำนวณให้อัตโนมัติ)',
+      [EXCEL_HEADERS.reference_no]: 'PO-0001',
+      [EXCEL_HEADERS.expected_date]: '',
+      [EXCEL_HEADERS.notes]: '',
+    },
+    {
+      [EXCEL_HEADERS.vendor_name]: 'ร้านค้า ตัวอย่าง 2',
+      [EXCEL_HEADERS.transaction_date]: new Date(),
+      [EXCEL_HEADERS.vendor_tax_id]: '',
+      [EXCEL_HEADERS.description]: 'ตัวอย่างรายการไม่มี VAT — เว้นว่างช่อง VAT ไว้ (ลบแถวนี้ทิ้งแล้วกรอกของจริงแทนได้เลย)',
+      [EXCEL_HEADERS.amount_excl_vat]: 500,
+      [EXCEL_HEADERS.vat_amount]: '',
+      [EXCEL_HEADERS.total_amount]: '(ไม่ต้องกรอก ระบบคำนวณให้อัตโนมัติ)',
+      [EXCEL_HEADERS.reference_no]: '',
+      [EXCEL_HEADERS.expected_date]: '',
+      [EXCEL_HEADERS.notes]: '',
+    },
+  ];
+  const worksheet = XLSX.utils.json_to_sheet(exampleRows, { header: EXCEL_HEADER_ORDER });
   worksheet['!cols'] = EXCEL_HEADER_ORDER.map((h) => ({ wch: Math.max(h.length + 2, 16) }));
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'รายการ');

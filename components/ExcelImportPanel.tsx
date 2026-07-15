@@ -8,7 +8,6 @@ import {
   readWorkbookRows,
   type ExcelImportRow,
 } from '@/lib/excelImport';
-import { TAX_TYPE_LABELS } from '@/lib/invoiceLogic';
 import type { PendingTaxInvoice, TaxType } from '@/types/invoice';
 
 const THB2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
@@ -50,7 +49,9 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
   );
 
   const summary = useMemo(() => {
-    const vatCount = reviewRows.filter((r) => r.tax_type === 'claimable_vat' || r.tax_type === 'non_claimable_vat').length;
+    // ตรวจจับจากยอด VAT เพียงอย่างเดียวเสมอ (ไม่มีคอลัมน์ "ประเภทภาษี" ให้เลือกเองอีกต่อไป) จึงมีแค่
+    // 2 ประเภทที่เป็นไปได้จากการนำเข้า Excel: claimable_vat (มี VAT) กับ no_vat (ไม่มี VAT) เท่านั้น
+    const vatCount = reviewRows.filter((r) => r.tax_type === 'claimable_vat').length;
     const noVatCount = reviewRows.filter((r) => r.tax_type === 'no_vat').length;
     const errorCount = reviewRows.filter((r) => r.errors.length > 0 || r.isDuplicate).length;
     const totalAmount = importableRows.reduce(
@@ -71,7 +72,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
 
   const displayedRows = reviewRows.filter((r) => {
     if (reviewFilter === 'error') return r.errors.length > 0 || r.isDuplicate;
-    if (reviewFilter === 'vat') return r.tax_type === 'claimable_vat' || r.tax_type === 'non_claimable_vat';
+    if (reviewFilter === 'vat') return r.tax_type === 'claimable_vat';
     if (reviewFilter === 'no_vat') return r.tax_type === 'no_vat';
     return true;
   });
@@ -121,13 +122,6 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
     setReviewRows((prev) => prev.map((r) => (r.rowNumber === rowNumber ? { ...r, included: !r.included } : r)));
   }
 
-  function handleRowTaxTypeChange(rowNumber: number, taxType: TaxType) {
-    // ผู้ใช้แก้ไข/ยืนยันประเภทภาษีเองผ่านหน้าตรวจสอบนี้แล้ว จึงไม่ถือเป็นค่าที่ระบบอนุมานอีกต่อไป
-    setReviewRows((prev) =>
-      prev.map((r) => (r.rowNumber === rowNumber ? { ...r, tax_type: taxType, taxTypeSource: 'column' } : r))
-    );
-  }
-
   async function handleConfirmImport() {
     if (importableRows.length === 0) return;
     setImporting(true);
@@ -153,8 +147,9 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
     <div className="space-y-4" data-testid="excel-import-panel">
       <p className="text-sm text-gray-600">
         นำเข้ารายการยอดซื้อหลายรายการพร้อมกันจากไฟล์ Excel — ดาวน์โหลดเทมเพลต กรอกข้อมูล แล้วอัปโหลดกลับมา
-        (ไม่กรอกช่อง VAT จะคำนวณให้อัตโนมัติ 7% จากยอดก่อน VAT) คอลัมน์ &quot;ประเภทภาษี&quot; กรอกเป็นภาษาไทยหรือรหัส
-        ภาษาอังกฤษก็ได้ ถ้าไม่กรอกระบบจะอนุมานให้จากยอด VAT — ตรวจสอบและแก้ไขได้อีกครั้งในหน้าตรวจสอบก่อนนำเข้าจริง
+        ระบบจะตรวจจากยอดในคอลัมน์ &quot;VAT&quot; ให้อัตโนมัติเสมอ: กรอกยอด VAT มา (มากกว่า 0) ถือเป็น
+        &quot;มี VAT&quot; ส่วนเว้นว่างไว้ หรือใส่ 0 หรือเครื่องหมาย &quot;-&quot; ถือเป็น &quot;ไม่มี VAT&quot; —
+        ตรวจสอบผลลัพธ์อีกครั้งได้ในหน้าตรวจสอบก่อนนำเข้าจริง
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -253,7 +248,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
                   <th className="px-3 py-2 text-right font-medium text-gray-500">ยอดก่อน VAT</th>
                   <th className="px-3 py-2 text-right font-medium text-gray-500">VAT</th>
                   <th className="px-3 py-2 text-right font-medium text-gray-500">ยอดรวม</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-500">ประเภทภาษี</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-500">ประเภทที่ระบบตรวจพบ</th>
                   <th className="px-3 py-2 text-left font-medium text-gray-500">สถานะตรวจสอบ</th>
                   <th className="px-3 py-2 text-left font-medium text-gray-500">ข้อผิดพลาด</th>
                 </tr>
@@ -290,29 +285,37 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
                         {r.amount_excl_vat ? amount.toLocaleString('th-TH', THB2) : '-'}
                       </td>
                       <td className="px-3 py-2 text-right text-gray-700">
-                        {r.vat_amount !== '' ? vat.toLocaleString('th-TH', THB2) : '-'}
+                        {/* VAT อ่านเป็นตัวเลขไม่ได้ (มี error) — โชว์ข้อความดิบที่กรอกมาแทน ให้เห็นว่าผิดตรงไหน */}
+                        {r.vat_amount !== '' && Number.isFinite(parseFloat(r.vat_amount))
+                          ? vat.toLocaleString('th-TH', THB2)
+                          : r.vat_amount || '-'}
                       </td>
                       <td className="px-3 py-2 text-right text-gray-700">
                         {r.amount_excl_vat || r.vat_amount ? (amount + vat).toLocaleString('th-TH', THB2) : '-'}
                       </td>
                       <td className="px-3 py-2">
-                        <select
-                          value={r.tax_type}
-                          onChange={(e) => handleRowTaxTypeChange(r.rowNumber, e.target.value as TaxType)}
-                          className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-900"
-                          data-testid={`import-row-tax-type-${r.rowNumber}`}
-                        >
-                          <option value="" disabled>
-                            -- เลือก --
-                          </option>
-                          {(Object.keys(TAX_TYPE_LABELS) as TaxType[]).map((tt) => (
-                            <option key={tt} value={tt}>
-                              {TAX_TYPE_LABELS[tt]}
-                            </option>
-                          ))}
-                        </select>
-                        {r.taxTypeSource === 'inferred' && r.tax_type !== '' && (
-                          <span className="ml-1 text-[10px] text-gray-400">(อนุมานจาก VAT)</span>
+                        {/* ตรวจจับอัตโนมัติจากยอด VAT เท่านั้น — อ่านอย่างเดียว ไม่ให้ผู้ใช้เลือก/แก้เอง
+                            ตามที่ตกลงกันไว้ (ลดขั้นตอนกรอกข้อมูลซ้ำซ้อน) */}
+                        {r.tax_type === 'claimable_vat' && (
+                          <span
+                            className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700"
+                            data-testid={`import-row-tax-type-${r.rowNumber}`}
+                          >
+                            มี VAT
+                          </span>
+                        )}
+                        {r.tax_type === 'no_vat' && (
+                          <span
+                            className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
+                            data-testid={`import-row-tax-type-${r.rowNumber}`}
+                          >
+                            ไม่มี VAT
+                          </span>
+                        )}
+                        {r.tax_type === '' && (
+                          <span className="text-xs text-gray-400" data-testid={`import-row-tax-type-${r.rowNumber}`}>
+                            -
+                          </span>
                         )}
                       </td>
                       <td className="px-3 py-2">
