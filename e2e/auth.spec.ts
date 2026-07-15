@@ -13,7 +13,9 @@ test.describe('Auth', () => {
     await page.locator('button[type="submit"]').click();
 
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByRole('heading', { name: 'บันทึกค่าใช้จ่าย' })).toBeVisible();
+    // ตั้งแต่รอบปรับโครงสร้าง Navigation/Layout (2026-07-15) หน้าแรกหลังล็อกอิน/สมัครสมาชิกคือ
+    // Dashboard ภาพรวม (เดิมคือ "บันทึกค่าใช้จ่าย")
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
 

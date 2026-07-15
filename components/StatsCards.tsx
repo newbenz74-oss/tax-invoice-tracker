@@ -3,7 +3,17 @@ import { Banknote, CalendarX, CheckCircle2, Clock, Receipt, type LucideIcon } fr
 
 const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export default function StatsCards({ stats }: { stats: InvoiceStats }) {
+interface StatsCardsProps {
+  stats: InvoiceStats;
+  // เสริมใหม่ (optional): ให้การ์ดกดได้ ส่ง id ของการ์ดที่กด ('pending' | 'pending-amount' |
+  // 'pending-vat' | 'overdue' | 'received') กลับไปให้ผู้เรียกตัดสินใจเองว่าจะพาไปหน้าไหน —
+  // component นี้ไม่ผูก routing/navigation ใดๆ ไว้ในตัวเอง (คงความเป็น component แสดงผลล้วนไว้
+  // เหมือนเดิม) ไม่ส่ง prop นี้มาก็ยังใช้งานได้ปกติทุกประการ (การ์ดจะไม่ตอบสนองการคลิก เหมือนเดิม
+  // ก่อนรอบปรับโครงสร้าง Navigation/Layout นี้) — ใช้ครั้งแรกโดยหน้า Dashboard ภาพรวมใหม่เท่านั้น
+  onCardClick?: (id: string) => void;
+}
+
+export default function StatsCards({ stats, onCardClick }: StatsCardsProps) {
   const cards: Array<{
     id: string;
     label: string;
@@ -58,10 +68,26 @@ export default function StatsCards({ stats }: { stats: InvoiceStats }) {
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
       {cards.map((c) => {
         const Icon = c.icon;
+        const clickable = Boolean(onCardClick);
         return (
           <div
             key={c.id}
-            className="card-surface card-hover-lift rounded-2xl p-6"
+            role={clickable ? 'button' : undefined}
+            tabIndex={clickable ? 0 : undefined}
+            onClick={clickable ? () => onCardClick?.(c.id) : undefined}
+            onKeyDown={
+              clickable
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onCardClick?.(c.id);
+                    }
+                  }
+                : undefined
+            }
+            className={`card-surface card-hover-lift rounded-2xl p-6 ${
+              clickable ? 'cursor-pointer focus-ring-primary text-left' : ''
+            }`}
             data-testid={`stat-${c.id}`}
           >
             <div className={`flex h-11 w-11 items-center justify-center rounded-full ${c.iconBg} ${c.iconColor}`}>

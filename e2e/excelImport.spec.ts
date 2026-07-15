@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 import * as XLSX from 'xlsx';
-import { attachConsoleErrorCollector, isoDaysFromNow, setupMockSupabase } from './helpers';
+import { attachConsoleErrorCollector, gotoRecordExpense, isoDaysFromNow, setupMockSupabase } from './helpers';
 import { EXCEL_HEADERS, EXCEL_HEADER_ORDER } from '../lib/excelImport';
 
 const OWNER = 'user@example.com';
@@ -20,7 +20,7 @@ test.describe('นำเข้ารายการจาก Excel', () => {
   test('ดาวน์โหลดเทมเพลต แล้วนำเข้าไฟล์: แถวถูกต้องถูกบันทึก แถวมีปัญหาถูกข้าม', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
-    await page.goto('/dashboard');
+    await gotoRecordExpense(page);
 
     await page.getByTestId('open-import-panel').click();
     await expect(page.getByTestId('excel-import-panel')).toBeVisible();
@@ -114,7 +114,7 @@ test.describe('นำเข้ารายการจาก Excel', () => {
   test('ทุกแถวมีปัญหา — ปุ่มนำเข้าถูกปิดใช้งาน', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
-    await page.goto('/dashboard');
+    await gotoRecordExpense(page);
 
     await page.getByTestId('open-import-panel').click();
 
@@ -146,7 +146,7 @@ test.describe('นำเข้ารายการจาก Excel', () => {
   test('อัปโหลดไฟล์ที่ไม่มีข้อมูลเลย — แจ้งเตือนผู้ใช้', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
-    await page.goto('/dashboard');
+    await gotoRecordExpense(page);
 
     await page.getByTestId('open-import-panel').click();
 
@@ -167,7 +167,7 @@ test.describe('นำเข้ารายการจาก Excel', () => {
   test('ปิดแผงนำเข้าด้วยปุ่มปิด', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
-    await page.goto('/dashboard');
+    await gotoRecordExpense(page);
 
     await page.getByTestId('open-import-panel').click();
     await expect(page.getByTestId('excel-import-panel')).toBeVisible();
@@ -183,7 +183,7 @@ test.describe('นำเข้ารายการจาก Excel', () => {
   }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
-    await page.goto('/dashboard');
+    await gotoRecordExpense(page);
 
     await page.getByTestId('open-import-panel').click();
 
@@ -269,7 +269,7 @@ test.describe('นำเข้ารายการจาก Excel', () => {
         },
       ],
     });
-    await page.goto('/dashboard');
+    await gotoRecordExpense(page);
 
     await page.getByTestId('open-import-panel').click();
     const buffer = buildWorkbookBuffer([

@@ -4,6 +4,7 @@ import {
   FileInput,
   FileOutput,
   Landmark,
+  LayoutDashboard,
   ScrollText,
   SearchCheck,
   Send,
@@ -11,6 +12,7 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
+import type { InvoiceStatus } from '@/types/invoice';
 
 /**
  * โครงสร้างเมนู Sidebar ทั้งหมดของระบบ — แก้ตรงนี้ที่เดียวถ้าต้องการเพิ่ม/ลบ/แก้เมนู
@@ -40,7 +42,23 @@ export function isNavSection(entry: NavEntry): entry is NavSection {
   return 'children' in entry;
 }
 
+/** สัญญาณเสริม (optional) ที่ส่งไปพร้อมกับการเปลี่ยนเมนู active — เพิ่มเข้ามาพร้อมหน้า Dashboard
+ * ภาพรวมใหม่ (รอบปรับโครงสร้าง Navigation/Layout 2026-07-15) เพื่อให้ปุ่ม/การ์ดใน Dashboard พาไปหน้า
+ * ปลายทางพร้อม "ทำอะไรต่อทันที" ได้เลย เช่นเปิดฟอร์มเพิ่มรายการ/เปิดแผงนำเข้า Excel/ตั้ง filter สถานะ
+ * ไว้ล่วงหน้า — เนื้อหาปลายทาง (ExpenseRecordContent ใน app/dashboard/page.tsx) อ่านค่านี้แค่ตอน mount
+ * ครั้งแรกผ่าน useState lazy initializer เท่านั้น (ไม่ใช้ useEffect ตามกฎ react-hooks/set-state-in-effect
+ * ที่ยึดถือมาตลอดทั้งโปรเจกต์) ไม่ผูกกับ business logic ใดๆ ทั้งสิ้น เป็นแค่ UI state ล้วนๆ */
+export type NavIntent =
+  | { type: 'open-form' }
+  | { type: 'open-import' }
+  | { type: 'filter'; status: InvoiceStatus | 'all' };
+
 export const NAV_STRUCTURE: NavEntry[] = [
+  // เพิ่มเข้ามาในรอบปรับโครงสร้าง Navigation/Layout (2026-07-15 เซสชันเดียวกับรอบปรับ Theme) — เป็น
+  // NavLeaf เดี่ยว (ไม่ใช่ NavSection ที่มีลูก) แม้สเปกจะเขียนหัวข้อย่อย "ภาพรวมระบบ" ไว้ใต้ Dashboard
+  // ก็ตาม เพราะ Dashboard มีเนื้อหาเดียว (หน้าภาพรวม) ไม่มีเมนูย่อยจริงให้ต้องขยาย/ยุบ — ทำเป็น section
+  // ที่มีลูกเดียวจะเพิ่มการคลิกเปล่าประโยชน์โดยไม่จำเป็น ใช้ label เดียวกับ PAGE_META ใน Header.tsx
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, implemented: true },
   {
     id: 'payments',
     label: 'บันทึกการจ่ายเงิน',
@@ -77,8 +95,12 @@ export const NAV_STRUCTURE: NavEntry[] = [
   },
 ];
 
-/** เมนูที่ active เป็นค่าเริ่มต้นตอนล็อกอินครั้งแรก (ยังไม่มีค่าใน localStorage) — หน้าแรกของระบบ */
-export const DEFAULT_ACTIVE_ID = 'record-expense';
+/** เมนูที่ active เป็นค่าเริ่มต้นตอนล็อกอินครั้งแรก (ยังไม่มีค่าใน localStorage) — หน้าแรกของระบบ
+ * เปลี่ยนจาก 'record-expense' เป็น 'dashboard' ในรอบปรับโครงสร้าง Navigation/Layout (2026-07-15)
+ * ตามที่ผู้ใช้เลือกยืนยันผ่าน AskUserQuestion — ผู้ใช้ที่มี localStorage ค้างค่า 'record-expense' เดิม
+ * จาก ก่อนหน้านี้จะยังคงเข้าเมนูนั้นได้ตามปกติทุกครั้งที่ล็อกอิน (ค่าที่เคยบันทึกไว้ยังถูกต้องเสมอ เพราะ
+ * 'record-expense' ยังเป็น id ที่มีอยู่จริง) เปลี่ยนแค่ผู้ใช้ใหม่/เบราว์เซอร์ใหม่ที่ยังไม่เคยมีค่านี้เท่านั้น */
+export const DEFAULT_ACTIVE_ID = 'dashboard';
 
 /** หา NavLeaf จาก id (ทุกระดับความลึก) — คืน null ถ้าไม่พบ หรือถ้า id ที่ให้มาเป็นของ NavSection
  * (section ไม่ใช่หน้าเนื้อหา คลิกได้แค่ขยาย/ยุบ ไม่ใช่ id ที่ใช้กับ activeId) */

@@ -6,6 +6,7 @@ import {
   FileOutput,
   FileText,
   Landmark,
+  LayoutDashboard,
   Menu,
   ScrollText,
   SearchCheck,
@@ -30,6 +31,10 @@ interface HeaderProps {
 // NavLeaf ทุกอันใน lib/navigation.ts ณ ปัจจุบัน ไอคอนที่เลือกใช้ตัวเดียวกับใน Sidebar ของ
 // เมนูนั้นๆ เพื่อให้ผู้ใช้เห็นความต่อเนื่องกับเมนูที่กดเลือก
 const PAGE_META: Record<string, { icon: LucideIcon; description: string }> = {
+  Dashboard: {
+    icon: LayoutDashboard,
+    description: 'ภาพรวมระบบและสรุปข้อมูลสำคัญ',
+  },
   บันทึกค่าใช้จ่าย: {
     icon: Wallet,
     description: 'จัดการรายการค่าใช้จ่ายและติดตามใบกำกับภาษี',

@@ -4,20 +4,22 @@ import { attachConsoleErrorCollector, setupMockSupabase } from './helpers';
 const OWNER = 'user@example.com';
 
 test.describe('Sidebar navigation', () => {
-  test('เมนู "บันทึกค่าใช้จ่าย" active เป็นค่าเริ่มต้น และเห็นเนื้อหา Dashboard เดิม', async ({ page }) => {
+  // เดิมเมนูเริ่มต้นคือ "บันทึกค่าใช้จ่าย" — เปลี่ยนเป็น "Dashboard" ในรอบปรับโครงสร้าง
+  // Navigation/Layout (2026-07-15) ตามที่ผู้ใช้ยืนยันให้ Dashboard เป็นหน้าแรกของระบบ
+  test('เมนู "Dashboard" active เป็นค่าเริ่มต้น และเห็นหน้าภาพรวมระบบ', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
     await page.goto('/dashboard');
 
-    await expect(page.getByTestId('nav-item-record-expense')).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกค่าใช้จ่าย' })).toBeVisible();
-    await expect(page.getByTestId('open-add-form')).toBeVisible();
+    await expect(page.getByTestId('nav-item-dashboard')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
+    await expect(page.getByTestId('quick-actions')).toBeVisible();
     await expect(page.getByTestId('coming-soon')).toHaveCount(0);
 
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
 
-  test('คลิกเมนูที่ยังไม่มีฟีเจอร์จริงแสดงหน้า "เร็วๆ นี้" แทน Dashboard โดยไม่มี error', async ({ page }) => {
+  test('คลิกเมนูที่ยังไม่มีฟีเจอร์จริงแสดงหน้า "เร็วๆ นี้" โดยไม่มี error', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
     await page.goto('/dashboard');

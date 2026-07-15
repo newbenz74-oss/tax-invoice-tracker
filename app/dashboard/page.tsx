@@ -7,11 +7,10 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import ComingSoon from '@/components/ComingSoon';
-import StatsCards from '@/components/StatsCards';
+import DashboardOverview from '@/components/DashboardOverview';
 import InvoiceForm from '@/components/InvoiceForm';
 import InvoiceTable from '@/components/InvoiceTable';
 import ExcelImportPanel from '@/components/ExcelImportPanel';
-import MonthlyVatSummary from '@/components/MonthlyVatSummary';
 import PurchaseTaxReport from '@/components/PurchaseTaxReport';
 import { useAuth } from '@/lib/AuthContext';
 import {
@@ -25,15 +24,9 @@ import {
   updateInvoice,
   type InvoiceWriteInput,
 } from '@/lib/invoiceApi';
-import {
-  computeMonthlyVatSummary,
-  computeStats,
-  deriveStatusForTaxType,
-  filterInvoices,
-  sortInvoices,
-} from '@/lib/invoiceLogic';
+import { deriveStatusForTaxType, filterInvoices, sortInvoices } from '@/lib/invoiceLogic';
 import { excelRowToWriteInput, type ExcelImportRow } from '@/lib/excelImport';
-import { DEFAULT_ACTIVE_ID, findNavLeaf } from '@/lib/navigation';
+import { DEFAULT_ACTIVE_ID, findNavLeaf, type NavIntent } from '@/lib/navigation';
 import type {
   InvoiceFormInput,
   InvoiceStatus,
@@ -45,6 +38,11 @@ import type {
 } from '@/types/invoice';
 
 const ACTIVE_NAV_STORAGE_KEY = 'benz_sidebar_active';
+// จำนวนรายการต่อหน้าของตารางในหน้า "บันทึกค่าใช้จ่าย" — เพิ่มเข้ามาในรอบปรับโครงสร้าง
+// Navigation/Layout (2026-07-15) ตามสเปกที่ขอ Pagination ไว้หลังย้าย KPI/สรุป VAT รายเดือนออกไป
+// หน้า Dashboard แล้ว เป็น UI state ล้วนๆ (slice array ฝั่ง client) ไม่แตะ lib/invoiceLogic.ts
+// หรือการเรียก API ใดๆ เลย ปรับตัวเลขนี้ได้อิสระในอนาคตถ้าต้องการ
+const PAGE_SIZE = 10;
 
 function todayISO(): string {
   const now = new Date();
@@ -54,11 +52,10 @@ function todayISO(): string {
   return `${y}-${m}-${d}`;
 }
 
-// โครง Sidebar + Header ใหม่ (DashboardShell) — DashboardContent ด้านล่างนี้ (state, handler,
-// การเรียก SWR/API ทั้งหมด) ไม่ถูกแก้ไขแม้แต่บรรทัดเดียว แค่ย้ายไปแสดงในพื้นที่เนื้อหาด้านขวา
-// แทนที่ Navbar เดิม โดยจะแสดงก็ต่อเมื่อเมนูที่ active คือ "บันทึกค่าใช้จ่าย" (เมนูในหมวด
-// "บันทึกการจ่ายเงิน" ที่ผูกกับหน้า Dashboard เดิมนี้ไว้ และเป็นหน้าแรกของระบบตอนนี้ — เดิมเคย
-// ผูกกับเมนู "ใบกำกับภาษี" ที่ถูกลบออกไปแล้ว ดู lib/navigation.ts)
+// โครง Sidebar + Header (DashboardShell) — เนื้อหาแต่ละเมนูสลับกันแสดงในพื้นที่เนื้อหาด้านขวาผ่าน
+// renderActiveContent ด้านล่าง ไม่มี Next.js route แยกต่อเมนู (ทุกเมนูอยู่ใน URL /dashboard เดียว
+// สลับด้วย client state — ดู lib/navigation.ts) — คงสถาปัตยกรรมนี้ไว้เหมือนเดิมทุกประการในรอบปรับ
+// โครงสร้าง Navigation/Layout (2026-07-15) ที่เพิ่มเมนู "Dashboard" เข้ามาใหม่ด้วย
 export default function DashboardPage() {
   return (
     <ProtectedRoute>
@@ -68,8 +65,9 @@ export default function DashboardPage() {
 }
 
 // อ่านเมนูที่ active ล่าสุดจาก localStorage (client-only) — ถ้ายังไม่เคยมีค่า (เช่นล็อกอินครั้งแรก
-// ในเบราว์เซอร์นี้ หรือค่าเดิมที่บันทึกไว้ชี้ไปเมนูที่ถูกลบไปแล้วอย่าง 'dashboard') จะ fallback ไปใช้
-// DEFAULT_ACTIVE_ID คือ 'record-expense' (บันทึกค่าใช้จ่าย, หน้าเดิมของ Dashboard) เสมอ
+// ในเบราว์เซอร์นี้ หรือค่าเดิมที่บันทึกไว้ชี้ไปเมนูที่ถูกลบไปแล้ว) จะ fallback ไปใช้ DEFAULT_ACTIVE_ID
+// เสมอ — เปลี่ยนจาก 'record-expense' เป็น 'dashboard' ในรอบปรับโครงสร้าง Navigation/Layout
+// (2026-07-15) ตามที่ผู้ใช้ยืนยันให้ Dashboard เป็นหน้าแรกของระบบ (ดู lib/navigation.ts)
 function readInitialActiveId(): string {
   if (typeof window === 'undefined') return DEFAULT_ACTIVE_ID;
   try {
@@ -84,6 +82,12 @@ function readInitialActiveId(): string {
 function DashboardShell() {
   const [activeId, setActiveId] = useState<string>(readInitialActiveId);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // สัญญาณเสริม (optional) จากปุ่ม/การ์ดในหน้า Dashboard ภาพรวม เช่น "เพิ่มค่าใช้จ่าย" ควรเปิดฟอร์ม
+  // ทันทีที่ไปถึงหน้าบันทึกค่าใช้จ่าย — เพิ่มเข้ามาพร้อมเมนู Dashboard ใหม่ในรอบนี้ (ดู
+  // lib/navigation.ts — NavIntent) handleSelect ด้านล่างตั้งค่านี้เป็น null เสมอถ้าไม่ได้ส่ง intent
+  // มาด้วยตรงๆ (เช่นคลิกเมนูใน Sidebar ตามปกติ) เพื่อไม่ให้ intent เก่าจากการนำทางครั้งก่อนหลงเหลือ
+  //มาปนกับการคลิกเมนูปกติครั้งถัดไป
+  const [navIntent, setNavIntent] = useState<NavIntent | null>(null);
 
   // บันทึกเมนูที่ active ไว้ทุกครั้งที่เปลี่ยน เพื่อให้จำได้ข้าม refresh
   useEffect(() => {
@@ -97,8 +101,9 @@ function DashboardShell() {
   const activeEntry = findNavLeaf(activeId);
   const title = activeEntry?.label ?? '';
 
-  function handleSelect(id: string) {
+  function handleSelect(id: string, intent: NavIntent | null = null) {
     setActiveId(id);
+    setNavIntent(intent);
     setMobileNavOpen(false);
   }
 
@@ -106,33 +111,36 @@ function DashboardShell() {
     <div className="flex min-h-screen bg-page-bg">
       <Sidebar
         activeId={activeId}
-        onSelect={handleSelect}
+        onSelect={(id) => handleSelect(id)}
         isOpen={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
       />
       <div className="flex min-h-screen flex-1 flex-col min-[992px]:ml-[250px]">
         <Header title={title} onMenuClick={() => setMobileNavOpen(true)} />
-        {renderActiveContent(activeId, Boolean(activeEntry?.implemented), title, handleSelect)}
+        {renderActiveContent(activeId, Boolean(activeEntry?.implemented), title, handleSelect, navIntent)}
       </div>
     </div>
   );
 }
 
-// เดิมเป็น ternary เดียว (implemented ? DashboardContent : ComingSoon) เพราะมีแค่เมนูเดียวที่
-// implemented: true — ตอนนี้มี 2 เมนูแล้ว (record-expense, purchase-tax-report) จึงขยายเป็นฟังก์ชัน
-// เลือกตาม activeId แทน เมนูที่ implemented: false ทุกอันยังคงขึ้น ComingSoon เหมือนเดิมทุกประการ
+// เดิมเลือกระหว่าง DashboardContent (record-expense)/PurchaseTaxReport/ComingSoon — เพิ่มเคส
+// 'dashboard' เข้ามาในรอบปรับโครงสร้าง Navigation/Layout (2026-07-15) เมนูที่ implemented: false
+// ทุกอันยังคงขึ้น ComingSoon เหมือนเดิมทุกประการ
 function renderActiveContent(
   activeId: string,
   implemented: boolean,
   title: string,
-  // เสริมใหม่ (optional): เผื่อให้เนื้อหาด้านในเปลี่ยนเมนูที่ active ได้เอง เช่นปุ่ม
-  // "ดูรายงานทั้งหมด →" ใน MonthlyVatSummary — ไม่บังคับใช้ ไม่กระทบของเดิมถ้าไม่ส่งมา
-  onNavigate?: (id: string) => void,
+  // เสริมใหม่ (optional): เผื่อให้เนื้อหาด้านในเปลี่ยนเมนูที่ active ได้เอง พร้อมส่ง intent ไปด้วยได้
+  // เช่นปุ่ม "ดูรายงานทั้งหมด →" ใน MonthlyVatSummary หรือการ์ด KPI/Quick Actions ในหน้า Dashboard
+  onNavigate?: (id: string, intent?: NavIntent) => void,
+  navIntent?: NavIntent | null,
 ) {
   if (!implemented) return <ComingSoon label={title} />;
   switch (activeId) {
+    case 'dashboard':
+      return <DashboardOverview onNavigate={onNavigate} />;
     case 'record-expense':
-      return <DashboardContent onNavigate={onNavigate} />;
+      return <ExpenseRecordContent initialIntent={navIntent ?? null} />;
     case 'purchase-tax-report':
       return <PurchaseTaxReport />;
     default:
@@ -140,7 +148,14 @@ function renderActiveContent(
   }
 }
 
-function DashboardContent({ onNavigate }: { onNavigate?: (id: string) => void } = {}) {
+// เนื้อหาหน้า "บันทึกค่าใช้จ่าย" — เดิมชื่อ DashboardContent (สมัยที่หน้านี้เป็นเนื้อหาเดียวของ
+// /dashboard ทั้งหมด) เปลี่ยนชื่อให้ตรงกับบทบาทปัจจุบันในรอบปรับโครงสร้าง Navigation/Layout
+// (2026-07-15) เพื่อความชัดเจนระยะยาว — เป็นแค่การเปลี่ยนชื่อฟังก์ชันภายในไฟล์นี้ไฟล์เดียว (ไม่ได้
+// export ไปที่อื่น) ไม่กระทบพฤติกรรมใดๆ การเปลี่ยนแปลงจริงของรอบนี้คือ (1) เอา StatsCards/
+// MonthlyVatSummary ออก (ย้ายไปอยู่ DashboardOverview แทนแล้ว — component เดิมทั้งสองตัวไม่ถูกแก้ไข
+// logic การคำนวณเลยแม้แต่บรรทัดเดียว แค่เปลี่ยนที่ render) (2) เพิ่ม pagination ตามสเปก (3) รับ
+// initialIntent จากหน้า Dashboard ได้ (เปิดฟอร์ม/แผงนำเข้า/ตั้ง filter ล่วงหน้า)
+function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | null } = {}) {
   const { session } = useAuth();
   const today = useMemo(() => todayISO(), []);
 
@@ -154,22 +169,41 @@ function DashboardContent({ onNavigate }: { onNavigate?: (id: string) => void } 
   } = useSWR<PendingTaxInvoice[]>(session ? INVOICES_SWR_KEY : null, fetchInvoices);
   const loadError = loadErrorObj instanceof Error ? loadErrorObj.message : loadErrorObj ? 'โหลดข้อมูลไม่สำเร็จ' : null;
 
-  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('pending');
+  // statusFilter/showForm/showImportPanel อ่านค่าเริ่มต้นจาก initialIntent ผ่าน lazy initializer ของ
+  // useState (ไม่ใช้ useEffect ตามกฎ react-hooks/set-state-in-effect เดิมของโปรเจกต์นี้) — ทำงาน
+  // ถูกต้องเพราะ component นี้ mount ใหม่เสมอทุกครั้งที่ activeId เปลี่ยนมาเป็น 'record-expense'
+  // (การ์ด/Quick Action ในหน้า Dashboard เปลี่ยน activeId เสมอ ไม่มีทางกดซ้ำตอน activeId เป็น
+  // 'record-expense' อยู่แล้ว เพราะสองเมนูนี้แสดงพร้อมกันไม่ได้) จึง mount ใหม่ทุกครั้งที่มี intent จริง
+  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>(() =>
+    initialIntent?.type === 'filter' ? initialIntent.status : 'pending'
+  );
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('expected_date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(() => initialIntent?.type === 'open-form');
   const [editingInvoice, setEditingInvoice] = useState<PendingTaxInvoice | null>(null);
-  const [showImportPanel, setShowImportPanel] = useState(false);
-
-  const stats = useMemo(() => computeStats(invoices, today), [invoices, today]);
-  const monthlyVat = useMemo(() => computeMonthlyVatSummary(invoices), [invoices]);
+  const [showImportPanel, setShowImportPanel] = useState(() => initialIntent?.type === 'open-import');
+  // Pagination (เพิ่มเข้ามาในรอบปรับโครงสร้าง Navigation/Layout 2026-07-15 ตามสเปก) — page state
+  // ล้วนๆ ฝั่ง client (slice array ก่อน render) ไม่แตะ lib/invoiceLogic.ts หรือการเรียก API ใดๆ เลย
+  const [page, setPage] = useState(1);
 
   const visibleInvoices = useMemo(() => {
     const filtered = filterInvoices(invoices, { status: statusFilter, search });
     return sortInvoices(filtered, sortField, sortDirection);
   }, [invoices, statusFilter, search, sortField, sortDirection]);
+
+  // จำนวนหน้าคำนวณจากรายการที่กรอง/ค้นหา/เรียงแล้วเสมอ — clamp หน้าปัจจุบันไม่ให้เกินจำนวนหน้าจริง
+  // ตรงนี้แทนการเรียก setState ใน effect (เช่นกรณีเปลี่ยน filter/ค้นหาแล้วรายการเหลือน้อยกว่าหน้าที่
+  // ค้างอยู่) เพื่อเลี่ยง eslint rule react-hooks/set-state-in-effect เดิมของโปรเจกต์นี้ไปในตัว —
+  // ฟังก์ชัน handle*Change ด้านล่างรีเซ็ตกลับหน้า 1 ให้ทันทีตอนเปลี่ยน filter/ค้นหา/เรียงอยู่แล้วด้วย
+  // (ประสบการณ์ใช้งานที่ดีกว่าแค่ clamp เฉยๆ) แต่การ clamp ตรงนี้ยังจำเป็นไว้เป็นตัวกันสำรอง
+  const totalPages = Math.max(1, Math.ceil(visibleInvoices.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedInvoices = useMemo(
+    () => visibleInvoices.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [visibleInvoices, safePage]
+  );
 
   function handleSortChange(field: SortField) {
     if (field === sortField) {
@@ -178,6 +212,17 @@ function DashboardContent({ onNavigate }: { onNavigate?: (id: string) => void } 
       setSortField(field);
       setSortDirection('asc');
     }
+    setPage(1);
+  }
+
+  function handleStatusFilterChange(status: InvoiceStatus | 'all') {
+    setStatusFilter(status);
+    setPage(1);
+  }
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setPage(1);
   }
 
   async function handleFormSubmit(input: InvoiceFormInput) {
@@ -267,14 +312,12 @@ function DashboardContent({ onNavigate }: { onNavigate?: (id: string) => void } 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-8">
       <div className="mb-8 flex flex-col gap-5">
-        <StatsCards stats={stats} />
-
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-2">
             {(['all', 'pending', 'received', 'cancelled'] as const).map((s) => (
               <button
                 key={s}
-                onClick={() => setStatusFilter(s)}
+                onClick={() => handleStatusFilterChange(s)}
                 className={`btn-press rounded-full px-4 py-2 text-sm font-medium transition-colors duration-[250ms] ${
                   statusFilter === s
                     ? 'bg-primary text-white shadow-sm'
@@ -296,7 +339,7 @@ function DashboardContent({ onNavigate }: { onNavigate?: (id: string) => void } 
               />
               <input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="ค้นหาผู้ขาย / เลขที่อ้างอิง / เลขใบกำกับภาษี"
                 className="focus-ring-primary h-12 w-64 rounded-xl border border-border bg-white pr-4 pl-10 text-sm text-text placeholder:text-text-sub"
                 data-testid="search-input"
@@ -366,7 +409,7 @@ function DashboardContent({ onNavigate }: { onNavigate?: (id: string) => void } 
       ) : (
         <>
           <InvoiceTable
-            invoices={visibleInvoices}
+            invoices={paginatedInvoices}
             today={today}
             sortField={sortField}
             sortDirection={sortDirection}
@@ -381,12 +424,40 @@ function DashboardContent({ onNavigate }: { onNavigate?: (id: string) => void } 
             onDelete={handleDelete}
           />
 
-          <div className="mt-10">
-            <MonthlyVatSummary
-              rows={monthlyVat}
-              onViewAllReport={onNavigate ? () => onNavigate('purchase-tax-report') : undefined}
-            />
-          </div>
+          {/* Pagination — เพิ่มเข้ามาในรอบปรับโครงสร้าง Navigation/Layout (2026-07-15) ตามสเปก
+              หลังย้าย KPI Cards/Summary VAT รายเดือนออกไปหน้า Dashboard แล้ว ซ่อนไปเลยถ้าไม่มีรายการ
+              (visibleInvoices.length === 0) เพราะไม่มีอะไรให้เปลี่ยนหน้า */}
+          {visibleInvoices.length > 0 && (
+            <div className="mt-4 flex items-center justify-between gap-3" data-testid="pagination">
+              <p className="text-xs text-text-sub">
+                แสดง {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, visibleInvoices.length)} จาก{' '}
+                {visibleInvoices.length} รายการ
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage(safePage - 1)}
+                  className="btn-press rounded-[10px] border border-border bg-white px-3.5 py-2 text-sm font-medium text-text hover:bg-page-bg disabled:cursor-not-allowed disabled:opacity-50"
+                  data-testid="pagination-prev"
+                >
+                  ก่อนหน้า
+                </button>
+                <span className="text-xs text-text-sub" data-testid="pagination-page-indicator">
+                  หน้า {safePage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage(safePage + 1)}
+                  className="btn-press rounded-[10px] border border-border bg-white px-3.5 py-2 text-sm font-medium text-text hover:bg-page-bg disabled:cursor-not-allowed disabled:opacity-50"
+                  data-testid="pagination-next"
+                >
+                  ถัดไป
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </main>
