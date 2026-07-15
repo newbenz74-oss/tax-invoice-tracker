@@ -192,4 +192,113 @@ test.describe('รายงานภาษีซื้อ (VAT Reconcile > Purch
 
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
+
+  test('รายการไม่มี VAT และมี VAT แต่ไม่ใช้เครดิต VAT ไม่ปรากฏในรายงานภาษีซื้อ แม้สถานะและข้อมูลใบกำกับภาษีครบ', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrorCollector(page);
+    const now = new Date();
+    const claimMonth = now.getMonth() + 1;
+    const claimYear = buddhistYear(now.getFullYear());
+
+    await setupMockSupabase(page, {
+      loggedInAs: OWNER,
+      users: [{ email: OWNER, password: 'x' }],
+      invoices: [
+        {
+          id: 'inv-report-no-vat',
+          vendor_name: 'ผู้ขาย รายงานไม่มีVAT',
+          transaction_date: '2026-07-01',
+          amount_excl_vat: 100,
+          vat_amount: 0,
+          status: 'received',
+          received_date: '2026-07-01',
+          tax_invoice_number: 'SHOULD-NOT-APPEAR-1',
+          tax_invoice_date: '2026-07-01',
+          vat_claim_month: claimMonth,
+          vat_claim_year: claimYear,
+          tax_type: 'no_vat',
+        },
+        {
+          id: 'inv-report-non-claimable',
+          vendor_name: 'ผู้ขาย รายงานไม่ใช้เครดิต',
+          transaction_date: '2026-07-01',
+          amount_excl_vat: 200,
+          vat_amount: 14,
+          status: 'received',
+          received_date: '2026-07-01',
+          tax_invoice_number: 'SHOULD-NOT-APPEAR-2',
+          tax_invoice_date: '2026-07-01',
+          vat_claim_month: claimMonth,
+          vat_claim_year: claimYear,
+          tax_type: 'non_claimable_vat',
+        },
+        {
+          id: 'inv-report-claimable',
+          vendor_name: 'ผู้ขาย รายงานปกติ',
+          transaction_date: '2026-07-01',
+          amount_excl_vat: 300,
+          vat_amount: 21,
+          status: 'received',
+          received_date: '2026-07-01',
+          tax_invoice_number: 'SHOULD-APPEAR',
+          tax_invoice_date: '2026-07-01',
+          vat_claim_month: claimMonth,
+          vat_claim_year: claimYear,
+          tax_type: 'claimable_vat',
+        },
+      ],
+    });
+    await page.goto('/dashboard');
+    await page.getByTestId('nav-item-purchase-tax-report').click();
+    await page.getByTestId('report-month-filter').selectOption(String(claimMonth));
+    await page.getByTestId('report-year-filter').selectOption(String(claimYear));
+
+    await expect(page.getByTestId('report-row-inv-report-claimable')).toBeVisible();
+    await expect(page.getByTestId('report-row-inv-report-no-vat')).toHaveCount(0);
+    await expect(page.getByTestId('report-row-inv-report-non-claimable')).toHaveCount(0);
+    await expect(page.getByText('SHOULD-NOT-APPEAR-1')).not.toBeVisible();
+    await expect(page.getByText('SHOULD-NOT-APPEAR-2')).not.toBeVisible();
+
+    expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
+  });
+
+  test('รายการเก่าที่ tax_type เป็น NULL (ก่อนมีฟีเจอร์จำแนกประเภทภาษี) ยังปรากฏในรายงานภาษีซื้อได้ตามเดิม', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrorCollector(page);
+    const now = new Date();
+    const claimMonth = now.getMonth() + 1;
+    const claimYear = buddhistYear(now.getFullYear());
+
+    await setupMockSupabase(page, {
+      loggedInAs: OWNER,
+      users: [{ email: OWNER, password: 'x' }],
+      invoices: [
+        {
+          id: 'inv-legacy-in-report',
+          vendor_name: 'ผู้ขาย ข้อมูลเก่าในรายงาน',
+          transaction_date: '2026-07-01',
+          amount_excl_vat: 400,
+          vat_amount: 28,
+          status: 'received',
+          received_date: '2026-07-01',
+          tax_invoice_number: 'LEGACY-001',
+          tax_invoice_date: '2026-07-01',
+          vat_claim_month: claimMonth,
+          vat_claim_year: claimYear,
+          // ไม่ระบุ tax_type — จำลองข้อมูลเก่าก่อนมีฟีเจอร์นี้ (NULL ในฐานข้อมูลจริง)
+        },
+      ],
+    });
+    await page.goto('/dashboard');
+    await page.getByTestId('nav-item-purchase-tax-report').click();
+    await page.getByTestId('report-month-filter').selectOption(String(claimMonth));
+    await page.getByTestId('report-year-filter').selectOption(String(claimYear));
+
+    await expect(page.getByTestId('report-row-inv-legacy-in-report')).toBeVisible();
+    await expect(page.getByText('LEGACY-001')).toBeVisible();
+
+    expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
+  });
 });

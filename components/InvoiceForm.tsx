@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import type { InvoiceFormInput, PendingTaxInvoice } from '@/types/invoice';
-import { calcTotal, suggestVatAmount, validateInvoiceForm } from '@/lib/invoiceLogic';
+import type { InvoiceFormInput, PendingTaxInvoice, TaxType } from '@/types/invoice';
+import { TAX_TYPE_LABELS, calcTotal, suggestVatAmount, validateInvoiceForm } from '@/lib/invoiceLogic';
 
 const EMPTY_FORM: InvoiceFormInput = {
   vendor_name: '',
@@ -14,6 +14,9 @@ const EMPTY_FORM: InvoiceFormInput = {
   expected_date: '',
   notes: '',
   vendor_tax_id: '',
+  tax_type: '',
+  tax_invoice_number: '',
+  tax_invoice_date: '',
 };
 
 function invoiceToForm(invoice: PendingTaxInvoice): InvoiceFormInput {
@@ -27,6 +30,9 @@ function invoiceToForm(invoice: PendingTaxInvoice): InvoiceFormInput {
     expected_date: invoice.expected_date ?? '',
     notes: invoice.notes ?? '',
     vendor_tax_id: invoice.vendor_tax_id ?? '',
+    tax_type: invoice.tax_type ?? '',
+    tax_invoice_number: invoice.tax_invoice_number ?? '',
+    tax_invoice_date: invoice.tax_invoice_date ?? '',
   };
 }
 
@@ -49,6 +55,17 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
   // (parent ต้องส่ง key={editingInvoice?.id ?? 'new'}) เพื่อรีเซ็ตฟอร์มผ่าน
   // useState initializer แทนการ sync ด้วย useEffect + setState
 
+  // ประเภทภาษีกำหนดว่าฟิลด์ไหนควรแสดง — ไม่มี VAT: ซ่อนช่อง VAT (บังคับ 0) และซ่อนวันที่คาดว่าจะได้รับ
+  // (ไม่มีขั้นตอนรอ) / มี VAT ไม่ใช้เครดิต: แสดงช่อง VAT ตามปกติแต่ซ่อนวันที่คาดว่าจะได้รับเช่นกัน
+  // (ไม่ผ่านขั้นตอนรอรับใบกำกับภาษี) แล้วเปิดช่องกรอกเลขที่/วันที่ใบกำกับภาษีแบบกรอกตรงได้เลยแทน /
+  // มี VAT ใช้เครดิตได้ (หรือยังไม่เลือก): พฤติกรรมเดิมทุกประการ
+  const isNoVat = form.tax_type === 'no_vat';
+  const isNonClaimable = form.tax_type === 'non_claimable_vat';
+  const showExpectedDate = form.tax_type === '' || form.tax_type === 'claimable_vat';
+  // บังคับเลือกประเภทภาษีเสมอตอนเพิ่มรายการใหม่ — ยกเว้นตอนแก้ไขรายการเก่าที่ยังไม่เคยระบุประเภทภาษี
+  // มาก่อน (tax_type เป็น NULL จากก่อนมีฟีเจอร์นี้) จะไม่บังคับ เพื่อให้ยังแก้ไขฟิลด์อื่นได้ตามปกติ
+  const taxTypeRequired = !editingInvoice || editingInvoice.tax_type != null;
+
   function handleAmountChange(value: string) {
     setForm((prev) => {
       const next = { ...prev, amount_excl_vat: value };
@@ -65,13 +82,19 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
     setForm((prev) => ({ ...prev, vat_amount: value }));
   }
 
+  function handleTaxTypeChange(value: string) {
+    setForm((prev) => ({ ...prev, tax_type: value as InvoiceFormInput['tax_type'] }));
+  }
+
   const amountNum = parseFloat(form.amount_excl_vat) || 0;
-  const vatNum = parseFloat(form.vat_amount) || 0;
+  // ไม่มี VAT: ยอดรวม = ยอดเงินเฉยๆ เสมอ ไม่ว่าช่อง VAT ในฟอร์มจะมีค่าเดิมค้างอยู่หรือไม่ (ผู้ใช้อาจ
+  // เคยกรอก VAT ไว้ก่อนสลับมาเลือก "ไม่มี VAT" ทีหลัง) การคำนวณตรงนี้ป้องกันยอดรวมที่แสดงผิดเพี้ยน
+  const vatNum = isNoVat ? 0 : parseFloat(form.vat_amount) || 0;
   const total = calcTotal(amountNum, vatNum);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const validationErrors = validateInvoiceForm(form);
+    const validationErrors = validateInvoiceForm(form, { taxTypeRequired });
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
 
@@ -88,6 +111,34 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate data-testid="invoice-form">
+      <Field label="ประเภทภาษี" error={errors.tax_type} required={taxTypeRequired}>
+        <select
+          value={form.tax_type}
+          onChange={(e) => handleTaxTypeChange(e.target.value)}
+          className={inputClass(Boolean(errors.tax_type))}
+          data-testid="select-tax-type"
+        >
+          <option value="" disabled>
+            -- เลือกประเภทภาษี --
+          </option>
+          {(Object.keys(TAX_TYPE_LABELS) as TaxType[]).map((tt) => (
+            <option key={tt} value={tt}>
+              {TAX_TYPE_LABELS[tt]}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {isNoVat && (
+        <p className="text-xs text-gray-400">
+          รายการนี้ไม่มี VAT — ยอดรวมจะเท่ากับยอดเงินที่กรอกทั้งหมด และจะไม่ปรากฏในรายงานภาษีซื้อ
+        </p>
+      )}
+      {isNonClaimable && (
+        <p className="text-xs text-gray-400">
+          รายการนี้มี VAT แต่นำไปใช้เครดิตภาษีซื้อไม่ได้ — จะไม่ปรากฏในรายงานภาษีซื้อ และไม่ต้องรอรับใบกำกับภาษีก็บันทึกได้เลย
+        </p>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="ชื่อผู้ขาย" error={errors.vendor_name} required>
           <input
@@ -129,40 +180,64 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
         />
       </Field>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Field label="ยอดก่อน VAT (บาท)" error={errors.amount_excl_vat} required>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={form.amount_excl_vat}
-            onChange={(e) => handleAmountChange(e.target.value)}
-            className={inputClass(Boolean(errors.amount_excl_vat))}
-            data-testid="input-amount"
-          />
-        </Field>
-        <Field label="VAT (บาท) — เสนอ 7% อัตโนมัติ" error={errors.vat_amount}>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={form.vat_amount}
-            onChange={(e) => handleVatChange(e.target.value)}
-            className={inputClass(Boolean(errors.vat_amount))}
-            data-testid="input-vat"
-          />
-        </Field>
-        <Field label="ยอดรวม (บาท)">
-          <div
-            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700"
-            data-testid="computed-total"
-          >
-            {total.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-        </Field>
-      </div>
+      {isNoVat ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="ยอดเงิน (บาท)" error={errors.amount_excl_vat} required>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.amount_excl_vat}
+              onChange={(e) => handleAmountChange(e.target.value)}
+              className={inputClass(Boolean(errors.amount_excl_vat))}
+              data-testid="input-amount"
+            />
+          </Field>
+          <Field label="ยอดรวม (บาท)">
+            <div
+              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700"
+              data-testid="computed-total"
+            >
+              {total.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </Field>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Field label="ยอดก่อน VAT (บาท)" error={errors.amount_excl_vat} required>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.amount_excl_vat}
+              onChange={(e) => handleAmountChange(e.target.value)}
+              className={inputClass(Boolean(errors.amount_excl_vat))}
+              data-testid="input-amount"
+            />
+          </Field>
+          <Field label="VAT (บาท) — เสนอ 7% อัตโนมัติ" error={errors.vat_amount}>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.vat_amount}
+              onChange={(e) => handleVatChange(e.target.value)}
+              className={inputClass(Boolean(errors.vat_amount))}
+              data-testid="input-vat"
+            />
+          </Field>
+          <Field label="ยอดรวม (บาท)">
+            <div
+              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700"
+              data-testid="computed-total"
+            >
+              {total.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </Field>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className={`grid grid-cols-1 gap-4 ${showExpectedDate ? 'sm:grid-cols-2' : ''}`}>
         <Field label="เลขที่อ้างอิง">
           <input
             value={form.reference_no}
@@ -171,16 +246,40 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
             data-testid="input-reference-no"
           />
         </Field>
-        <Field label="วันที่คาดว่าจะได้รับใบกำกับภาษี" error={errors.expected_date}>
-          <input
-            type="date"
-            value={form.expected_date}
-            onChange={(e) => setForm((p) => ({ ...p, expected_date: e.target.value }))}
-            className={inputClass(Boolean(errors.expected_date))}
-            data-testid="input-expected-date"
-          />
-        </Field>
+        {showExpectedDate && (
+          <Field label="วันที่คาดว่าจะได้รับใบกำกับภาษี" error={errors.expected_date}>
+            <input
+              type="date"
+              value={form.expected_date}
+              onChange={(e) => setForm((p) => ({ ...p, expected_date: e.target.value }))}
+              className={inputClass(Boolean(errors.expected_date))}
+              data-testid="input-expected-date"
+            />
+          </Field>
+        )}
       </div>
+
+      {isNonClaimable && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="เลขที่ใบกำกับภาษี (ถ้ามี)">
+            <input
+              value={form.tax_invoice_number}
+              onChange={(e) => setForm((p) => ({ ...p, tax_invoice_number: e.target.value }))}
+              className={inputClass(false)}
+              data-testid="input-tax-invoice-number"
+            />
+          </Field>
+          <Field label="วันที่ใบกำกับภาษี (ถ้ามี)">
+            <input
+              type="date"
+              value={form.tax_invoice_date}
+              onChange={(e) => setForm((p) => ({ ...p, tax_invoice_date: e.target.value }))}
+              className={inputClass(false)}
+              data-testid="input-tax-invoice-date"
+            />
+          </Field>
+        </div>
+      )}
 
       <Field label="หมายเหตุ">
         <textarea

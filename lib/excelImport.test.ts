@@ -3,11 +3,14 @@ import {
   EXCEL_HEADERS,
   buildTemplateBlob,
   excelRowToWriteInput,
+  findDuplicateRowNumbers,
   parseExcelDateCell,
   parseExcelRow,
   parseExcelRows,
+  parseTaxTypeCell,
   readWorkbookRows,
 } from './excelImport';
+import type { PendingTaxInvoice } from '@/types/invoice';
 
 function row(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -188,6 +191,11 @@ describe('excelRowToWriteInput', () => {
       reference_no: 'PO-001',
       expected_date: null,
       notes: null,
+      vendor_tax_id: null,
+      // ไม่ได้กรอกคอลัมน์ "ประเภทภาษี" มา (row() เป็นข้อมูลแบบก่อนมีฟีเจอร์นี้) ระบบอนุมานจากยอด VAT ที่
+      // ถูกเสนอ 7% อัตโนมัติ (70 > 0) ให้เป็น claimable_vat แล้วตั้งสถานะ pending ตามขั้นตอนเดิม
+      tax_type: 'claimable_vat',
+      status: 'pending',
     });
   });
 
@@ -214,5 +222,166 @@ describe('buildTemplateBlob + readWorkbookRows (round-trip)', () => {
     expect(parsed).toHaveLength(1);
     expect(parsed[0].errors).toEqual([]);
     expect(parsed[0].vendor_name).toBe('บริษัท ตัวอย่าง จำกัด');
+  });
+});
+
+describe('parseTaxTypeCell', () => {
+  it('รับป้ายภาษาไทยตรงตัว', () => {
+    expect(parseTaxTypeCell('ไม่มี VAT')).toEqual({ kind: 'value', value: 'no_vat' });
+    expect(parseTaxTypeCell('มี VAT และใช้เครดิต VAT')).toEqual({ kind: 'value', value: 'claimable_vat' });
+    expect(parseTaxTypeCell('มี VAT แต่ไม่ใช้เครดิต VAT')).toEqual({ kind: 'value', value: 'non_claimable_vat' });
+  });
+
+  it('รับรหัสภาษาอังกฤษ ไม่สนตัวพิมพ์เล็ก-ใหญ่', () => {
+    expect(parseTaxTypeCell('no_vat')).toEqual({ kind: 'value', value: 'no_vat' });
+    expect(parseTaxTypeCell('CLAIMABLE_VAT')).toEqual({ kind: 'value', value: 'claimable_vat' });
+    expect(parseTaxTypeCell('Non_Claimable_Vat')).toEqual({ kind: 'value', value: 'non_claimable_vat' });
+  });
+
+  it('ค่าว่าง/ไม่ได้กรอก คืนค่า blank (ให้ระบบอนุมานต่อ ไม่ใช่ error)', () => {
+    expect(parseTaxTypeCell('')).toEqual({ kind: 'blank' });
+    expect(parseTaxTypeCell(undefined)).toEqual({ kind: 'blank' });
+    expect(parseTaxTypeCell(null)).toEqual({ kind: 'blank' });
+  });
+
+  it('ค่าที่ไม่รู้จัก คืนค่า invalid', () => {
+    expect(parseTaxTypeCell('ภาษีมูลค่าเพิ่มพิเศษ')).toEqual({ kind: 'invalid', raw: 'ภาษีมูลค่าเพิ่มพิเศษ' });
+  });
+
+  it('"มี VAT" สั้นๆ ไม่ชนกับ "มี VAT แต่ไม่ใช้เครดิต VAT" (เทียบแบบ exact match เท่านั้น)', () => {
+    expect(parseTaxTypeCell('มี VAT')).toEqual({ kind: 'value', value: 'claimable_vat' });
+  });
+});
+
+describe('parseExcelRow — ประเภทภาษี', () => {
+  it('อ่านประเภทภาษีจากคอลัมน์ได้ตรงตัว', () => {
+    const result = parseExcelRow(row({ [EXCEL_HEADERS.tax_type]: 'ไม่มี VAT', [EXCEL_HEADERS.vat_amount]: '' }), 2)!;
+    expect(result.tax_type).toBe('no_vat');
+    expect(result.taxTypeSource).toBe('column');
+  });
+
+  it('ระบุ "ไม่มี VAT" มาพร้อม VAT มากกว่า 0 — เตือน (ไม่ error) แล้วปรับ VAT เป็น 0 ให้อัตโนมัติ', () => {
+    const result = parseExcelRow(row({ [EXCEL_HEADERS.tax_type]: 'ไม่มี VAT', [EXCEL_HEADERS.vat_amount]: 100 }), 2)!;
+    expect(result.tax_type).toBe('no_vat');
+    expect(result.vat_amount).toBe('0');
+    expect(result.errors).toEqual([]);
+    expect(result.warnings.length).toBeGreaterThan(0);
+  });
+
+  it('คอลัมน์ประเภทภาษีว่าง/ไม่มีในไฟล์ — อนุมานจากยอด VAT หลังเสนอ 7% อัตโนมัติแล้ว (VAT > 0 → claimable_vat)', () => {
+    const result = parseExcelRow(row({ [EXCEL_HEADERS.amount_excl_vat]: 1000, [EXCEL_HEADERS.vat_amount]: '' }), 2)!;
+    expect(result.tax_type).toBe('claimable_vat');
+    expect(result.taxTypeSource).toBe('inferred');
+  });
+
+  it('คอลัมน์ประเภทภาษีว่าง และ VAT ระบุเป็น 0 ชัดเจน — อนุมานเป็น no_vat', () => {
+    const result = parseExcelRow(row({ [EXCEL_HEADERS.vat_amount]: 0 }), 2)!;
+    expect(result.tax_type).toBe('no_vat');
+    expect(result.taxTypeSource).toBe('inferred');
+  });
+
+  it('ระบุ "มี VAT และใช้เครดิต VAT" มาพร้อม VAT เป็น 0 — เตือน (ไม่ error) แต่ยังคงเป็น claimable_vat', () => {
+    const result = parseExcelRow(
+      row({ [EXCEL_HEADERS.tax_type]: 'มี VAT และใช้เครดิต VAT', [EXCEL_HEADERS.vat_amount]: 0 }),
+      2
+    )!;
+    expect(result.tax_type).toBe('claimable_vat');
+    expect(result.errors).toEqual([]);
+    expect(result.warnings.length).toBeGreaterThan(0);
+  });
+
+  it('ระบุ "มี VAT แต่ไม่ใช้เครดิต VAT" — ไม่เตือนแม้ VAT เป็น 0 (ไม่บังคับต้องมี VAT)', () => {
+    const result = parseExcelRow(
+      row({ [EXCEL_HEADERS.tax_type]: 'มี VAT แต่ไม่ใช้เครดิต VAT', [EXCEL_HEADERS.vat_amount]: 0 }),
+      2
+    )!;
+    expect(result.tax_type).toBe('non_claimable_vat');
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('ค่าประเภทภาษีที่ไม่รู้จัก — error และ tax_type ยังไม่ถูกกำหนด', () => {
+    const result = parseExcelRow(row({ [EXCEL_HEADERS.tax_type]: 'ภาษีมั่วๆ' }), 2)!;
+    expect(result.tax_type).toBe('');
+    expect(result.errors.some((e) => e.includes('ประเภทภาษีไม่ถูกต้อง'))).toBe(true);
+  });
+
+  it('ไม่มี VAT — ล้างวันที่คาดว่าจะได้รับแม้จะกรอกมาในไฟล์ (ไม่มีขั้นตอนรอ)', () => {
+    const result = parseExcelRow(
+      row({
+        [EXCEL_HEADERS.tax_type]: 'ไม่มี VAT',
+        [EXCEL_HEADERS.vat_amount]: '',
+        [EXCEL_HEADERS.expected_date]: '2026-08-01',
+      }),
+      2
+    )!;
+    expect(result.expected_date).toBe('');
+  });
+
+  it('เลขประจำตัวผู้เสียภาษีไม่ครบ 13 หลัก — error', () => {
+    const result = parseExcelRow(row({ [EXCEL_HEADERS.vendor_tax_id]: '123' }), 2)!;
+    expect(result.errors).toContain('เลขประจำตัวผู้เสียภาษีต้องเป็นตัวเลข 13 หลัก');
+  });
+});
+
+describe('findDuplicateRowNumbers', () => {
+  function makeExistingInvoice(overrides: Partial<PendingTaxInvoice> = {}): PendingTaxInvoice {
+    return {
+      id: overrides.id ?? Math.random().toString(36).slice(2),
+      vendor_name: 'บริษัท ทดสอบ จำกัด',
+      transaction_date: '2026-07-01',
+      description: null,
+      amount_excl_vat: 1000,
+      vat_amount: 70,
+      total_amount: 1070,
+      reference_no: 'PO-001',
+      expected_date: null,
+      status: 'pending',
+      received_date: null,
+      tax_invoice_number: null,
+      notes: null,
+      created_by: null,
+      created_by_email: null,
+      created_at: '2026-07-01T00:00:00Z',
+      updated_at: '2026-07-01T00:00:00Z',
+      vendor_tax_id: null,
+      tax_invoice_date: null,
+      vat_claim_month: null,
+      vat_claim_year: null,
+      tax_type: 'claimable_vat',
+      ...overrides,
+    };
+  }
+
+  it('ตรวจพบรายการซ้ำเมื่อผู้ขาย/วันที่/เลขที่อ้างอิง/ยอดรวมตรงกันทั้งหมด', () => {
+    const existing = [makeExistingInvoice()];
+    const parsedRow = parseExcelRow(row(), 2)!; // vendor_name/transaction_date/reference_no ตรงกับ existing, VAT auto-suggest 70 → total 1070 ตรงกัน
+    const duplicates = findDuplicateRowNumbers([parsedRow], existing);
+    expect(duplicates.has(2)).toBe(true);
+  });
+
+  it('ไม่ตรวจพบซ้ำถ้ายอดรวมต่างกัน', () => {
+    const existing = [makeExistingInvoice()];
+    const parsedRow = parseExcelRow(row({ [EXCEL_HEADERS.amount_excl_vat]: 2000 }), 2)!;
+    const duplicates = findDuplicateRowNumbers([parsedRow], existing);
+    expect(duplicates.has(2)).toBe(false);
+  });
+
+  it('ไม่ตรวจพบซ้ำถ้าเลขที่อ้างอิงต่างกัน', () => {
+    const existing = [makeExistingInvoice()];
+    const parsedRow = parseExcelRow(row({ [EXCEL_HEADERS.reference_no]: 'PO-999' }), 2)!;
+    const duplicates = findDuplicateRowNumbers([parsedRow], existing);
+    expect(duplicates.has(2)).toBe(false);
+  });
+
+  it('ข้ามแถวที่มี error อยู่แล้ว ไม่ตรวจสอบซ้ำ', () => {
+    const existing = [makeExistingInvoice()];
+    const parsedRow = parseExcelRow(row({ [EXCEL_HEADERS.vendor_name]: '' }), 2)!; // error: ไม่ได้กรอกผู้ขาย
+    const duplicates = findDuplicateRowNumbers([parsedRow], existing);
+    expect(duplicates.has(2)).toBe(false);
+  });
+
+  it('ไม่มีรายการเดิมในระบบเลย — ไม่มีอะไรถูกตีว่าซ้ำ', () => {
+    const parsedRow = parseExcelRow(row(), 2)!;
+    expect(findDuplicateRowNumbers([parsedRow], [])).toEqual(new Set());
   });
 });

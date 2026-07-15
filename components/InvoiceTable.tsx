@@ -5,8 +5,9 @@ import type { MarkReceivedInput, PendingTaxInvoice, SortDirection, SortField } f
 import {
   AGING_BADGE_CLASS,
   AGING_LABELS,
-  STATUS_LABELS,
   getAgingBucket,
+  getTaxInvoiceStatusBadgeClass,
+  getTaxInvoiceStatusLabel,
 } from '@/lib/invoiceLogic';
 import { buddhistYearOptions, currentBuddhistYear, currentMonth, thaiMonthName } from '@/lib/thaiDate';
 
@@ -145,8 +146,11 @@ export default function InvoiceTable({
                 <td className="px-4 py-3 text-gray-600">{invoice.reference_no || '-'}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-1">
-                    <span className="inline-block w-fit rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                      {STATUS_LABELS[invoice.status]}
+                    <span
+                      className={`inline-block w-fit rounded-full px-2 py-0.5 text-xs ${getTaxInvoiceStatusBadgeClass(invoice)}`}
+                      data-testid={`tax-status-badge-${invoice.id}`}
+                    >
+                      {getTaxInvoiceStatusLabel(invoice)}
                     </span>
                     {invoice.status === 'pending' && (
                       <span
@@ -243,7 +247,9 @@ export default function InvoiceTable({
                     </div>
                   ) : (
                     <div className="flex flex-wrap justify-end gap-1.5">
-                      {invoice.status === 'pending' && (
+                      {invoice.status === 'pending' &&
+                        invoice.tax_type !== 'no_vat' &&
+                        invoice.tax_type !== 'non_claimable_vat' && (
                         <>
                           <button
                             type="button"

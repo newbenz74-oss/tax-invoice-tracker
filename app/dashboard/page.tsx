@@ -22,8 +22,15 @@ import {
   INVOICES_SWR_KEY,
   markReceived as apiMarkReceived,
   updateInvoice,
+  type InvoiceWriteInput,
 } from '@/lib/invoiceApi';
-import { computeMonthlyVatSummary, computeStats, filterInvoices, sortInvoices } from '@/lib/invoiceLogic';
+import {
+  computeMonthlyVatSummary,
+  computeStats,
+  deriveStatusForTaxType,
+  filterInvoices,
+  sortInvoices,
+} from '@/lib/invoiceLogic';
 import { excelRowToWriteInput, type ExcelImportRow } from '@/lib/excelImport';
 import { DEFAULT_ACTIVE_ID, findNavLeaf } from '@/lib/navigation';
 import type {
@@ -33,6 +40,7 @@ import type {
   PendingTaxInvoice,
   SortDirection,
   SortField,
+  TaxType,
 } from '@/types/invoice';
 
 const ACTIVE_NAV_STORAGE_KEY = 'benz_sidebar_active';
@@ -165,22 +173,55 @@ function DashboardContent() {
   }
 
   async function handleFormSubmit(input: InvoiceFormInput) {
+    // ปกติ validateInvoiceForm บังคับให้เลือกประเภทภาษีก่อน submit เสมอ — ยกเว้นกรณีเดียวคือกำลัง
+    // แก้ไขรายการเก่าที่ tax_type เป็น NULL อยู่แล้ว (ก่อนมีฟีเจอร์นี้) ซึ่งจะไม่ถูกบังคับ (ดู
+    // components/InvoiceForm.tsx taxTypeRequired) ทำให้ input.tax_type ยังเป็น '' ได้ในกรณีนี้เท่านั้น
+    // — ถ้าเป็นเช่นนั้นจะไม่ใส่ tax_type/status ลงใน payload เลย (ไม่เดา/ไม่เขียนทับข้อมูลเดิม)
+    const taxType: TaxType | null = input.tax_type || null;
+    const isNoVat = taxType === 'no_vat';
+    const isNonClaimable = taxType === 'non_claimable_vat';
+
     const payload = {
       vendor_name: input.vendor_name.trim(),
       transaction_date: input.transaction_date,
       description: input.description.trim() || null,
       amount_excl_vat: parseFloat(input.amount_excl_vat) || 0,
-      vat_amount: parseFloat(input.vat_amount) || 0,
+      // ไม่มี VAT: บังคับเป็น 0 เสมอไม่ว่าในฟอร์มจะมีค่าเดิมค้างอยู่หรือไม่ (ผู้ใช้อาจสลับประเภทไปมา)
+      vat_amount: isNoVat ? 0 : parseFloat(input.vat_amount) || 0,
       reference_no: input.reference_no.trim() || null,
-      expected_date: input.expected_date || null,
+      // วันที่คาดว่าจะได้รับมีความหมายเฉพาะ claimable_vat เท่านั้น (ประเภทอื่นไม่มีขั้นตอนรอ)
+      expected_date: isNoVat || isNonClaimable ? null : input.expected_date || null,
       notes: input.notes.trim() || null,
       vendor_tax_id: input.vendor_tax_id.trim() || null,
+      // ใส่ tax_type/status, tax_invoice_number/date เฉพาะตอนที่เกี่ยวข้องเท่านั้น (ไม่ใส่ key นั้นๆ
+      // เลยแทนที่จะใส่เป็น undefined) เพราะ undefined ที่เป็น key ของ object literal จะถูก
+      // Object.assign() ใน mock ทดสอบ copy ทับค่าที่มีอยู่แล้วให้กลายเป็น undefined ไปด้วย (ต่างจาก
+      // Supabase จริงที่ JSON.stringify ตัด key ที่เป็น undefined ออกก่อนส่งเสมอ) การไม่ใส่ key เลย
+      // ปลอดภัยกับทั้งสองฝั่งเท่ากัน และสำคัญมากตอนแก้ไขรายการ claimable_vat ที่เคยกรอกเลขที่/วันที่
+      // ใบกำกับภาษีผ่านขั้นตอน "ได้รับแล้ว" ไว้ก่อนแล้ว — ต้องไม่ถูกเขียนทับด้วยค่าว่าง เช่นเดียวกับ
+      // รายการเก่าที่ยังไม่ระบุ tax_type — ต้องไม่ถูกเขียนทับด้วยค่าเดาใดๆ ทั้งสิ้น
+      ...(taxType
+        ? {
+            tax_type: taxType,
+            // ไม่มี VAT / มี VAT ไม่ใช้เครดิต: ไม่มีขั้นตอนรอรับใบกำกับภาษี ตั้งเป็น received ทันที
+            // มี VAT ใช้เครดิตได้: พฤติกรรมเดิมทุกประการ (pending ตอนสร้างใหม่ / คงสถานะเดิมตอนแก้ไข)
+            status: deriveStatusForTaxType(taxType, editingInvoice?.status),
+          }
+        : {}),
+      ...(isNonClaimable
+        ? {
+            tax_invoice_number: input.tax_invoice_number.trim() || null,
+            tax_invoice_date: input.tax_invoice_date || null,
+          }
+        : {}),
     };
 
     if (editingInvoice) {
       await updateInvoice(editingInvoice.id, payload);
     } else {
-      await createInvoice(payload, {
+      // ตอนเพิ่มรายการใหม่ ฟอร์มบังคับเลือกประเภทภาษีเสมอ (taxTypeRequired เป็น true) จึงมั่นใจได้ว่า
+      // payload มี tax_type/status ครบตามที่ createInvoice ต้องการแน่นอน
+      await createInvoice(payload as InvoiceWriteInput, {
         id: session?.user?.id ?? null,
         email: session?.user?.email ?? null,
       });
@@ -289,7 +330,11 @@ function DashboardContent() {
       {showImportPanel && (
         <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
           <h2 className="mb-4 text-sm font-bold text-gray-900">นำเข้ารายการจาก Excel</h2>
-          <ExcelImportPanel onImport={handleImportRows} onClose={() => setShowImportPanel(false)} />
+          <ExcelImportPanel
+            onImport={handleImportRows}
+            onClose={() => setShowImportPanel(false)}
+            existingInvoices={invoices}
+          />
         </div>
       )}
 

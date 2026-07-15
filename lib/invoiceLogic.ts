@@ -5,6 +5,7 @@ import type {
   PendingTaxInvoice,
   SortDirection,
   SortField,
+  TaxType,
 } from '@/types/invoice';
 
 export const DEFAULT_VAT_RATE = 0.07;
@@ -72,9 +73,60 @@ export const STATUS_LABELS: Record<InvoiceStatus, string> = {
   cancelled: 'ยกเลิก',
 };
 
-/** ตรวจสอบความถูกต้องของฟอร์ม คืนค่า object ของ error รายฟิลด์ (ว่างถ้าไม่มี error) */
-export function validateInvoiceForm(input: InvoiceFormInput): Partial<Record<keyof InvoiceFormInput, string>> {
+/** ป้ายชื่อประเภทภาษี — ใช้ในฟอร์ม, ตาราง, และหน้าตรวจสอบก่อนนำเข้า Excel ให้ตรงกันทั้งระบบ */
+export const TAX_TYPE_LABELS: Record<TaxType, string> = {
+  no_vat: 'ไม่มี VAT',
+  claimable_vat: 'มี VAT และใช้เครดิต VAT',
+  non_claimable_vat: 'มี VAT แต่ไม่ใช้เครดิต VAT',
+};
+
+/** ข้อความสถานะที่แสดงจริงในตาราง — คำนวณจาก tax_type + status ร่วมกัน (ไม่ใช่คอลัมน์แยกในฐานข้อมูล
+ * เพื่อไม่ให้มีค่าสองชุดที่ต้องคอยประสานกันเอง) status เดิม (pending/received/cancelled) ไม่ถูกแตะเลย
+ * — ค่านี้เป็นแค่ "การแปลผล" สำหรับแสดงผลเท่านั้น ตาม vocabulary ที่ตกลงกันไว้:
+ * no_vat → "ไม่มี VAT", รอรับ (claimable_vat) → "รอรับใบกำกับภาษี", ได้รับแล้ว (claimable_vat) →
+ * "ได้รับใบกำกับภาษีแล้ว", non_claimable_vat → "ไม่ใช้เครดิต VAT" — รายการไม่มี VAT จะไม่มีทางไปอยู่ใน
+ * สถานะ "รอรับใบกำกับภาษี" เด็ดขาดเพราะไม่ผ่านเงื่อนไข claimable_vat เลย */
+export function getTaxInvoiceStatusLabel(invoice: Pick<PendingTaxInvoice, 'tax_type' | 'status'>): string {
+  if (invoice.status === 'cancelled') return STATUS_LABELS.cancelled;
+  if (invoice.tax_type == null) return 'รอตรวจสอบประเภทภาษี'; // ข้อมูลเก่าก่อนมีฟีเจอร์นี้ — ยังไม่เดาให้
+  if (invoice.tax_type === 'no_vat') return TAX_TYPE_LABELS.no_vat;
+  if (invoice.tax_type === 'non_claimable_vat') return 'ไม่ใช้เครดิต VAT';
+  return invoice.status === 'received' ? 'ได้รับใบกำกับภาษีแล้ว' : STATUS_LABELS.pending;
+}
+
+/** สีป้ายสถานะในตาราง ตามที่ตกลงกันไว้: no_vat=เทา, รอรับ=ส้ม, ได้รับแล้ว=เขียว, ไม่ใช้เครดิต=ม่วง
+ * เพิ่มสีเหลืองอำพันสำหรับข้อมูลเก่าที่ยังไม่ระบุประเภท (เพื่อชวนให้ผู้ใช้เข้าไปตรวจสอบ) และคงสีเทา
+ * เดิมไว้สำหรับรายการที่ยกเลิก */
+export function getTaxInvoiceStatusBadgeClass(invoice: Pick<PendingTaxInvoice, 'tax_type' | 'status'>): string {
+  if (invoice.status === 'cancelled') return 'bg-gray-200 text-gray-600';
+  if (invoice.tax_type == null) return 'bg-amber-100 text-amber-800';
+  if (invoice.tax_type === 'no_vat') return 'bg-gray-100 text-gray-600';
+  if (invoice.tax_type === 'non_claimable_vat') return 'bg-purple-100 text-purple-700';
+  return invoice.status === 'received' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700';
+}
+
+/** หา status ('pending'/'received'/'cancelled' เดิม ไม่มีค่าใหม่เพิ่ม) ที่ควรใช้ตามประเภทภาษี —
+ * no_vat และ non_claimable_vat ไม่มีขั้นตอน "รอรับใบกำกับภาษี" เลยตามสเปก จึงตั้งเป็น received ทันที
+ * (ไม่มีอะไรต้องรอ) claimable_vat ใช้ขั้นตอนเดิมทุกประการ (pending ตอนสร้างใหม่, คงค่าเดิมไว้ตอนแก้ไข
+ * ถ้าเคย received ไปแล้วจะไม่ถูกดึงกลับไป pending) previousStatus ที่เป็น cancelled จะไม่ถูกเปลี่ยนกลับ
+ * โดยการแก้ไขฟิลด์อื่นๆ เด็ดขาด (ต้องกดปุ่มยกเลิก/กู้คืนเองเท่านั้น ซึ่งระบบยังไม่มีปุ่มกู้คืน) */
+export function deriveStatusForTaxType(taxType: TaxType, previousStatus?: InvoiceStatus): InvoiceStatus {
+  if (previousStatus === 'cancelled') return 'cancelled';
+  if (taxType === 'no_vat' || taxType === 'non_claimable_vat') return 'received';
+  return previousStatus === 'received' ? 'received' : 'pending';
+}
+
+/** ตรวจสอบความถูกต้องของฟอร์ม คืนค่า object ของ error รายฟิลด์ (ว่างถ้าไม่มี error)
+ * options.taxTypeRequired ค่าเริ่มต้นคือ true (ใช้ตอนเพิ่มรายการใหม่เสมอ) — ตั้งเป็น false ได้เฉพาะ
+ * ตอนแก้ไขรายการเก่าที่ tax_type เป็น NULL อยู่แล้วเท่านั้น (ก่อนมีฟีเจอร์จำแนกประเภทภาษี) เพื่อให้ยังคง
+ * แก้ไขฟิลด์อื่น (เช่น แก้ชื่อผู้ขายที่พิมพ์ผิด) ได้โดยไม่ถูกบังคับให้เดา/เลือกประเภทภาษีของข้อมูลเก่า
+ * ทันที ตาม "ห้ามเดาประเภทภาษีของข้อมูลเก่า" — ดู app/dashboard/page.tsx handleFormSubmit */
+export function validateInvoiceForm(
+  input: InvoiceFormInput,
+  options?: { taxTypeRequired?: boolean }
+): Partial<Record<keyof InvoiceFormInput, string>> {
   const errors: Partial<Record<keyof InvoiceFormInput, string>> = {};
+  const taxTypeRequired = options?.taxTypeRequired ?? true;
 
   if (!input.vendor_name.trim()) {
     errors.vendor_name = 'กรุณากรอกชื่อผู้ขาย';
@@ -83,18 +135,26 @@ export function validateInvoiceForm(input: InvoiceFormInput): Partial<Record<key
     errors.transaction_date = 'กรุณาเลือกวันที่ทำรายการ';
   }
 
+  if (taxTypeRequired && !input.tax_type) {
+    errors.tax_type = 'กรุณาเลือกประเภทภาษี';
+  }
+
   const amount = parseFloat(input.amount_excl_vat);
   if (input.amount_excl_vat.trim() === '' || Number.isNaN(amount) || amount <= 0) {
     errors.amount_excl_vat = 'กรุณากรอกจำนวนเงินที่มากกว่า 0';
   }
 
-  if (input.vat_amount.trim() !== '') {
+  // ไม่มี VAT: บังคับเป็น 0 อยู่แล้วในฟอร์ม (ช่องถูกซ่อน/ปิดใช้งาน) จึงไม่ต้องตรวจสอบความถูกต้องของ
+  // ค่า VAT ที่กรอกมา — ตรวจเฉพาะกรณีมี VAT (claimable_vat/non_claimable_vat) เท่านั้น
+  if (input.tax_type !== 'no_vat' && input.vat_amount.trim() !== '') {
     const vat = parseFloat(input.vat_amount);
     if (Number.isNaN(vat) || vat < 0) {
       errors.vat_amount = 'จำนวน VAT ไม่ถูกต้อง';
     }
   }
 
+  // วันที่คาดว่าจะได้รับใบกำกับภาษีมีความหมายเฉพาะ claimable_vat เท่านั้น (ฟอร์มซ่อนช่องนี้ให้
+  // ประเภทอื่นอยู่แล้ว) จึงตรวจสอบเฉพาะตอนที่มีค่าจริงๆ เท่านั้น ไม่ผูกกับ tax_type ตรงๆ
   if (input.expected_date && input.transaction_date && input.expected_date < input.transaction_date) {
     errors.expected_date = 'วันที่คาดว่าจะได้รับต้องไม่ก่อนวันที่ทำรายการ';
   }
@@ -180,7 +240,10 @@ export function computeStats(invoices: PendingTaxInvoice[], today: string): Invo
 }
 
 /** สรุปยอด VAT รายเดือน (ตามเดือนของวันที่ทำรายการ) แยกเป็นค้างรับ (pending) กับได้รับแล้ว (received)
- * — ไม่นับรายการที่ยกเลิก เรียงเดือนล่าสุดขึ้นก่อน */
+ * — ไม่นับรายการที่ยกเลิก เรียงเดือนล่าสุดขึ้นก่อน
+ * ไม่นับรายการ non_claimable_vat เข้ายอดสรุปนี้ เพราะ VAT ของรายการเหล่านั้นใช้เครดิตภาษีซื้อไม่ได้
+ * (นับรวมจะทำให้ยอด VAT ที่ "ได้รับแล้ว/รอรับ" ดูสูงเกินจริงเทียบกับ VAT ที่เอาไปเครดิตได้จริง)
+ * ยังคงนับรายการเก่าที่ tax_type เป็น NULL และ no_vat (vat_amount เป็น 0 อยู่แล้ว ไม่กระทบยอดรวม) */
 export interface MonthlyVatSummaryRow {
   month: string; // 'YYYY-MM'
   vatPending: number;
@@ -192,6 +255,7 @@ export function computeMonthlyVatSummary(invoices: PendingTaxInvoice[]): Monthly
 
   for (const invoice of invoices) {
     if (invoice.status === 'cancelled') continue;
+    if (invoice.tax_type === 'non_claimable_vat') continue;
     const month = invoice.transaction_date.slice(0, 7);
     const entry = byMonth.get(month) ?? { vatPending: 0, vatReceived: 0 };
     if (invoice.status === 'pending') {

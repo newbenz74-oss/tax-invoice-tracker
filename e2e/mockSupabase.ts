@@ -29,6 +29,9 @@ export interface MockSeedInvoice {
   tax_invoice_date?: string | null;
   vat_claim_month?: number | null;
   vat_claim_year?: number | null;
+  // เพิ่มสำหรับฟีเจอร์จำแนกประเภทภาษี — ดู supabase/migration_003_tax_type_classification.sql
+  // ไม่ระบุ (undefined) = เหมือนข้อมูลเก่าก่อนมีฟีเจอร์นี้ (NULL ในฐานข้อมูลจริง)
+  tax_type?: 'no_vat' | 'claimable_vat' | 'non_claimable_vat' | null;
 }
 
 export interface MockSeed {
@@ -78,6 +81,7 @@ export function installMockSupabase(seed: MockSeed = {}) {
       tax_invoice_date: inv.tax_invoice_date ?? null,
       vat_claim_month: inv.vat_claim_month ?? null,
       vat_claim_year: inv.vat_claim_year ?? null,
+      tax_type: inv.tax_type ?? null,
     })),
   };
 

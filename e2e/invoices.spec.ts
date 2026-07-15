@@ -10,6 +10,7 @@ test.describe('Invoice CRUD และ business logic', () => {
     await page.goto('/dashboard');
 
     await page.getByTestId('open-add-form').click();
+    await page.getByTestId('select-tax-type').selectOption('claimable_vat');
     await page.getByTestId('input-vendor-name').fill('บริษัท ทดสอบ E2E จำกัด');
     await page.getByTestId('input-transaction-date').fill(isoDaysFromNow(0));
     await page.getByTestId('input-amount').fill('1000');
@@ -29,6 +30,7 @@ test.describe('Invoice CRUD และ business logic', () => {
     await page.goto('/dashboard');
 
     await page.getByTestId('open-add-form').click();
+    await page.getByTestId('select-tax-type').selectOption('claimable_vat');
     await page.getByTestId('input-vendor-name').fill('บริษัท ทดสอบ เลขผู้เสียภาษี จำกัด');
     await page.getByTestId('input-transaction-date').fill(isoDaysFromNow(0));
     await page.getByTestId('input-amount').fill('1000');
@@ -309,5 +311,150 @@ test.describe('Invoice CRUD และ business logic', () => {
     await expect(page.getByText('ชื่อเดิม', { exact: true })).not.toBeVisible();
 
     expect(errors).toEqual([]);
+  });
+});
+
+test.describe('จำแนกประเภทภาษี (tax_type): ไม่มี VAT / มี VAT ใช้เครดิต / มี VAT ไม่ใช้เครดิต', () => {
+  test('เพิ่มรายการแบบ "ไม่มี VAT": ซ่อนช่อง VAT และวันที่คาดว่าจะได้รับ ยอดรวม = ยอดเงิน ไม่มีขั้นตอนรอรับ', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrorCollector(page);
+    await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
+    await page.goto('/dashboard');
+
+    await page.getByTestId('open-add-form').click();
+    await page.getByTestId('select-tax-type').selectOption('no_vat');
+
+    // ช่อง VAT และวันที่คาดว่าจะได้รับต้องถูกซ่อนไปเลยสำหรับประเภท "ไม่มี VAT"
+    await expect(page.getByTestId('input-vat')).toHaveCount(0);
+    await expect(page.getByTestId('input-expected-date')).toHaveCount(0);
+
+    await page.getByTestId('input-vendor-name').fill('ร้านสะดวกซื้อเอบีซี');
+    await page.getByTestId('input-transaction-date').fill(isoDaysFromNow(0));
+    await page.getByTestId('input-amount').fill('500');
+    await expect(page.getByTestId('computed-total')).toContainText('500.00');
+
+    await page.getByTestId('submit-invoice-form').click();
+
+    // ไม่มี VAT ถูกตั้งสถานะเป็น "ได้รับแล้ว" ทันที (ไม่มีอะไรต้องรอ) จึงไม่โผล่ใน filter ค่าเริ่มต้น (รอรับ)
+    await expect(page.getByText('ร้านสะดวกซื้อเอบีซี')).not.toBeVisible();
+
+    await page.getByTestId('filter-all').click();
+    const row = page.getByRole('row', { name: /ร้านสะดวกซื้อเอบีซี/ });
+    await expect(row).toBeVisible();
+    const rowId = (await row.getAttribute('data-testid'))?.replace('invoice-row-', '') ?? '';
+    await expect(page.getByTestId(`tax-status-badge-${rowId}`)).toHaveText('ไม่มี VAT');
+    // ไม่มี VAT ต้องไม่มีปุ่ม "ได้รับแล้ว" ปรากฏเด็ดขาด (ไม่ผ่านขั้นตอนรอรับใบกำกับภาษี)
+    await expect(page.getByTestId(`mark-received-${rowId}`)).toHaveCount(0);
+
+    expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
+  });
+
+  test('เพิ่มรายการแบบ "มี VAT แต่ไม่ใช้เครดิต VAT": กรอกเลขที่ใบกำกับภาษีได้โดยตรง ไม่มีขั้นตอนรอรับ', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrorCollector(page);
+    await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
+    await page.goto('/dashboard');
+
+    await page.getByTestId('open-add-form').click();
+    await page.getByTestId('select-tax-type').selectOption('non_claimable_vat');
+
+    await expect(page.getByTestId('input-vat')).toBeVisible();
+    await expect(page.getByTestId('input-expected-date')).toHaveCount(0);
+    await expect(page.getByTestId('input-tax-invoice-number')).toBeVisible();
+
+    await page.getByTestId('input-vendor-name').fill('บริษัท รับรองลูกค้า จำกัด');
+    await page.getByTestId('input-transaction-date').fill(isoDaysFromNow(0));
+    await page.getByTestId('input-amount').fill('1000');
+    await page.getByTestId('input-tax-invoice-number').fill('TAX-NC-001');
+    await page.getByTestId('input-tax-invoice-date').fill(isoDaysFromNow(0));
+    await expect(page.getByTestId('computed-total')).toContainText('1,070.00');
+
+    await page.getByTestId('submit-invoice-form').click();
+
+    await expect(page.getByText('บริษัท รับรองลูกค้า จำกัด')).not.toBeVisible();
+
+    await page.getByTestId('filter-all').click();
+    const row = page.getByRole('row', { name: /บริษัท รับรองลูกค้า จำกัด/ });
+    await expect(row).toBeVisible();
+    const rowId = (await row.getAttribute('data-testid'))?.replace('invoice-row-', '') ?? '';
+    await expect(page.getByTestId(`tax-status-badge-${rowId}`)).toHaveText('ไม่ใช้เครดิต VAT');
+    await expect(page.getByTestId(`mark-received-${rowId}`)).toHaveCount(0);
+
+    expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
+  });
+
+  test('เพิ่มรายการแบบ "มี VAT และใช้เครดิต VAT" ผ่านฟอร์ม แล้วทำเครื่องหมายได้รับแล้วตามขั้นตอนเดิมได้', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrorCollector(page);
+    await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
+    await page.goto('/dashboard');
+
+    await page.getByTestId('open-add-form').click();
+    await page.getByTestId('select-tax-type').selectOption('claimable_vat');
+    await page.getByTestId('input-vendor-name').fill('บริษัท ซื้อสินค้าหลัก จำกัด');
+    await page.getByTestId('input-transaction-date').fill(isoDaysFromNow(-5));
+    await page.getByTestId('input-amount').fill('2000');
+    await expect(page.getByTestId('input-expected-date')).toBeVisible();
+    await page.getByTestId('input-expected-date').fill(isoDaysFromNow(5));
+    await page.getByTestId('submit-invoice-form').click();
+
+    // มี VAT ใช้เครดิตได้ ยังคงเข้าสถานะ pending ตามเดิม จึงเห็นใน filter "รอรับ" ค่าเริ่มต้นได้เลย
+    const row = page.getByRole('row', { name: /บริษัท ซื้อสินค้าหลัก จำกัด/ });
+    await expect(row).toBeVisible();
+    const rowId = (await row.getAttribute('data-testid'))?.replace('invoice-row-', '') ?? '';
+    await expect(page.getByTestId(`tax-status-badge-${rowId}`)).toHaveText('รอรับใบกำกับภาษี');
+
+    await page.getByTestId(`mark-received-${rowId}`).click();
+    await page.getByTestId(`tax-invoice-number-input-${rowId}`).fill('TAX-CL-001');
+    await page.getByTestId(`tax-invoice-date-input-${rowId}`).fill(isoDaysFromNow(-5));
+    await page.getByTestId(`confirm-received-${rowId}`).click();
+
+    await page.getByTestId('filter-received').click();
+    await expect(page.getByTestId(`tax-status-badge-${rowId}`)).toHaveText('ได้รับใบกำกับภาษีแล้ว');
+
+    expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
+  });
+
+  test('แก้ไขรายการเก่าที่ยังไม่ระบุประเภทภาษี (tax_type เป็น NULL) แก้ไขฟิลด์อื่นได้โดยไม่ถูกบังคับเลือกประเภทภาษี', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrorCollector(page);
+    await setupMockSupabase(page, {
+      loggedInAs: OWNER,
+      users: [{ email: OWNER, password: 'x' }],
+      invoices: [
+        {
+          id: 'inv-legacy-no-type',
+          vendor_name: 'ผู้ขาย ข้อมูลเก่า',
+          transaction_date: isoDaysFromNow(-30),
+          amount_excl_vat: 300,
+          vat_amount: 21,
+          expected_date: isoDaysFromNow(-20),
+          status: 'pending',
+          // ไม่ระบุ tax_type — จำลองข้อมูลเก่าก่อนมีฟีเจอร์นี้ (NULL ในฐานข้อมูลจริง)
+        },
+      ],
+    });
+    await page.goto('/dashboard');
+
+    // ป้ายสถานะต้องขึ้น "รอตรวจสอบประเภทภาษี" สำหรับข้อมูลเก่าที่ยังไม่ระบุประเภท
+    await expect(page.getByTestId('tax-status-badge-inv-legacy-no-type')).toHaveText('รอตรวจสอบประเภทภาษี');
+
+    await page.getByTestId('edit-inv-legacy-no-type').click();
+    // ไม่แตะช่องประเภทภาษีเลย (ปล่อยเป็น "-- เลือกประเภทภาษี --") แค่แก้ชื่อผู้ขายแล้วบันทึกทันที
+    await page.getByTestId('input-vendor-name').fill('ผู้ขาย ข้อมูลเก่า แก้ไขแล้ว');
+    await page.getByTestId('submit-invoice-form').click();
+
+    await expect(page.getByText('ผู้ขาย ข้อมูลเก่า แก้ไขแล้ว')).toBeVisible();
+    // ยังคงเป็น "รอตรวจสอบประเภทภาษี" เหมือนเดิม — ไม่มีการเดา/เขียนทับให้เลย
+    await expect(page.getByTestId('tax-status-badge-inv-legacy-no-type')).toHaveText('รอตรวจสอบประเภทภาษี');
+    // ปุ่ม "ได้รับแล้ว" ต้องยังอยู่เหมือนเดิม (ประเภทที่ถูกซ่อนปุ่มนี้คือ no_vat/non_claimable_vat เท่านั้น
+    // ไม่ใช่ NULL — ข้อมูลเก่าที่ยังไม่จำแนกต้องใช้งานได้เหมือนก่อนมีฟีเจอร์นี้ทุกประการ)
+    await expect(page.getByTestId('mark-received-inv-legacy-no-type')).toBeVisible();
+
+    expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
 });

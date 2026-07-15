@@ -1,5 +1,5 @@
 import { getSupabaseClient } from './supabaseClient';
-import type { InvoiceStatus, MarkReceivedInput, PendingTaxInvoice } from '@/types/invoice';
+import type { InvoiceStatus, MarkReceivedInput, PendingTaxInvoice, TaxType } from '@/types/invoice';
 
 const TABLE = 'pending_tax_invoices';
 
@@ -29,6 +29,17 @@ export interface InvoiceWriteInput {
   // ไม่บังคับ (optional) โดยตั้งใจ — ทำให้ที่เรียกใช้เดิม (เช่น การ import จาก Excel ใน
   // lib/excelImport.ts) ไม่ต้องแก้ไขเลย แถวที่ไม่ได้ส่งค่านี้มาจะถูกบันทึกเป็น NULL ในฐานข้อมูล
   vendor_tax_id?: string | null;
+  // เพิ่มสำหรับฟีเจอร์จำแนกประเภทภาษี — บังคับใส่เสมอ (ทุกจุดที่เรียก createInvoice/bulkCreateInvoices
+  // ในโค้ดปัจจุบันกำหนดค่านี้แล้วทั้งหมด: ฟอร์มเพิ่มรายการ และการ import Excel)
+  tax_type: TaxType;
+  // ไม่บังคับ — ผู้เรียกที่รู้ status ที่ถูกต้อง (เช่น app/dashboard/page.tsx ผ่าน
+  // deriveStatusForTaxType) ควรส่งค่านี้มาเสมอ ถ้าไม่ส่งมาจะ fallback เป็น 'pending' เหมือนพฤติกรรม
+  // เดิมก่อนมีฟีเจอร์นี้ (กันไว้เผื่อมีจุดเรียกอื่นที่ยังไม่รู้จักค่านี้)
+  status?: InvoiceStatus;
+  // ใช้เฉพาะกรณี non_claimable_vat ที่กรอกเลขที่/วันที่ใบกำกับภาษีมาโดยตรงตอนสร้าง/แก้ไขรายการ
+  // (ไม่ผ่านขั้นตอน "รอรับใบกำกับภาษี" เดิม) เป็น optional เพื่อไม่กระทบผู้เรียกเดิม
+  tax_invoice_number?: string | null;
+  tax_invoice_date?: string | null;
 }
 
 export async function createInvoice(
@@ -40,7 +51,7 @@ export async function createInvoice(
     .from(TABLE)
     .insert({
       ...input,
-      status: 'pending' as InvoiceStatus,
+      status: input.status ?? ('pending' as InvoiceStatus),
       created_by: createdBy.id,
       created_by_email: createdBy.email,
     })
@@ -63,7 +74,7 @@ export async function bulkCreateInvoices(
     .insert(
       inputs.map((input) => ({
         ...input,
-        status: 'pending' as InvoiceStatus,
+        status: input.status ?? ('pending' as InvoiceStatus),
         created_by: createdBy.id,
         created_by_email: createdBy.email,
       }))

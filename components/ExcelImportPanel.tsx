@@ -1,23 +1,80 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { buildTemplateBlob, parseExcelRows, readWorkbookRows, type ExcelImportRow } from '@/lib/excelImport';
+import { useMemo, useRef, useState } from 'react';
+import {
+  buildTemplateBlob,
+  findDuplicateRowNumbers,
+  parseExcelRows,
+  readWorkbookRows,
+  type ExcelImportRow,
+} from '@/lib/excelImport';
+import { TAX_TYPE_LABELS } from '@/lib/invoiceLogic';
+import type { PendingTaxInvoice, TaxType } from '@/types/invoice';
+
+const THB2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+// แถวในหน้าตรวจสอบ = ExcelImportRow เดิม + สถานะที่จัดการเฉพาะในหน้านี้ (ไม่ได้มาจากการ parse โดยตรง)
+// included: ผู้ใช้ต้องการนำเข้าแถวนี้หรือไม่ (แถวที่ error จะถูกบังคับ false เสมอ แก้ไม่ได้จนกว่าจะแก้
+// ปัญหา — ส่วนแถวที่ซ้ำแค่เตือนเฉยๆ ผู้ใช้เลือกรวมเข้าไปเองได้ถ้ามั่นใจว่าไม่ซ้ำจริง)
+type ReviewRow = ExcelImportRow & { included: boolean; isDuplicate: boolean };
+type ReviewFilter = 'all' | 'vat' | 'no_vat' | 'error';
 
 interface ExcelImportPanelProps {
   onImport: (rows: ExcelImportRow[]) => Promise<void>;
   onClose: () => void;
+  // รายการที่มีอยู่แล้วในระบบ — ใช้ตรวจหารายการซ้ำก่อนนำเข้า (ผู้ขาย+วันที่+เลขที่อ้างอิง+ยอดรวมตรงกัน)
+  existingInvoices: PendingTaxInvoice[];
 }
 
-export default function ExcelImportPanel({ onImport, onClose }: ExcelImportPanelProps) {
+export default function ExcelImportPanel({ onImport, onClose, existingInvoices }: ExcelImportPanelProps) {
   const [fileName, setFileName] = useState<string | null>(null);
-  const [rows, setRows] = useState<ExcelImportRow[]>([]);
+  const [reviewRows, setReviewRows] = useState<ReviewRow[]>([]);
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('all');
   const [parseError, setParseError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const validRows = rows.filter((r) => r.errors.length === 0);
-  const invalidRows = rows.filter((r) => r.errors.length > 0);
+  // แถวที่ "จะถูกนำเข้าจริง" ถ้ากดยืนยัน — ต้องติ๊กเลือกไว้ (included) ไม่มี error ค้าง และมีประเภทภาษี
+  // ที่ระบุชัดเจนแล้ว (ไม่ใช่ '' ซึ่งเกิดได้เฉพาะตอนคอลัมน์ประเภทภาษีมีค่าที่ระบบไม่รู้จัก)
+  const importableRows = useMemo(
+    () =>
+      reviewRows.filter(
+        (r): r is ReviewRow & { tax_type: TaxType } => r.included && r.errors.length === 0 && r.tax_type !== ''
+      ),
+    [reviewRows]
+  );
+
+  const summary = useMemo(() => {
+    const vatCount = reviewRows.filter((r) => r.tax_type === 'claimable_vat' || r.tax_type === 'non_claimable_vat').length;
+    const noVatCount = reviewRows.filter((r) => r.tax_type === 'no_vat').length;
+    const errorCount = reviewRows.filter((r) => r.errors.length > 0 || r.isDuplicate).length;
+    const totalAmount = importableRows.reduce(
+      (sum, r) => sum + (parseFloat(r.amount_excl_vat) || 0) + (parseFloat(r.vat_amount) || 0),
+      0
+    );
+    const totalVat = importableRows.reduce((sum, r) => sum + (parseFloat(r.vat_amount) || 0), 0);
+    return {
+      total: reviewRows.length,
+      vatCount,
+      noVatCount,
+      errorCount,
+      includedCount: importableRows.length,
+      totalAmount: round2(totalAmount),
+      totalVat: round2(totalVat),
+    };
+  }, [reviewRows, importableRows]);
+
+  const displayedRows = reviewRows.filter((r) => {
+    if (reviewFilter === 'error') return r.errors.length > 0 || r.isDuplicate;
+    if (reviewFilter === 'vat') return r.tax_type === 'claimable_vat' || r.tax_type === 'non_claimable_vat';
+    if (reviewFilter === 'no_vat') return r.tax_type === 'no_vat';
+    return true;
+  });
 
   function handleDownloadTemplate() {
     const blob = buildTemplateBlob();
@@ -38,7 +95,8 @@ export default function ExcelImportPanel({ onImport, onClose }: ExcelImportPanel
     setFileName(file.name);
     setParseError(null);
     setImportError(null);
-    setRows([]);
+    setReviewFilter('all');
+    setReviewRows([]);
 
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -47,18 +105,35 @@ export default function ExcelImportPanel({ onImport, onClose }: ExcelImportPanel
       if (parsed.length === 0) {
         setParseError('ไม่พบข้อมูลในไฟล์ กรุณาตรวจสอบว่ากรอกข้อมูลตามแถวใต้หัวคอลัมน์ และใช้หัวคอลัมน์ตรงกับเทมเพลต');
       }
-      setRows(parsed);
+      const duplicateRowNumbers = findDuplicateRowNumbers(parsed, existingInvoices);
+      setReviewRows(
+        parsed.map((row) => {
+          const isDuplicate = duplicateRowNumbers.has(row.rowNumber);
+          return { ...row, isDuplicate, included: row.errors.length === 0 && !isDuplicate };
+        })
+      );
     } catch {
       setParseError('อ่านไฟล์ไม่สำเร็จ กรุณาตรวจสอบว่าเป็นไฟล์ .xlsx หรือ .xls ที่ไม่เสียหาย');
     }
   }
 
+  function handleToggleIncluded(rowNumber: number) {
+    setReviewRows((prev) => prev.map((r) => (r.rowNumber === rowNumber ? { ...r, included: !r.included } : r)));
+  }
+
+  function handleRowTaxTypeChange(rowNumber: number, taxType: TaxType) {
+    // ผู้ใช้แก้ไข/ยืนยันประเภทภาษีเองผ่านหน้าตรวจสอบนี้แล้ว จึงไม่ถือเป็นค่าที่ระบบอนุมานอีกต่อไป
+    setReviewRows((prev) =>
+      prev.map((r) => (r.rowNumber === rowNumber ? { ...r, tax_type: taxType, taxTypeSource: 'column' } : r))
+    );
+  }
+
   async function handleConfirmImport() {
-    if (validRows.length === 0) return;
+    if (importableRows.length === 0) return;
     setImporting(true);
     setImportError(null);
     try {
-      await onImport(validRows);
+      await onImport(importableRows);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'นำเข้าข้อมูลไม่สำเร็จ กรุณาลองใหม่');
     } finally {
@@ -68,7 +143,7 @@ export default function ExcelImportPanel({ onImport, onClose }: ExcelImportPanel
 
   function handlePickAnotherFile() {
     setFileName(null);
-    setRows([]);
+    setReviewRows([]);
     setParseError(null);
     setImportError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -78,7 +153,8 @@ export default function ExcelImportPanel({ onImport, onClose }: ExcelImportPanel
     <div className="space-y-4" data-testid="excel-import-panel">
       <p className="text-sm text-gray-600">
         นำเข้ารายการยอดซื้อหลายรายการพร้อมกันจากไฟล์ Excel — ดาวน์โหลดเทมเพลต กรอกข้อมูล แล้วอัปโหลดกลับมา
-        (ไม่กรอกช่อง VAT จะคำนวณให้อัตโนมัติ 7% จากยอดก่อน VAT)
+        (ไม่กรอกช่อง VAT จะคำนวณให้อัตโนมัติ 7% จากยอดก่อน VAT) คอลัมน์ &quot;ประเภทภาษี&quot; กรอกเป็นภาษาไทยหรือรหัส
+        ภาษาอังกฤษก็ได้ ถ้าไม่กรอกระบบจะอนุมานให้จากยอด VAT — ตรวจสอบและแก้ไขได้อีกครั้งในหน้าตรวจสอบก่อนนำเข้าจริง
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -112,48 +188,146 @@ export default function ExcelImportPanel({ onImport, onClose }: ExcelImportPanel
         </p>
       )}
 
-      {rows.length > 0 && (
+      {reviewRows.length > 0 && (
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-3 text-sm">
-            <span className="rounded-full bg-green-100 px-3 py-1 font-medium text-green-800" data-testid="valid-count">
-              พร้อมนำเข้า {validRows.length} รายการ
-            </span>
-            {invalidRows.length > 0 && (
-              <span className="rounded-full bg-red-100 px-3 py-1 font-medium text-red-800" data-testid="invalid-count">
-                มีปัญหา {invalidRows.length} รายการ (จะข้ามไป ไม่นำเข้า)
-              </span>
-            )}
+          <div className="flex flex-wrap gap-2" data-testid="import-filter-tabs">
+            {(
+              [
+                { key: 'all', label: `ทั้งหมด (${summary.total})` },
+                { key: 'vat', label: `มี VAT (${summary.vatCount})` },
+                { key: 'no_vat', label: `ไม่มี VAT (${summary.noVatCount})` },
+                { key: 'error', label: `ข้อมูลผิดพลาด (${summary.errorCount})` },
+              ] as { key: ReviewFilter; label: string }[]
+            ).map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setReviewFilter(tab.key)}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${
+                  reviewFilter === tab.key
+                    ? 'bg-blue-600 text-white'
+                    : 'border border-gray-300 bg-white text-gray-600'
+                }`}
+                data-testid={`import-filter-${tab.key}`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
-          <div className="max-h-72 overflow-auto rounded-lg border border-gray-200">
+          <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs sm:grid-cols-4">
+            <div>
+              <span className="text-gray-500">จะนำเข้า</span>{' '}
+              <span className="font-semibold text-gray-900" data-testid="import-summary-count">
+                {summary.includedCount} รายการ
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-500">ยอดรวม</span>{' '}
+              <span className="font-semibold text-gray-900" data-testid="import-summary-amount">
+                {summary.totalAmount.toLocaleString('th-TH', THB2)} บาท
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-500">VAT รวม</span>{' '}
+              <span className="font-semibold text-gray-900" data-testid="import-summary-vat">
+                {summary.totalVat.toLocaleString('th-TH', THB2)} บาท
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-500">มีปัญหา/ซ้ำ</span>{' '}
+              <span className="font-semibold text-red-600" data-testid="import-summary-error-count">
+                {summary.errorCount} รายการ
+              </span>
+            </div>
+          </div>
+
+          <div className="max-h-[28rem] overflow-auto rounded-lg border border-gray-200">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium text-gray-500">แถว</th>
+                  <th className="px-3 py-2 text-center font-medium text-gray-500">นำเข้า</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-500">ลำดับ</th>
                   <th className="px-3 py-2 text-left font-medium text-gray-500">ผู้ขาย</th>
                   <th className="px-3 py-2 text-left font-medium text-gray-500">วันที่</th>
                   <th className="px-3 py-2 text-right font-medium text-gray-500">ยอดก่อน VAT</th>
                   <th className="px-3 py-2 text-right font-medium text-gray-500">VAT</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-500">สถานะ</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-500">ยอดรวม</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-500">ประเภทภาษี</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-500">สถานะตรวจสอบ</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-500">ข้อผิดพลาด</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {rows.map((r) => (
-                  <tr key={r.rowNumber} className={r.errors.length > 0 ? 'bg-red-50' : undefined}>
-                    <td className="px-3 py-2 text-gray-400">{r.rowNumber}</td>
-                    <td className="px-3 py-2 text-gray-900">{r.vendor_name || '-'}</td>
-                    <td className="px-3 py-2 text-gray-700">{r.transaction_date || '-'}</td>
-                    <td className="px-3 py-2 text-right text-gray-700">{r.amount_excl_vat || '-'}</td>
-                    <td className="px-3 py-2 text-right text-gray-700">{r.vat_amount || '-'}</td>
-                    <td className="px-3 py-2">
-                      {r.errors.length === 0 ? (
-                        <span className="text-green-700">✓ พร้อมนำเข้า</span>
-                      ) : (
-                        <span className="text-red-600">{r.errors.join(', ')}</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {displayedRows.map((r) => {
+                  const amount = parseFloat(r.amount_excl_vat) || 0;
+                  const vat = parseFloat(r.vat_amount) || 0;
+                  const hasError = r.errors.length > 0;
+                  const messages = [
+                    ...r.errors,
+                    ...(r.isDuplicate ? ['อาจซ้ำกับรายการที่มีอยู่แล้ว (ผู้ขาย/วันที่/เลขที่อ้างอิง/ยอดรวมตรงกัน)'] : []),
+                    ...r.warnings,
+                  ];
+                  return (
+                    <tr
+                      key={r.rowNumber}
+                      className={hasError ? 'bg-red-50' : r.isDuplicate ? 'bg-amber-50' : undefined}
+                      data-testid={`import-row-${r.rowNumber}`}
+                    >
+                      <td className="px-3 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={r.included}
+                          disabled={hasError}
+                          onChange={() => handleToggleIncluded(r.rowNumber)}
+                          data-testid={`import-row-include-${r.rowNumber}`}
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-gray-400">{r.rowNumber}</td>
+                      <td className="px-3 py-2 text-gray-900">{r.vendor_name || '-'}</td>
+                      <td className="px-3 py-2 text-gray-700">{r.transaction_date || '-'}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">
+                        {r.amount_excl_vat ? amount.toLocaleString('th-TH', THB2) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right text-gray-700">
+                        {r.vat_amount !== '' ? vat.toLocaleString('th-TH', THB2) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right text-gray-700">
+                        {r.amount_excl_vat || r.vat_amount ? (amount + vat).toLocaleString('th-TH', THB2) : '-'}
+                      </td>
+                      <td className="px-3 py-2">
+                        <select
+                          value={r.tax_type}
+                          onChange={(e) => handleRowTaxTypeChange(r.rowNumber, e.target.value as TaxType)}
+                          className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-900"
+                          data-testid={`import-row-tax-type-${r.rowNumber}`}
+                        >
+                          <option value="" disabled>
+                            -- เลือก --
+                          </option>
+                          {(Object.keys(TAX_TYPE_LABELS) as TaxType[]).map((tt) => (
+                            <option key={tt} value={tt}>
+                              {TAX_TYPE_LABELS[tt]}
+                            </option>
+                          ))}
+                        </select>
+                        {r.taxTypeSource === 'inferred' && r.tax_type !== '' && (
+                          <span className="ml-1 text-[10px] text-gray-400">(อนุมานจาก VAT)</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {hasError ? (
+                          <span className="text-red-600">ผิดพลาด</span>
+                        ) : r.isDuplicate ? (
+                          <span className="text-amber-700">อาจซ้ำ</span>
+                        ) : (
+                          <span className="text-green-700">✓ พร้อมนำเข้า</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-600">{messages.join(' / ') || '-'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -174,7 +348,7 @@ export default function ExcelImportPanel({ onImport, onClose }: ExcelImportPanel
         >
           ปิด
         </button>
-        {rows.length > 0 && (
+        {reviewRows.length > 0 && (
           <button
             type="button"
             onClick={handlePickAnotherFile}
@@ -186,11 +360,11 @@ export default function ExcelImportPanel({ onImport, onClose }: ExcelImportPanel
         <button
           type="button"
           onClick={handleConfirmImport}
-          disabled={validRows.length === 0 || importing}
+          disabled={importableRows.length === 0 || importing}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
           data-testid="confirm-import"
         >
-          {importing ? 'กำลังนำเข้า...' : `นำเข้า ${validRows.length} รายการ`}
+          {importing ? 'กำลังนำเข้า...' : `นำเข้า ${importableRows.length} รายการ`}
         </button>
       </div>
     </div>

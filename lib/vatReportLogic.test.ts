@@ -30,6 +30,10 @@ function makeInvoice(overrides: Partial<PendingTaxInvoice>): PendingTaxInvoice {
     tax_invoice_date: '2026-06-28',
     vat_claim_month: 7,
     vat_claim_year: 2569,
+    // ค่าเริ่มต้นเป็น claimable_vat เพราะแบบจำลองในไฟล์นี้คือ "รายการที่ครบเงื่อนไขเข้ารายงานภาษีซื้อ"
+    // อยู่แล้วโดยปริยาย (status received + มีเลข/วันที่ใบกำกับภาษี + มีเดือน/ปีเครดิต) — เทสต์ที่ต้องการ
+    // ตรวจสอบเงื่อนไข tax_type โดยเฉพาะจะ override ค่านี้เอง
+    tax_type: 'claimable_vat',
     ...overrides,
   };
 }
@@ -86,6 +90,35 @@ describe('filterPurchaseTaxReport', () => {
     expect(filterPurchaseTaxReport([invoice], { month: 7, year: 2569 })).toHaveLength(1);
     // ไม่ปรากฏในรายงานเดือนมิถุนายน 2569 แม้ใบกำกับภาษีจะลงวันที่เดือนนี้ก็ตาม
     expect(filterPurchaseTaxReport([invoice], { month: 6, year: 2569 })).toHaveLength(0);
+  });
+
+  it('ไม่มี VAT (no_vat) ไม่ปรากฏในรายงานเด็ดขาด แม้ครบทุกเงื่อนไขอื่น', () => {
+    const invoice = makeInvoice({ id: 'no-vat', tax_type: 'no_vat' });
+    expect(filterPurchaseTaxReport([invoice], { month: 7, year: 2569 })).toEqual([]);
+  });
+
+  it('มี VAT แต่ไม่ใช้เครดิต (non_claimable_vat) ไม่ปรากฏในรายงานเด็ดขาด แม้ครบทุกเงื่อนไขอื่น', () => {
+    const invoice = makeInvoice({ id: 'non-claimable', tax_type: 'non_claimable_vat' });
+    expect(filterPurchaseTaxReport([invoice], { month: 7, year: 2569 })).toEqual([]);
+  });
+
+  it('tax_type เป็น NULL (ข้อมูลเก่าก่อนมีฟีเจอร์จำแนกประเภทภาษี) ยังปรากฏในรายงานได้เหมือน claimable_vat', () => {
+    const invoice = makeInvoice({ id: 'legacy-null', tax_type: null });
+    expect(filterPurchaseTaxReport([invoice], { month: 7, year: 2569 })).toHaveLength(1);
+  });
+
+  it('VAT เป็น 0 ไม่ปรากฏในรายงาน แม้ tax_type เป็น claimable_vat', () => {
+    const invoice = makeInvoice({ id: 'zero-vat', vat_amount: 0 });
+    expect(filterPurchaseTaxReport([invoice], { month: 7, year: 2569 })).toEqual([]);
+  });
+
+  it('ไม่มีเลขที่ใบกำกับภาษี หรือไม่มีวันที่ใบกำกับภาษี ไม่ปรากฏในรายงาน', () => {
+    expect(
+      filterPurchaseTaxReport([makeInvoice({ id: 'no-number', tax_invoice_number: null })], { month: 7, year: 2569 })
+    ).toEqual([]);
+    expect(
+      filterPurchaseTaxReport([makeInvoice({ id: 'no-date', tax_invoice_date: null })], { month: 7, year: 2569 })
+    ).toEqual([]);
   });
 });
 

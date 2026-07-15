@@ -34,15 +34,29 @@ export interface PurchaseTaxReportSummary {
  * ภาษีอาจลงวันที่เดือนหนึ่งแต่บริษัทนำไปเครดิตภาษีในอีกเดือนหนึ่งก็ได้ (เช่น ใบกำกับภาษีลงวันที่ 28
  * มิถุนายน แต่บริษัทได้รับเอกสารจริง 5 กรกฎาคม แล้วนำไปยื่นเครดิตของเดือนกรกฎาคม รายงานของเดือน
  * กรกฎาคมต้องแสดงรายการนี้ ไม่ใช่รายงานของเดือนมิถุนายน)
- * นับเฉพาะรายการสถานะ "ได้รับแล้ว" (received) เท่านั้น เพราะต้องมีเลข/วันที่ใบกำกับภาษีจริงแล้วจึงจะ
- * เข้ารายงานได้ — รายการที่ยัง pending หรือถูกยกเลิกจะไม่มี vat_claim_month/year (เป็น null) อยู่แล้ว
+ *
+ * ตั้งแต่มีฟีเจอร์จำแนกประเภทภาษี (migration_003) เงื่อนไขเข้มขึ้นตามสเปก: ต้องเป็น claimable_vat
+ * (มี VAT และใช้เครดิตได้) เท่านั้น — ไม่มี VAT (no_vat) และมี VAT แต่ใช้เครดิตไม่ได้ (non_claimable_vat)
+ * ห้ามเข้ารายงานนี้เด็ดขาดไม่ว่ากรณีใด รวมถึงต้องมี VAT > 0, มีเลขที่/วันที่ใบกำกับภาษีจริงแล้ว และมี
+ * เดือน/ปีที่ใช้เครดิตครบถ้วน (ไม่ใช่แค่สถานะ "ได้รับแล้ว" เฉยๆ) ตรงกับช่วงที่เลือกกรอง
+ *
+ * ข้อยกเว้นเดียว: รายการเก่าก่อนมีฟีเจอร์นี้ (tax_type เป็น NULL) ปฏิบัติเหมือน claimable_vat ในการ
+ * กรองนี้โดยเจตนา — เพื่อไม่ให้รายการเก่าที่เคยแสดงอยู่ในรายงานนี้อยู่แล้ว (ก่อนมี tax_type) หายไป
+ * ทันทีที่อัปเดตระบบ (จะถือเป็นการ "ทำให้ฟังก์ชันเดิมเสีย") โดยไม่มีการเดา/เขียนทับ tax_type ให้ในฐาน
+ * ข้อมูลแต่อย่างใด — ยังคงเป็น NULL และแสดง badge "รอตรวจสอบประเภทภาษี" ในตารางตามเดิม ผู้ใช้จะเห็นค่า
+ * นี้จริงเฉพาะเมื่อไปแก้ไขรายการนั้นและเลือกประเภทภาษีเองเท่านั้น
  */
 export function filterPurchaseTaxReport(
   invoices: PendingTaxInvoice[],
   filter: PurchaseTaxReportFilter
 ): PendingTaxInvoice[] {
   return invoices.filter((inv) => {
+    if (inv.tax_type === 'no_vat' || inv.tax_type === 'non_claimable_vat') return false;
     if (inv.status !== 'received') return false;
+    if (!(inv.vat_amount > 0)) return false;
+    if (!inv.tax_invoice_number) return false;
+    if (!inv.tax_invoice_date) return false;
+    if (inv.vat_claim_month == null || inv.vat_claim_year == null) return false;
     if (inv.vat_claim_year !== filter.year) return false;
     if (filter.month !== 'all' && inv.vat_claim_month !== filter.month) return false;
     return true;

@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  TAX_TYPE_LABELS,
   calcTotal,
   computeMonthlyVatSummary,
   computeStats,
   daysBetween,
+  deriveStatusForTaxType,
   filterInvoices,
   getAgingBucket,
+  getTaxInvoiceStatusBadgeClass,
+  getTaxInvoiceStatusLabel,
   sortInvoices,
   suggestVatAmount,
   validateInvoiceForm,
@@ -37,6 +41,9 @@ function makeInvoice(overrides: Partial<PendingTaxInvoice>): PendingTaxInvoice {
     tax_invoice_date: null,
     vat_claim_month: null,
     vat_claim_year: null,
+    // ค่าเริ่มต้นเป็น null (จำลองข้อมูลเก่าก่อนมีฟีเจอร์จำแนกประเภทภาษี) — เทสต์ที่สนใจ tax_type
+    // โดยเฉพาะจะ override ค่านี้เอง
+    tax_type: null,
     ...overrides,
   };
 }
@@ -51,6 +58,9 @@ const emptyForm: InvoiceFormInput = {
   expected_date: '',
   notes: '',
   vendor_tax_id: '',
+  tax_type: '',
+  tax_invoice_number: '',
+  tax_invoice_date: '',
 };
 
 describe('suggestVatAmount', () => {
@@ -170,8 +180,44 @@ describe('validateInvoiceForm', () => {
       transaction_date: '2026-07-01',
       amount_excl_vat: '1000',
       vat_amount: '70',
+      tax_type: 'claimable_vat',
     });
     expect(Object.keys(errors)).toHaveLength(0);
+  });
+
+  it('บังคับเลือกประเภทภาษีโดยค่าเริ่มต้น (ตอนเพิ่มรายการใหม่)', () => {
+    const errors = validateInvoiceForm({
+      ...emptyForm,
+      vendor_name: 'ผู้ขาย A',
+      transaction_date: '2026-07-01',
+      amount_excl_vat: '1000',
+    });
+    expect(errors.tax_type).toBeDefined();
+  });
+
+  it('ไม่บังคับเลือกประเภทภาษีได้เมื่อระบุ taxTypeRequired: false (ตอนแก้ไขรายการเก่าที่ยังไม่จำแนก)', () => {
+    const errors = validateInvoiceForm(
+      {
+        ...emptyForm,
+        vendor_name: 'ผู้ขาย A',
+        transaction_date: '2026-07-01',
+        amount_excl_vat: '1000',
+      },
+      { taxTypeRequired: false }
+    );
+    expect(errors.tax_type).toBeUndefined();
+  });
+
+  it('ประเภท "ไม่มี VAT" ไม่ตรวจสอบความถูกต้องของค่า VAT ที่กรอกมา (ช่องถูกซ่อน/บังคับเป็น 0 ในฟอร์มอยู่แล้ว)', () => {
+    const errors = validateInvoiceForm({
+      ...emptyForm,
+      vendor_name: 'ผู้ขาย A',
+      transaction_date: '2026-07-01',
+      amount_excl_vat: '1000',
+      vat_amount: '-999', // ค่าที่ปกติควรถูกปฏิเสธ แต่ไม่ควร error เพราะเป็นประเภทไม่มี VAT
+      tax_type: 'no_vat',
+    });
+    expect(errors.vat_amount).toBeUndefined();
   });
 
   it('ปฏิเสธยอดก่อนภาษีที่เป็น 0 หรือติดลบ', () => {
@@ -364,5 +410,96 @@ describe('computeMonthlyVatSummary', () => {
 
   it('ไม่มีรายการคืนค่า array ว่าง', () => {
     expect(computeMonthlyVatSummary([])).toEqual([]);
+  });
+
+  it('ไม่นับรายการ non_claimable_vat เข้ายอดสรุป (VAT ใช้เครดิตไม่ได้)', () => {
+    const invoices = [
+      makeInvoice({ id: '1', transaction_date: '2026-07-01', vat_amount: 70, status: 'pending', tax_type: 'claimable_vat' }),
+      makeInvoice({
+        id: '2',
+        transaction_date: '2026-07-01',
+        vat_amount: 999,
+        status: 'received',
+        tax_type: 'non_claimable_vat',
+      }),
+    ];
+    const summary = computeMonthlyVatSummary(invoices);
+    expect(summary).toHaveLength(1);
+    expect(summary[0].vatPending).toBe(70);
+    expect(summary[0].vatReceived).toBe(0); // รายการ non_claimable_vat 999 บาท ต้องไม่ถูกนับรวม
+  });
+});
+
+describe('deriveStatusForTaxType', () => {
+  it('ไม่มี VAT — เป็น received ทันที ไม่มีขั้นตอนรอ', () => {
+    expect(deriveStatusForTaxType('no_vat')).toBe('received');
+  });
+
+  it('มี VAT แต่ไม่ใช้เครดิต — เป็น received ทันที ไม่มีขั้นตอนรอ', () => {
+    expect(deriveStatusForTaxType('non_claimable_vat')).toBe('received');
+  });
+
+  it('มี VAT ใช้เครดิตได้ — สร้างใหม่เป็น pending ตามขั้นตอนเดิม', () => {
+    expect(deriveStatusForTaxType('claimable_vat')).toBe('pending');
+    expect(deriveStatusForTaxType('claimable_vat', undefined)).toBe('pending');
+  });
+
+  it('มี VAT ใช้เครดิตได้ — แก้ไขรายการที่เคย received แล้วไม่ถูกดึงกลับไป pending', () => {
+    expect(deriveStatusForTaxType('claimable_vat', 'received')).toBe('received');
+  });
+
+  it('รายการที่ยกเลิกแล้วไม่ถูกเปลี่ยนสถานะกลับไม่ว่าจะแก้ไขเป็นประเภทภาษีใด', () => {
+    expect(deriveStatusForTaxType('no_vat', 'cancelled')).toBe('cancelled');
+    expect(deriveStatusForTaxType('claimable_vat', 'cancelled')).toBe('cancelled');
+    expect(deriveStatusForTaxType('non_claimable_vat', 'cancelled')).toBe('cancelled');
+  });
+});
+
+describe('getTaxInvoiceStatusLabel', () => {
+  it('ไม่มี VAT → "ไม่มี VAT" (ไม่มีทางเป็น "รอรับใบกำกับภาษี" เด็ดขาด)', () => {
+    expect(getTaxInvoiceStatusLabel({ tax_type: 'no_vat', status: 'received' })).toBe('ไม่มี VAT');
+    expect(getTaxInvoiceStatusLabel({ tax_type: 'no_vat', status: 'pending' })).not.toBe('รอรับใบกำกับภาษี');
+  });
+
+  it('มี VAT ใช้เครดิตได้ + pending → "รอรับใบกำกับภาษี"', () => {
+    expect(getTaxInvoiceStatusLabel({ tax_type: 'claimable_vat', status: 'pending' })).toBe('รอรับใบกำกับภาษี');
+  });
+
+  it('มี VAT ใช้เครดิตได้ + received → "ได้รับใบกำกับภาษีแล้ว"', () => {
+    expect(getTaxInvoiceStatusLabel({ tax_type: 'claimable_vat', status: 'received' })).toBe('ได้รับใบกำกับภาษีแล้ว');
+  });
+
+  it('มี VAT แต่ไม่ใช้เครดิต → "ไม่ใช้เครดิต VAT"', () => {
+    expect(getTaxInvoiceStatusLabel({ tax_type: 'non_claimable_vat', status: 'received' })).toBe('ไม่ใช้เครดิต VAT');
+  });
+
+  it('tax_type เป็น NULL (ข้อมูลเก่า) → "รอตรวจสอบประเภทภาษี"', () => {
+    expect(getTaxInvoiceStatusLabel({ tax_type: null, status: 'pending' })).toBe('รอตรวจสอบประเภทภาษี');
+  });
+
+  it('ยกเลิกแล้ว → "ยกเลิก" เสมอไม่ว่า tax_type จะเป็นอะไร', () => {
+    expect(getTaxInvoiceStatusLabel({ tax_type: 'claimable_vat', status: 'cancelled' })).toBe('ยกเลิก');
+    expect(getTaxInvoiceStatusLabel({ tax_type: null, status: 'cancelled' })).toBe('ยกเลิก');
+  });
+});
+
+describe('getTaxInvoiceStatusBadgeClass', () => {
+  it('คืนค่า class ที่ต่างกันตามประเภทภาษี/สถานะแต่ละแบบ (ไม่ชนกัน)', () => {
+    const combos: Array<Parameters<typeof getTaxInvoiceStatusBadgeClass>[0]> = [
+      { tax_type: 'no_vat', status: 'received' },
+      { tax_type: 'non_claimable_vat', status: 'received' },
+      { tax_type: 'claimable_vat', status: 'pending' },
+      { tax_type: 'claimable_vat', status: 'received' },
+      { tax_type: null, status: 'pending' },
+      { tax_type: 'claimable_vat', status: 'cancelled' },
+    ];
+    const classes = combos.map(getTaxInvoiceStatusBadgeClass);
+    expect(new Set(classes).size).toBe(classes.length);
+  });
+});
+
+describe('TAX_TYPE_LABELS', () => {
+  it('มีป้ายชื่อครบทั้ง 3 ประเภท', () => {
+    expect(Object.keys(TAX_TYPE_LABELS).sort()).toEqual(['claimable_vat', 'no_vat', 'non_claimable_vat']);
   });
 });

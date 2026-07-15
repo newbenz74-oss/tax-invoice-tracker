@@ -85,8 +85,8 @@ test.describe('นำเข้ารายการจาก Excel', () => {
       buffer,
     });
 
-    await expect(page.getByTestId('valid-count')).toContainText('พร้อมนำเข้า 2 รายการ');
-    await expect(page.getByTestId('invalid-count')).toContainText('มีปัญหา 1 รายการ');
+    await expect(page.getByTestId('import-summary-count')).toContainText('2 รายการ');
+    await expect(page.getByTestId('import-summary-error-count')).toContainText('1 รายการ');
 
     await page.getByTestId('confirm-import').click();
 
@@ -133,7 +133,7 @@ test.describe('นำเข้ารายการจาก Excel', () => {
       buffer,
     });
 
-    await expect(page.getByTestId('invalid-count')).toContainText('มีปัญหา 1 รายการ');
+    await expect(page.getByTestId('import-summary-error-count')).toContainText('1 รายการ');
     await expect(page.getByTestId('confirm-import')).toBeDisabled();
 
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
@@ -170,6 +170,141 @@ test.describe('นำเข้ารายการจาก Excel', () => {
 
     await page.getByText('ปิด', { exact: true }).click();
     await expect(page.getByTestId('excel-import-panel')).not.toBeVisible();
+
+    expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
+  });
+
+  test('นำเข้าไฟล์ที่มีทั้งประเภทมี VAT และไม่มี VAT ปะปนกัน ผ่านหน้าตรวจสอบก่อนบันทึกจริง', async ({ page }) => {
+    const errors = attachConsoleErrorCollector(page);
+    await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
+    await page.goto('/dashboard');
+
+    await page.getByTestId('open-import-panel').click();
+
+    const buffer = buildWorkbookBuffer([
+      {
+        [EXCEL_HEADERS.vendor_name]: 'บริษัท กขค จำกัด',
+        [EXCEL_HEADERS.transaction_date]: isoDaysFromNow(0),
+        [EXCEL_HEADERS.vendor_tax_id]: '',
+        [EXCEL_HEADERS.description]: '',
+        [EXCEL_HEADERS.amount_excl_vat]: 300,
+        [EXCEL_HEADERS.vat_amount]: '',
+        [EXCEL_HEADERS.total_amount]: '',
+        [EXCEL_HEADERS.tax_type]: 'ไม่มี VAT',
+        [EXCEL_HEADERS.reference_no]: '',
+        [EXCEL_HEADERS.expected_date]: '',
+        [EXCEL_HEADERS.notes]: '',
+      },
+      {
+        [EXCEL_HEADERS.vendor_name]: 'บริษัท จฉช จำกัด',
+        [EXCEL_HEADERS.transaction_date]: isoDaysFromNow(0),
+        [EXCEL_HEADERS.vendor_tax_id]: '',
+        [EXCEL_HEADERS.description]: '',
+        [EXCEL_HEADERS.amount_excl_vat]: 1000,
+        [EXCEL_HEADERS.vat_amount]: '',
+        [EXCEL_HEADERS.total_amount]: '',
+        [EXCEL_HEADERS.tax_type]: 'มี VAT และใช้เครดิต VAT',
+        [EXCEL_HEADERS.reference_no]: '',
+        [EXCEL_HEADERS.expected_date]: '',
+        [EXCEL_HEADERS.notes]: '',
+      },
+      {
+        [EXCEL_HEADERS.vendor_name]: 'บริษัท ญฎฏ จำกัด',
+        [EXCEL_HEADERS.transaction_date]: isoDaysFromNow(0),
+        [EXCEL_HEADERS.vendor_tax_id]: '',
+        [EXCEL_HEADERS.description]: '',
+        [EXCEL_HEADERS.amount_excl_vat]: 500,
+        [EXCEL_HEADERS.vat_amount]: 35,
+        [EXCEL_HEADERS.total_amount]: '',
+        [EXCEL_HEADERS.tax_type]: 'มี VAT แต่ไม่ใช้เครดิต VAT',
+        [EXCEL_HEADERS.reference_no]: '',
+        [EXCEL_HEADERS.expected_date]: '',
+        [EXCEL_HEADERS.notes]: '',
+      },
+    ]);
+
+    await page.getByTestId('excel-file-input').setInputFiles({
+      name: 'นำเข้าผสมประเภทภาษี.xlsx',
+      mimeType: XLSX_MIME,
+      buffer,
+    });
+
+    await expect(page.getByTestId('import-summary-count')).toContainText('3 รายการ');
+    await expect(page.getByTestId('import-filter-vat')).toContainText('มี VAT (2)');
+    await expect(page.getByTestId('import-filter-no_vat')).toContainText('ไม่มี VAT (1)');
+
+    await page.getByTestId('confirm-import').click();
+    await expect(page.getByTestId('excel-import-panel')).not.toBeVisible();
+
+    await page.getByTestId('filter-all').click();
+
+    const noVatRow = page.getByRole('row', { name: /บริษัท กขค จำกัด/ });
+    const noVatId = (await noVatRow.getAttribute('data-testid'))?.replace('invoice-row-', '') ?? '';
+    await expect(page.getByTestId(`tax-status-badge-${noVatId}`)).toHaveText('ไม่มี VAT');
+
+    const claimableRow = page.getByRole('row', { name: /บริษัท จฉช จำกัด/ });
+    const claimableId = (await claimableRow.getAttribute('data-testid'))?.replace('invoice-row-', '') ?? '';
+    await expect(page.getByTestId(`tax-status-badge-${claimableId}`)).toHaveText('รอรับใบกำกับภาษี');
+
+    const nonClaimableRow = page.getByRole('row', { name: /บริษัท ญฎฏ จำกัด/ });
+    const nonClaimableId = (await nonClaimableRow.getAttribute('data-testid'))?.replace('invoice-row-', '') ?? '';
+    await expect(page.getByTestId(`tax-status-badge-${nonClaimableId}`)).toHaveText('ไม่ใช้เครดิต VAT');
+
+    expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
+  });
+
+  test('นำเข้ารายการที่ซ้ำกับข้อมูลเดิมในระบบ — เตือนและไม่ติ๊กให้อัตโนมัติ แต่ผู้ใช้เลือกรวมเข้าไปเองได้', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrorCollector(page);
+    const txnDate = isoDaysFromNow(-2);
+    await setupMockSupabase(page, {
+      loggedInAs: OWNER,
+      users: [{ email: OWNER, password: 'x' }],
+      invoices: [
+        {
+          id: 'inv-existing-dup',
+          vendor_name: 'บริษัท ซ้ำกันแน่นอน จำกัด',
+          transaction_date: txnDate,
+          amount_excl_vat: 1000,
+          vat_amount: 70,
+          reference_no: 'PO-DUP-1',
+          status: 'pending',
+          tax_type: 'claimable_vat',
+        },
+      ],
+    });
+    await page.goto('/dashboard');
+
+    await page.getByTestId('open-import-panel').click();
+    const buffer = buildWorkbookBuffer([
+      {
+        [EXCEL_HEADERS.vendor_name]: 'บริษัท ซ้ำกันแน่นอน จำกัด',
+        [EXCEL_HEADERS.transaction_date]: txnDate,
+        [EXCEL_HEADERS.vendor_tax_id]: '',
+        [EXCEL_HEADERS.description]: '',
+        [EXCEL_HEADERS.amount_excl_vat]: 1000,
+        [EXCEL_HEADERS.vat_amount]: 70,
+        [EXCEL_HEADERS.total_amount]: '',
+        [EXCEL_HEADERS.tax_type]: 'claimable_vat',
+        [EXCEL_HEADERS.reference_no]: 'PO-DUP-1',
+        [EXCEL_HEADERS.expected_date]: '',
+        [EXCEL_HEADERS.notes]: '',
+      },
+    ]);
+    await page.getByTestId('excel-file-input').setInputFiles({
+      name: 'นำเข้าซ้ำ.xlsx',
+      mimeType: XLSX_MIME,
+      buffer,
+    });
+
+    await expect(page.getByTestId('import-row-2')).toContainText('อาจซ้ำ');
+    await expect(page.getByTestId('import-row-include-2')).not.toBeChecked();
+    await expect(page.getByTestId('confirm-import')).toBeDisabled();
+
+    await page.getByTestId('import-row-include-2').check();
+    await expect(page.getByTestId('confirm-import')).toBeEnabled();
+    await expect(page.getByTestId('import-summary-count')).toContainText('1 รายการ');
 
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
