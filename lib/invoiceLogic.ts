@@ -99,6 +99,11 @@ export function validateInvoiceForm(input: InvoiceFormInput): Partial<Record<key
     errors.expected_date = 'วันที่คาดว่าจะได้รับต้องไม่ก่อนวันที่ทำรายการ';
   }
 
+  // เลขประจำตัวผู้เสียภาษีไม่บังคับกรอก แต่ถ้ากรอกมาต้องเป็นตัวเลข 13 หลักเท่านั้น (รูปแบบมาตรฐานไทย)
+  if (input.vendor_tax_id.trim() && !/^\d{13}$/.test(input.vendor_tax_id.trim())) {
+    errors.vendor_tax_id = 'เลขประจำตัวผู้เสียภาษีต้องเป็นตัวเลข 13 หลัก';
+  }
+
   return errors;
 }
 

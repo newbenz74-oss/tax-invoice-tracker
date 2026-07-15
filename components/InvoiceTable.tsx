@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import type { PendingTaxInvoice, SortDirection, SortField } from '@/types/invoice';
+import type { MarkReceivedInput, PendingTaxInvoice, SortDirection, SortField } from '@/types/invoice';
 import {
   AGING_BADGE_CLASS,
   AGING_LABELS,
   STATUS_LABELS,
   getAgingBucket,
 } from '@/lib/invoiceLogic';
+import { buddhistYearOptions, currentBuddhistYear, currentMonth, thaiMonthName } from '@/lib/thaiDate';
 
 const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -24,7 +25,7 @@ interface InvoiceTableProps {
   sortDirection: SortDirection;
   onSortChange: (field: SortField) => void;
   onEdit: (invoice: PendingTaxInvoice) => void;
-  onMarkReceived: (invoice: PendingTaxInvoice, taxInvoiceNumber: string, receivedDate: string) => Promise<void>;
+  onMarkReceived: (invoice: PendingTaxInvoice, input: MarkReceivedInput) => Promise<void>;
   onCancelInvoice: (invoice: PendingTaxInvoice) => Promise<void>;
   onDelete: (invoice: PendingTaxInvoice) => Promise<void>;
 }
@@ -50,14 +51,25 @@ export default function InvoiceTable({
   const [receivingId, setReceivingId] = useState<string | null>(null);
   const [taxInvoiceNumber, setTaxInvoiceNumber] = useState('');
   const [receivedDate, setReceivedDate] = useState(today);
+  // เพิ่ม 3 ฟิลด์ใหม่สำหรับรายงานภาษีซื้อ (ดู lib/vatReportLogic.ts) — vatClaimMonth/Year ใช้ ''
+  // แทนค่ายังไม่ได้เลือกใน <select> (ควบคุมด้วย React แบบ controlled component)
+  const [taxInvoiceDate, setTaxInvoiceDate] = useState('');
+  const [vatClaimMonth, setVatClaimMonth] = useState<number | ''>('');
+  const [vatClaimYear, setVatClaimYear] = useState<number | ''>('');
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   async function handleConfirmReceived(invoice: PendingTaxInvoice) {
-    if (!taxInvoiceNumber.trim()) return;
+    if (!taxInvoiceNumber.trim() || !taxInvoiceDate || !vatClaimMonth || !vatClaimYear) return;
     setBusyId(invoice.id);
     try {
-      await onMarkReceived(invoice, taxInvoiceNumber.trim(), receivedDate);
+      await onMarkReceived(invoice, {
+        taxInvoiceNumber: taxInvoiceNumber.trim(),
+        receivedDate,
+        taxInvoiceDate,
+        vatClaimMonth,
+        vatClaimYear,
+      });
       setReceivingId(null);
       setTaxInvoiceNumber('');
     } finally {
@@ -156,12 +168,57 @@ export default function InvoiceTable({
                         className="w-40 rounded-lg border border-gray-300 px-2 py-1 text-xs"
                         data-testid={`tax-invoice-number-input-${invoice.id}`}
                       />
-                      <input
-                        type="date"
-                        value={receivedDate}
-                        onChange={(e) => setReceivedDate(e.target.value)}
-                        className="w-40 rounded-lg border border-gray-300 px-2 py-1 text-xs"
-                      />
+                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-gray-400">
+                        วันที่ได้รับเอกสาร
+                        <input
+                          type="date"
+                          value={receivedDate}
+                          onChange={(e) => setReceivedDate(e.target.value)}
+                          className="w-40 rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-900"
+                        />
+                      </label>
+                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-gray-400">
+                        วันที่ใบกำกับภาษี *
+                        <input
+                          type="date"
+                          value={taxInvoiceDate}
+                          onChange={(e) => setTaxInvoiceDate(e.target.value)}
+                          className="w-40 rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-900"
+                          data-testid={`tax-invoice-date-input-${invoice.id}`}
+                        />
+                      </label>
+                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-gray-400">
+                        เดือนที่ใช้เครดิต VAT *
+                        <select
+                          value={vatClaimMonth}
+                          onChange={(e) => setVatClaimMonth(e.target.value ? Number(e.target.value) : '')}
+                          className="w-40 rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-900"
+                          data-testid={`vat-claim-month-select-${invoice.id}`}
+                        >
+                          <option value="">เลือกเดือน</option>
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                            <option key={m} value={m}>
+                              {thaiMonthName(m)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-gray-400">
+                        ปีที่ใช้เครดิต VAT *
+                        <select
+                          value={vatClaimYear}
+                          onChange={(e) => setVatClaimYear(e.target.value ? Number(e.target.value) : '')}
+                          className="w-40 rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-900"
+                          data-testid={`vat-claim-year-select-${invoice.id}`}
+                        >
+                          <option value="">เลือกปี</option>
+                          {buddhistYearOptions().map((y) => (
+                            <option key={y} value={y}>
+                              {y}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                       <div className="flex gap-1.5">
                         <button
                           type="button"
@@ -175,7 +232,7 @@ export default function InvoiceTable({
                         </button>
                         <button
                           type="button"
-                          disabled={!taxInvoiceNumber.trim() || isBusy}
+                          disabled={!taxInvoiceNumber.trim() || !taxInvoiceDate || !vatClaimMonth || !vatClaimYear || isBusy}
                           onClick={() => handleConfirmReceived(invoice)}
                           className="rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
                           data-testid={`confirm-received-${invoice.id}`}
@@ -194,6 +251,11 @@ export default function InvoiceTable({
                               setReceivingId(invoice.id);
                               setTaxInvoiceNumber('');
                               setReceivedDate(today);
+                              setTaxInvoiceDate('');
+                              // เดือน/ปีที่ใช้เครดิต VAT ตั้งค่าเริ่มต้นเป็นเดือน/ปีปัจจุบัน (กรณีส่วนใหญ่
+                              // ที่นำไปเครดิตในเดือนเดียวกับที่กำลังบันทึก) ผู้ใช้แก้เป็นเดือน/ปีอื่นได้เสมอ
+                              setVatClaimMonth(currentMonth());
+                              setVatClaimYear(currentBuddhistYear());
                             }}
                             className="rounded-md border border-green-300 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"
                             data-testid={`mark-received-${invoice.id}`}

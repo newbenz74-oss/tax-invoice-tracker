@@ -23,6 +23,27 @@ test.describe('Invoice CRUD และ business logic', () => {
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
 
+  test('เลขประจำตัวผู้เสียภาษีไม่บังคับกรอก แต่ถ้ากรอกมาต้องเป็นตัวเลข 13 หลัก', async ({ page }) => {
+    const errors = attachConsoleErrorCollector(page);
+    await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
+    await page.goto('/dashboard');
+
+    await page.getByTestId('open-add-form').click();
+    await page.getByTestId('input-vendor-name').fill('บริษัท ทดสอบ เลขผู้เสียภาษี จำกัด');
+    await page.getByTestId('input-transaction-date').fill(isoDaysFromNow(0));
+    await page.getByTestId('input-amount').fill('1000');
+    await page.getByTestId('input-vendor-tax-id').fill('123');
+    await page.getByTestId('submit-invoice-form').click();
+
+    await expect(page.getByText('เลขประจำตัวผู้เสียภาษีต้องเป็นตัวเลข 13 หลัก')).toBeVisible();
+
+    await page.getByTestId('input-vendor-tax-id').fill('1234567890123');
+    await page.getByTestId('submit-invoice-form').click();
+
+    await expect(page.getByText('บริษัท ทดสอบ เลขผู้เสียภาษี จำกัด')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
   test('แก้ไข VAT เองแล้วไม่ถูกเขียนทับเมื่อแก้ยอดก่อนภาษีอีกครั้ง', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
@@ -184,7 +205,9 @@ test.describe('Invoice CRUD และ business logic', () => {
     expect(errors).toEqual([]);
   });
 
-  test('ทำเครื่องหมายว่าได้รับแล้วพร้อมกรอกเลขที่ใบกำกับภาษี', async ({ page }) => {
+  test('ทำเครื่องหมายว่าได้รับแล้วพร้อมกรอกเลขที่ใบกำกับภาษี วันที่ใบกำกับภาษี และเดือน/ปีที่ใช้เครดิต VAT', async ({
+    page,
+  }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, {
       loggedInAs: OWNER,
@@ -204,7 +227,17 @@ test.describe('Invoice CRUD และ business logic', () => {
     await page.goto('/dashboard');
 
     await page.getByTestId('mark-received-inv-to-receive').click();
+
+    // ปุ่มยืนยันต้อง disabled อยู่จนกว่าจะกรอกเลขที่ใบกำกับภาษีและวันที่ใบกำกับภาษีครบ (เดือน/ปีที่ใช้
+    // เครดิต VAT มีค่าเริ่มต้นเป็นเดือน/ปีปัจจุบันให้อยู่แล้ว ไม่ต้องเลือกใหม่ก็ผ่านได้)
+    await expect(page.getByTestId('confirm-received-inv-to-receive')).toBeDisabled();
+
     await page.getByTestId('tax-invoice-number-input-inv-to-receive').fill('TAX-INV-0042');
+    await expect(page.getByTestId('confirm-received-inv-to-receive')).toBeDisabled();
+
+    await page.getByTestId('tax-invoice-date-input-inv-to-receive').fill(isoDaysFromNow(-7));
+    await expect(page.getByTestId('confirm-received-inv-to-receive')).toBeEnabled();
+
     await page.getByTestId('confirm-received-inv-to-receive').click();
 
     // มาร์คแล้วรายการหลุดจาก filter "รอรับ" (ค่าเริ่มต้น)

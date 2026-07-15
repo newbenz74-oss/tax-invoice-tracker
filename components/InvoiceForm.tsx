@@ -13,6 +13,7 @@ const EMPTY_FORM: InvoiceFormInput = {
   reference_no: '',
   expected_date: '',
   notes: '',
+  vendor_tax_id: '',
 };
 
 function invoiceToForm(invoice: PendingTaxInvoice): InvoiceFormInput {
@@ -25,6 +26,7 @@ function invoiceToForm(invoice: PendingTaxInvoice): InvoiceFormInput {
     reference_no: invoice.reference_no ?? '',
     expected_date: invoice.expected_date ?? '',
     notes: invoice.notes ?? '',
+    vendor_tax_id: invoice.vendor_tax_id ?? '',
   };
 }
 
@@ -105,6 +107,18 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
           />
         </Field>
       </div>
+
+      <Field label="เลขประจำตัวผู้เสียภาษี (ผู้ขาย)" error={errors.vendor_tax_id}>
+        <input
+          inputMode="numeric"
+          maxLength={13}
+          placeholder="13 หลัก (ไม่บังคับ)"
+          value={form.vendor_tax_id}
+          onChange={(e) => setForm((p) => ({ ...p, vendor_tax_id: e.target.value }))}
+          className={inputClass(Boolean(errors.vendor_tax_id))}
+          data-testid="input-vendor-tax-id"
+        />
+      </Field>
 
       <Field label="รายละเอียด">
         <input

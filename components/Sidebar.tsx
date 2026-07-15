@@ -3,6 +3,8 @@
 import { useEffect, useState, type TouchEvent } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 import { NAV_STRUCTURE, allSectionIds, isNavSection, type NavEntry, type NavLeaf } from '@/lib/navigation';
+// หมายเหตุ: NavItem ด้านล่างเรียกตัวเองซ้ำ (recursive) เพื่อรองรับเมนูซ้อนได้ไม่จำกัดระดับ
+// (ดู lib/navigation.ts — NavSection.children เป็น NavEntry[] แล้ว ไม่ใช่ NavLeaf[] เหมือนเดิม)
 
 const EXPANDED_STORAGE_KEY = 'benz_sidebar_expanded';
 const SWIPE_CLOSE_THRESHOLD_PX = 50;
@@ -165,7 +167,14 @@ function NavItem({
         {isExpanded && (
           <div className="ml-3.5 flex flex-col gap-0.5 border-l border-white/[0.08] pl-2.5">
             {entry.children.map((child) => (
-              <NavLeafButton key={child.id} entry={child} activeId={activeId} onSelect={onSelect} />
+              <NavItem
+                key={child.id}
+                entry={child}
+                activeId={activeId}
+                onSelect={onSelect}
+                expanded={expanded}
+                onToggleSection={onToggleSection}
+              />
             ))}
           </div>
         )}

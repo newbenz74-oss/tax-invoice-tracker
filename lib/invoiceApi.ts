@@ -1,7 +1,11 @@
 import { getSupabaseClient } from './supabaseClient';
-import type { InvoiceStatus, PendingTaxInvoice } from '@/types/invoice';
+import type { InvoiceStatus, MarkReceivedInput, PendingTaxInvoice } from '@/types/invoice';
 
 const TABLE = 'pending_tax_invoices';
+
+/** SWR cache key ของรายการใบกำกับภาษี — export ออกมาเพื่อให้หน้ารายงาน (เช่น PurchaseTaxReport)
+ * เรียก useSWR ด้วย key เดียวกัน ใช้ cache ร่วมกับ DashboardContent แทนการดึงข้อมูลซ้ำซ้อน */
+export const INVOICES_SWR_KEY = TABLE;
 
 export async function fetchInvoices(): Promise<PendingTaxInvoice[]> {
   const supabase = getSupabaseClient();
@@ -22,6 +26,9 @@ export interface InvoiceWriteInput {
   reference_no: string | null;
   expected_date: string | null;
   notes: string | null;
+  // ไม่บังคับ (optional) โดยตั้งใจ — ทำให้ที่เรียกใช้เดิม (เช่น การ import จาก Excel ใน
+  // lib/excelImport.ts) ไม่ต้องแก้ไขเลย แถวที่ไม่ได้ส่งค่านี้มาจะถูกบันทึกเป็น NULL ในฐานข้อมูล
+  vendor_tax_id?: string | null;
 }
 
 export async function createInvoice(
@@ -76,18 +83,23 @@ export async function updateInvoice(
   return data as PendingTaxInvoice;
 }
 
+// ขยาย input จากเดิม (taxInvoiceNumber, receivedDate) ให้เป็น object MarkReceivedInput
+// เพิ่ม taxInvoiceDate/vatClaimMonth/vatClaimYear เพื่อรองรับรายงานภาษีซื้อ — ไม่ได้ลบความสามารถเดิม
+// (บันทึก tax_invoice_number/received_date/status เหมือนเดิมทุกประการ) แค่เพิ่มฟิลด์ใหม่เข้าไปด้วย
 export async function markReceived(
   id: string,
-  taxInvoiceNumber: string,
-  receivedDate: string
+  input: MarkReceivedInput
 ): Promise<PendingTaxInvoice> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from(TABLE)
     .update({
       status: 'received' as InvoiceStatus,
-      tax_invoice_number: taxInvoiceNumber,
-      received_date: receivedDate,
+      tax_invoice_number: input.taxInvoiceNumber,
+      received_date: input.receivedDate,
+      tax_invoice_date: input.taxInvoiceDate,
+      vat_claim_month: input.vatClaimMonth,
+      vat_claim_year: input.vatClaimYear,
     })
     .eq('id', id)
     .select()

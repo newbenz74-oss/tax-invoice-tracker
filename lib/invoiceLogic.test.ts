@@ -33,6 +33,10 @@ function makeInvoice(overrides: Partial<PendingTaxInvoice>): PendingTaxInvoice {
     created_by_email: null,
     created_at: '2026-07-01T00:00:00Z',
     updated_at: '2026-07-01T00:00:00Z',
+    vendor_tax_id: null,
+    tax_invoice_date: null,
+    vat_claim_month: null,
+    vat_claim_year: null,
     ...overrides,
   };
 }
@@ -46,6 +50,7 @@ const emptyForm: InvoiceFormInput = {
   reference_no: '',
   expected_date: '',
   notes: '',
+  vendor_tax_id: '',
 };
 
 describe('suggestVatAmount', () => {

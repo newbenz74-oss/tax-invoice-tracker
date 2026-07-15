@@ -1,27 +1,7 @@
 import type { MonthlyVatSummaryRow } from '@/lib/invoiceLogic';
+import { formatMonthLabel } from '@/lib/thaiDate';
 
 const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const THAI_MONTHS = [
-  'มกราคม',
-  'กุมภาพันธ์',
-  'มีนาคม',
-  'เมษายน',
-  'พฤษภาคม',
-  'มิถุนายน',
-  'กรกฎาคม',
-  'สิงหาคม',
-  'กันยายน',
-  'ตุลาคม',
-  'พฤศจิกายน',
-  'ธันวาคม',
-];
-
-function formatMonthLabel(month: string): string {
-  const [y, m] = month.split('-').map(Number);
-  const monthName = THAI_MONTHS[m - 1] ?? month;
-  return `${monthName} ${y}`;
-}
 
 interface MonthlyVatSummaryProps {
   rows: MonthlyVatSummaryRow[];

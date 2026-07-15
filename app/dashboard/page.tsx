@@ -11,6 +11,7 @@ import InvoiceForm from '@/components/InvoiceForm';
 import InvoiceTable from '@/components/InvoiceTable';
 import ExcelImportPanel from '@/components/ExcelImportPanel';
 import MonthlyVatSummary from '@/components/MonthlyVatSummary';
+import PurchaseTaxReport from '@/components/PurchaseTaxReport';
 import { useAuth } from '@/lib/AuthContext';
 import {
   bulkCreateInvoices,
@@ -18,15 +19,22 @@ import {
   createInvoice,
   deleteInvoice as apiDeleteInvoice,
   fetchInvoices,
+  INVOICES_SWR_KEY,
   markReceived as apiMarkReceived,
   updateInvoice,
 } from '@/lib/invoiceApi';
 import { computeMonthlyVatSummary, computeStats, filterInvoices, sortInvoices } from '@/lib/invoiceLogic';
 import { excelRowToWriteInput, type ExcelImportRow } from '@/lib/excelImport';
 import { DEFAULT_ACTIVE_ID, findNavLeaf } from '@/lib/navigation';
-import type { InvoiceFormInput, InvoiceStatus, PendingTaxInvoice, SortDirection, SortField } from '@/types/invoice';
+import type {
+  InvoiceFormInput,
+  InvoiceStatus,
+  MarkReceivedInput,
+  PendingTaxInvoice,
+  SortDirection,
+  SortField,
+} from '@/types/invoice';
 
-const INVOICES_KEY = 'pending_tax_invoices';
 const ACTIVE_NAV_STORAGE_KEY = 'benz_sidebar_active';
 
 function todayISO(): string {
@@ -95,10 +103,25 @@ function DashboardShell() {
       />
       <div className="flex min-h-screen flex-1 flex-col min-[992px]:ml-[250px]">
         <Header title={title} onMenuClick={() => setMobileNavOpen(true)} />
-        {activeEntry?.implemented ? <DashboardContent /> : <ComingSoon label={title} />}
+        {renderActiveContent(activeId, Boolean(activeEntry?.implemented), title)}
       </div>
     </div>
   );
+}
+
+// เดิมเป็น ternary เดียว (implemented ? DashboardContent : ComingSoon) เพราะมีแค่เมนูเดียวที่
+// implemented: true — ตอนนี้มี 2 เมนูแล้ว (record-expense, purchase-tax-report) จึงขยายเป็นฟังก์ชัน
+// เลือกตาม activeId แทน เมนูที่ implemented: false ทุกอันยังคงขึ้น ComingSoon เหมือนเดิมทุกประการ
+function renderActiveContent(activeId: string, implemented: boolean, title: string) {
+  if (!implemented) return <ComingSoon label={title} />;
+  switch (activeId) {
+    case 'record-expense':
+      return <DashboardContent />;
+    case 'purchase-tax-report':
+      return <PurchaseTaxReport />;
+    default:
+      return <ComingSoon label={title} />;
+  }
 }
 
 function DashboardContent() {
@@ -112,7 +135,7 @@ function DashboardContent() {
     error: loadErrorObj,
     isLoading: loading,
     mutate,
-  } = useSWR<PendingTaxInvoice[]>(session ? INVOICES_KEY : null, fetchInvoices);
+  } = useSWR<PendingTaxInvoice[]>(session ? INVOICES_SWR_KEY : null, fetchInvoices);
   const loadError = loadErrorObj instanceof Error ? loadErrorObj.message : loadErrorObj ? 'โหลดข้อมูลไม่สำเร็จ' : null;
 
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('pending');
@@ -151,6 +174,7 @@ function DashboardContent() {
       reference_no: input.reference_no.trim() || null,
       expected_date: input.expected_date || null,
       notes: input.notes.trim() || null,
+      vendor_tax_id: input.vendor_tax_id.trim() || null,
     };
 
     if (editingInvoice) {
@@ -176,8 +200,8 @@ function DashboardContent() {
     await mutate();
   }
 
-  async function handleMarkReceived(invoice: PendingTaxInvoice, taxInvoiceNumber: string, receivedDate: string) {
-    await apiMarkReceived(invoice.id, taxInvoiceNumber, receivedDate);
+  async function handleMarkReceived(invoice: PendingTaxInvoice, input: MarkReceivedInput) {
+    await apiMarkReceived(invoice.id, input);
     await mutate();
   }
 

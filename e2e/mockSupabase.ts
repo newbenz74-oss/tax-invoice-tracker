@@ -24,6 +24,11 @@ export interface MockSeedInvoice {
   notes?: string | null;
   created_by?: string | null;
   created_by_email?: string | null;
+  // เพิ่มสำหรับฟีเจอร์ "รายงานภาษีซื้อ" (VAT Reconcile) — ดู supabase/migration_002_purchase_tax_report_fields.sql
+  vendor_tax_id?: string | null;
+  tax_invoice_date?: string | null;
+  vat_claim_month?: number | null;
+  vat_claim_year?: number | null;
 }
 
 export interface MockSeed {
@@ -69,6 +74,10 @@ export function installMockSupabase(seed: MockSeed = {}) {
       created_by_email: inv.created_by_email ?? null,
       created_at: nowISO(),
       updated_at: nowISO(),
+      vendor_tax_id: inv.vendor_tax_id ?? null,
+      tax_invoice_date: inv.tax_invoice_date ?? null,
+      vat_claim_month: inv.vat_claim_month ?? null,
+      vat_claim_year: inv.vat_claim_year ?? null,
     })),
   };
 

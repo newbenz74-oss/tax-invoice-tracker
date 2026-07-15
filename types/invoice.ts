@@ -18,6 +18,12 @@ export interface PendingTaxInvoice {
   created_by_email: string | null;
   created_at: string;
   updated_at: string;
+  // เพิ่มสำหรับฟีเจอร์ "รายงานภาษีซื้อ" (VAT Reconcile) — ทุกฟิลด์ nullable เพราะแถวเก่าก่อนมี
+  // ฟีเจอร์นี้จะยังไม่มีค่า (ดู supabase/migration_002_purchase_tax_report_fields.sql)
+  vendor_tax_id: string | null; // เลขประจำตัวผู้เสียภาษีของผู้ขาย (13 หลัก)
+  tax_invoice_date: string | null; // วันที่พิมพ์อยู่บนใบกำกับภาษีจริง (คนละค่ากับ received_date)
+  vat_claim_month: number | null; // เดือนที่นำไปใช้ยื่น ภ.พ.30 (1-12) — ตัวกรองหลักของรายงานภาษีซื้อ
+  vat_claim_year: number | null; // ปีที่นำไปใช้ยื่น ภ.พ.30 (พ.ศ.)
 }
 
 export interface InvoiceFormInput {
@@ -29,6 +35,17 @@ export interface InvoiceFormInput {
   reference_no: string;
   expected_date: string;
   notes: string;
+  vendor_tax_id: string; // ไม่บังคับ — ใช้แสดงในรายงานภาษีซื้อ
+}
+
+/** ข้อมูลที่กรอกตอนกดปุ่ม "ได้รับแล้ว" — เดิมมีแค่ taxInvoiceNumber/receivedDate เพิ่ม 3 ฟิลด์ใหม่
+ * (taxInvoiceDate, vatClaimMonth, vatClaimYear) เพื่อรองรับรายงานภาษีซื้อ ดู lib/invoiceApi.ts */
+export interface MarkReceivedInput {
+  taxInvoiceNumber: string;
+  receivedDate: string;
+  taxInvoiceDate: string;
+  vatClaimMonth: number;
+  vatClaimYear: number;
 }
 
 export type AgingBucket =
