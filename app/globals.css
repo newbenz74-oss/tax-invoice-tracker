@@ -26,3 +26,14 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+/* Design tokens สำหรับหน้า Login โดยเฉพาะ (app/login/page.tsx) — ตั้งชื่อขึ้นต้นด้วย
+   login- ทั้งหมดเพื่อไม่ให้ชนกับตัวแปรที่ใช้ทั้งระบบด้านบน (เช่น --background, --foreground)
+   ไม่มีไฟล์อื่นอ้างอิงตัวแปรกลุ่มนี้นอกจากหน้า Login จึงไม่กระทบหน้าอื่นเลย */
+:root {
+  --login-primary: #2fa4d7;
+  --login-primary-hover: #248cb9;
+  --login-primary-light: #eaf7fc;
+  --login-bg: #48b3e5;
+  --login-border: #d8dee7;
+}
