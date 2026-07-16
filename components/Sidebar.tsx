@@ -149,27 +149,38 @@ function NavItem({
   if (isNavSection(entry)) {
     const isExpanded = expanded[entry.id] ?? true;
     const Icon = entry.icon;
+    const panelId = `nav-section-panel-${entry.id}`;
     return (
       <div className="mb-1">
         <button
           type="button"
           onClick={() => onToggleSection(entry.id)}
-          className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-sm font-medium text-gray-50 transition-colors duration-[250ms] hover:bg-primary/15"
+          className="group flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-sm font-medium text-gray-50 transition-all duration-[250ms] hover:translate-x-[3px] hover:bg-primary/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           data-testid={`nav-section-${entry.id}`}
           aria-expanded={isExpanded}
+          aria-controls={panelId}
         >
-          <Icon size={18} className="shrink-0 text-gray-400" aria-hidden="true" />
+          <Icon
+            size={18}
+            className="shrink-0 text-gray-400 transition-colors duration-[250ms] group-hover:text-gray-100"
+            aria-hidden="true"
+          />
           <span className="flex-1">{entry.label}</span>
           <ChevronDown
             size={16}
             aria-hidden="true"
-            className={`shrink-0 text-gray-400 transition-transform duration-[250ms] ${
+            className={`shrink-0 text-gray-400 transition-transform duration-[250ms] group-hover:text-gray-100 ${
               isExpanded ? 'rotate-180' : ''
             }`}
           />
         </button>
-        {isExpanded && (
-          <div className="ml-3.5 flex flex-col gap-0.5 border-l border-white/[0.08] pl-2.5">
+        {/* เมนูย่อยเรนเดอร์ไว้เสมอ (ไม่ conditional unmount แบบเดิม) แล้วสลับด้วยคลาส is-expanded แทน
+            เพื่อให้ CSS transition (grid-template-rows 0fr→1fr ใน globals.css) เล่น Accordion Animation
+            แบบนุ่มนวลได้ — visibility:hidden ตอนยุบจะตัด element ลูกออกจาก Tab/Screen reader ให้เองอยู่
+            แล้ว (ดูคอมเมนต์ .nav-accordion-panel ใน globals.css) จึงไม่ต้องกังวลเรื่อง focus หลุดไปโดน
+            เมนูที่มองไม่เห็น */}
+        <div id={panelId} className={`nav-accordion-panel ${isExpanded ? 'is-expanded' : ''}`}>
+          <div className="ml-3.5 flex flex-col gap-0.5 border-l border-white/[0.08] pt-0.5 pl-2.5">
             {entry.children.map((child) => (
               <NavItem
                 key={child.id}
@@ -181,7 +192,7 @@ function NavItem({
               />
             ))}
           </div>
-        )}
+        </div>
       </div>
     );
   }
@@ -208,15 +219,23 @@ function NavLeafButton({
     <button
       type="button"
       onClick={() => onSelect(entry.id)}
-      className={`flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-sm font-medium transition-all duration-[250ms] ${
+      className={`group flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-sm font-medium transition-all duration-[250ms] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
         isActive
           ? 'bg-primary text-white shadow-[0_0_14px_1px_rgba(47,167,226,0.5)]'
-          : 'text-gray-50 hover:bg-primary/15'
+          : 'text-gray-50 hover:translate-x-[3px] hover:bg-primary/15 hover:text-white'
       }`}
       data-testid={`nav-item-${entry.id}`}
       aria-current={isActive ? 'page' : undefined}
     >
-      <Icon size={18} className={isActive ? 'shrink-0 text-white' : 'shrink-0 text-gray-400'} aria-hidden="true" />
+      <Icon
+        size={18}
+        className={
+          isActive
+            ? 'shrink-0 text-white'
+            : 'shrink-0 text-gray-400 transition-colors duration-[250ms] group-hover:text-gray-100'
+        }
+        aria-hidden="true"
+      />
       <span className="flex-1">{entry.label}</span>
     </button>
   );

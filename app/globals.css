@@ -224,3 +224,114 @@ body {
   --login-bg: #48b3e5;
   --login-border: #d8dee7;
 }
+
+/* ============================================================
+   Animation: Sidebar Accordion + เนื้อหาหน้า "สมุดรายชื่อ" (2026-07-16)
+   เพิ่มเฉพาะ CSS ล้วนๆ (keyframes/transition) ไม่กระทบ Logic/Database/Route ใดๆ ของระบบ
+   ============================================================ */
+
+/* รองรับ prefers-reduced-motion แบบ global — ผู้ใช้ที่ตั้งค่าอุปกรณ์ให้ลดการเคลื่อนไหวจะได้ transition/
+   animation ที่เร็วจนแทบไม่เห็นการเคลื่อนไหว (แทบจะเปลี่ยนสถานะทันที) แต่ระบบยังทำงานได้ครบทุกฟีเจอร์
+   เหมือนเดิมทุกประการ — ครอบคลุมทุก transition/animation ที่มีอยู่แล้วในระบบเดิมด้วย (เช่น sidebar เดิม,
+   btn-press, card-hover-lift) ไม่ใช่แค่ของใหม่ในรอบนี้ ตั้งใจให้ !important เพื่อชนะค่า duration/delay
+   เฉพาะจุดที่ประกาศผ่าน shorthand `transition`/`animation` ทุกที่โดยไม่ต้องแก้ทีละจุด */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ----- Sidebar Accordion (เมนูหมวดที่ขยาย/ยุบได้ เช่น "ข้อมูลหลัก") -----
+   ใช้เทคนิค CSS Grid (grid-template-rows: 0fr → 1fr) แทนการเดา max-height ตายตัว เพราะ animate ไปยัง
+   "ความสูงจริง" ของเนื้อหาได้เสมอไม่ว่าจะมีกี่เมนูย่อยก็ตาม (ถ้าใช้ max-height คงที่ เนื้อหาที่ยาวกว่าที่
+   เดาไว้จะโดนตัด) — overflow:hidden บนลูก (.nav-accordion-panel > div) ทำให้ browser คำนวณ "automatic
+   minimum size" ของ grid item เป็น 0 ทำให้แทร็กยุบเหลือ 0fr ได้จริง (ปกติ grid item จะมีขนาดขั้นต่ำกันไว้
+   ไม่ให้เล็กกว่าเนื้อหาเสมอ) ส่วน visibility ใช้ transition-delay สลับกันตอนเปิด/ปิดโดยเจตนา:
+   - ปิด (ไม่มี .is-expanded): visibility เปลี่ยนเป็น hidden ก็ต่อเมื่อ transition อื่นเล่นจบแล้ว (delay
+     250ms) เพื่อให้เห็นภาพเลื่อนเก็บขึ้นจริงๆ ก่อน (ถ้า hidden ทันทีจะมองไม่เห็น animation เลย)
+   - เปิด (.is-expanded): visibility เปลี่ยนเป็น visible ทันที (delay 0) เพื่อให้เนื้อหาโผล่มาพร้อม
+     เริ่ม animation ทันที
+   ผลพลอยได้ที่สำคัญ: visibility:hidden ตัด element ลูกทั้งหมดออกจาก accessibility tree และ tab order
+   โดยอัตโนมัติ ทำให้ปุ่มเมนูย่อยที่ถูกยุบไว้ไม่ถูก Tab ไปโฟกัส หรือถูกอ่านโดย screen reader */
+.nav-accordion-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 250ms ease,
+    opacity 200ms ease,
+    visibility 0s linear 250ms;
+}
+.nav-accordion-panel.is-expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 250ms ease,
+    opacity 200ms ease,
+    visibility 0s linear 0s;
+}
+.nav-accordion-panel > div {
+  overflow: hidden;
+}
+
+/* ----- Staggered entrance (Fade + Slide Up เล็กน้อย) สำหรับเนื้อหาหน้า "สมุดรายชื่อ" -----
+   เล่นอัตโนมัติทุกครั้งที่ element ที่ใส่คลาสนี้ mount ใหม่ (ContactsPage mount ใหม่ทุกครั้งที่นำทางมาที่
+   เมนูนี้อยู่แล้ว ดู app/dashboard/page.tsx renderActiveContent — ไม่ต้องมี JS/useEffect ควบคุมเพิ่มเลย)
+   ใช้การเคลื่อนไหวเล็กน้อยตามที่สเปกแนะนำ (translateY 10px, ไม่ scale/หมุน) ให้ดูสุภาพเหมาะกับโปรแกรม
+   บัญชี — เผื่อใช้ซ้ำกับ Empty State ของตารางด้วย (ContactTable.tsx) */
+@keyframes entranceFadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.entrance-animate {
+  animation: entranceFadeSlide 220ms ease both;
+}
+.entrance-delay-1 {
+  animation-delay: 80ms;
+}
+.entrance-delay-2 {
+  animation-delay: 140ms;
+}
+.entrance-delay-3 {
+  animation-delay: 200ms;
+}
+
+/* ----- Table "dip" transition เมื่อเปลี่ยน Segmented Control ในหน้าสมุดรายชื่อ -----
+   Animation เดียวต่อเนื่อง (จางลงเล็กน้อย+เลื่อนขึ้น 2px แล้วกลับมาปกติ) แทนการแยก fade-out/fade-in
+   เป็นสอง state — ครอบด้วย wrapper เดียวรอบตาราง+pagination ทั้งก้อน (ไม่แตะ thead/tbody ข้างในเลย จึง
+   ไม่ทำให้ Header ของตารางหายระหว่าง transition) ข้อมูลข้างในสลับตามปกติของ React ระหว่างช่วง opacity
+   ต่ำสุด (ประมาณกึ่งกลาง animation) ทำให้ดูเป็นการ fade out/in ต่อเนื่องโดยไม่ต้องหน่วงข้อมูลจริงด้วย
+   setState/useEffect เลย (ดู ContactsPage.tsx handlePartnerFilterChange — สั่งเล่นซ้ำผ่าน DOM ref
+   โดยตรงด้วยเทคนิค forced reflow ไม่ใช่ React state) รวมเวลาอยู่ในช่วง 180–250ms ตามสเปก */
+@keyframes tableFilterDip {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  45% {
+    opacity: 0.4;
+    transform: translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.table-filter-transition {
+  animation: tableFilterDip 220ms ease;
+}

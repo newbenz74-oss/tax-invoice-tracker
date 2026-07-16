@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { BookUser } from 'lucide-react';
 import type { BusinessPartner } from '@/types/contact';
 import {
   CONTACT_STATUS_BADGE_CLASS,
@@ -46,9 +47,18 @@ export default function ContactTable({ contacts, onView, onEdit, onToggleStatus,
   }
 
   if (contacts.length === 0) {
+    // Empty State แบบนุ่มนวล — เล่น entrance-animate (fade+slide เบาๆ) ทุกครั้งที่ div นี้ mount ใหม่
+    // (เช่นพิมพ์ค้นหาแล้วไม่พบผล หรือกรอง Segmented Control แล้วหมวดนั้นไม่มีรายชื่อเลย) พร้อมไอคอน
+    // สมุดรายชื่อ (BookUser — ไอคอนเดียวกับที่ใช้ในเมนู "สมุดรายชื่อ" ของ Sidebar/Header เพื่อความต่อเนื่อง)
     return (
-      <div className="rounded-2xl border border-dashed border-border bg-card-bg p-12 text-center text-sm text-text-sub" data-testid="contacts-empty">
-        ไม่พบรายชื่อ
+      <div
+        className="entrance-animate flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-card-bg p-12 text-center text-sm text-text-sub"
+        data-testid="contacts-empty"
+      >
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-light text-primary">
+          <BookUser size={22} aria-hidden="true" />
+        </div>
+        <p>ไม่พบรายชื่อในหมวดนี้</p>
       </div>
     );
   }

@@ -1,6 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import useSWR from 'swr';
 import { Search, X } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
@@ -38,6 +46,26 @@ const MODAL_SUBTITLES: Record<ModalMode, string> = {
   view: 'ข้อมูลลูกค้าหรือผู้จัดจำหน่าย',
 };
 
+// ตัวเลือกของ Segmented Control (ทั้งหมด/ลูกค้า/ผู้จัดจำหน่าย) — ดึงเป็นค่าคงที่ module-level เดียว ใช้ทั้ง
+// render ปุ่ม, หา label, และ arrow-key navigation (handleSegmentedKeyDown) ไม่ต้องเขียนลิสต์ซ้ำหลายที่
+const PARTNER_TABS = ['all', 'customer', 'vendor'] as const;
+
+const PARTNER_FILTER_STORAGE_KEY = 'benz_contacts_partner_filter';
+
+// อ่านค่า Segmented Control ล่าสุดจาก localStorage (client-only) — ไม่มีค่าหรือใช้ localStorage ไม่ได้
+// (เช่น private mode) ก็ fallback ไปเป็น 'all' เสมอตามสเปก เลียนแบบ pattern เดียวกับ readInitialExpanded
+// ใน Sidebar.tsx / readInitialActiveId ใน app/dashboard/page.tsx ทุกประการ
+function readInitialPartnerFilter(): PartnerType | 'all' {
+  if (typeof window === 'undefined') return 'all';
+  try {
+    const saved = localStorage.getItem(PARTNER_FILTER_STORAGE_KEY);
+    if (saved === 'all' || saved === 'customer' || saved === 'vendor') return saved;
+  } catch {
+    // localStorage ใช้ไม่ได้ — ใช้ค่า default ต่อไป
+  }
+  return 'all';
+}
+
 // เลือก element ที่ focus ได้ทั้งหมดภายใน container — ใช้ทั้งกับ focus trap (Tab/Shift+Tab วนใน
 // modal) และ auto-focus ตอนเปิด modal ครั้งแรก กรอง offsetParent === null ออกเพื่อตัด element ที่ถูก
 // ซ่อนด้วย CSS (display: none) ทิ้งไป
@@ -73,7 +101,7 @@ export default function ContactsPage() {
   } = useSWR<BusinessPartner[]>(session ? CONTACTS_SWR_KEY : null, fetchContacts);
   const loadError = loadErrorObj instanceof Error ? loadErrorObj.message : loadErrorObj ? 'โหลดข้อมูลไม่สำเร็จ' : null;
 
-  const [partnerFilter, setPartnerFilter] = useState<PartnerType | 'all'>('all');
+  const [partnerFilter, setPartnerFilter] = useState<PartnerType | 'all'>(readInitialPartnerFilter);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -96,7 +124,60 @@ export default function ContactsPage() {
   const discardDialogRef = useRef<HTMLDivElement>(null);
   const wasOpenRef = useRef(false);
 
+  // Segmented Control — Sliding Pill Indicator: เก็บ ref ของ container/แต่ละปุ่ม/ตัว indicator เอง แล้ว
+  // "วาง" ตำแหน่ง/ความกว้างของ indicator ด้วยการเขียน DOM style ตรงๆ ผ่าน ref (ไม่ใช้ React state) ตั้งใจ
+  // ไม่ใช้ setState ใน useEffect เพราะจะชนกฎ react-hooks/set-state-in-effect ของโปรเจกต์นี้ (severity
+  // error, ดู eslint.config.mjs) — การขยับ pill เป็นแค่ภาพล้วนๆ ไม่มีความหมายเชิง state ที่ต้อง re-render
+  // ตาม จึงเหมาะกับการจัดการนอก React แบบนี้อยู่แล้วด้วย (เบากว่า re-render ทั้ง component ทุกครั้งที่ขยับ)
+  const segmentedListRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLSpanElement>(null);
+  const tabRefs = useRef<Partial<Record<(typeof PARTNER_TABS)[number], HTMLButtonElement | null>>>({});
+  // wrapper รอบตาราง+pagination — ใช้เล่น animation "dip" ซ้ำทุกครั้งที่เปลี่ยน Segmented Control ผ่าน
+  // classList โดยตรง (ดู handlePartnerFilterChange) ไม่ใช้ React state/useEffect เช่นกัน
+  const tableWrapperRef = useRef<HTMLDivElement>(null);
+
   const counts = useMemo(() => computeContactCounts(contacts), [contacts]);
+
+  // วางตำแหน่ง/ความกว้างของ indicator ให้ตรงกับปุ่มที่ active อยู่จริง (อ่านตำแหน่งจริงจาก DOM เพราะความ
+  // กว้างของแต่ละปุ่มไม่เท่ากัน ขึ้นกับความยาวข้อความ+ตัวเลขจำนวนที่เปลี่ยนได้) — เขียนผ่าน ref ตรงๆ ไม่
+  // setState จึงเรียกจาก useLayoutEffect ตรงๆ ได้โดยไม่ชนกฎ set-state-in-effect (ไม่มี setState เลยในนี้)
+  const positionIndicator = useCallback(() => {
+    const activeTab = tabRefs.current[partnerFilter];
+    const container = segmentedListRef.current;
+    const indicator = indicatorRef.current;
+    if (!activeTab || !container || !indicator) return;
+    const containerRect = container.getBoundingClientRect();
+    const tabRect = activeTab.getBoundingClientRect();
+    // ใช้ translate(x, y) + width/height (ไม่ใช่แค่ x/width) เผื่อกรณีจอแคบมากจนปุ่มตกลงไปคนละแถว
+    // (flex-wrap) — indicator จะยังคงอยู่ตำแหน่ง/ขนาดที่ตรงกับปุ่ม active จริงเสมอไม่ว่าจะอยู่แถวไหน
+    indicator.style.transform = `translate(${tabRect.left - containerRect.left}px, ${tabRect.top - containerRect.top}px)`;
+    indicator.style.width = `${tabRect.width}px`;
+    indicator.style.height = `${tabRect.height}px`;
+  }, [partnerFilter]);
+
+  // วางตำแหน่งใหม่ก่อน paint เสมอทุกครั้งที่ partnerFilter เปลี่ยน (สลับปุ่ม active) หรือจำนวนนับในแต่ละ
+  // ปุ่มเปลี่ยน (ความกว้างข้อความเปลี่ยนตาม เช่น "(1)" เทียบกับ "(12)") — useLayoutEffect เพื่อไม่ให้เห็น
+  // indicator "กระตุก" ไปตำแหน่งเดิมแวบหนึ่งก่อนขยับ
+  useLayoutEffect(() => {
+    positionIndicator();
+  }, [positionIndicator, counts.all, counts.customer, counts.vendor]);
+
+  // วางตำแหน่งใหม่ตอนหน้าต่างเบราว์เซอร์ปรับขนาด (เช่น ข้อความปุ่มตกบรรทัด/ความกว้างเปลี่ยนที่ breakpoint
+  // ต่างๆ) — สมัคร/ยกเลิก listener ปกติ ไม่มี setState ในนี้เลย (positionIndicator เขียน DOM ตรงๆ)
+  useEffect(() => {
+    window.addEventListener('resize', positionIndicator);
+    return () => window.removeEventListener('resize', positionIndicator);
+  }, [positionIndicator]);
+
+  // บันทึกตัวเลือก Segmented Control ล่าสุดไว้ทุกครั้งที่เปลี่ยน เพื่อให้จำได้ข้าม refresh (ตามสเปก —
+  // เลียนแบบ pattern เดียวกับ expanded/activeId ที่มีอยู่แล้วในระบบทุกประการ)
+  useEffect(() => {
+    try {
+      localStorage.setItem(PARTNER_FILTER_STORAGE_KEY, partnerFilter);
+    } catch {
+      // เขียน localStorage ไม่ได้ก็ไม่เป็นไร แค่จำตัวเลือกข้าม refresh ไม่ได้
+    }
+  }, [partnerFilter]);
 
   const visibleContacts = useMemo(
     () => filterContacts(contacts, { partnerType: partnerFilter, search }),
@@ -111,8 +192,44 @@ export default function ContactsPage() {
   );
 
   function handlePartnerFilterChange(value: PartnerType | 'all') {
+    if (value === partnerFilter) return;
     setPartnerFilter(value);
     setPage(1);
+
+    // เล่น animation "dip" (จางลงเล็กน้อย+เลื่อนขึ้นแล้วกลับมาปกติ) ซ้ำทุกครั้งที่เปลี่ยน Segmented
+    // Control โดยตรงผ่าน DOM ref (ไม่ใช้ React state/useEffect) — ลบคลาสออกก่อน บังคับ reflow (อ่าน
+    // offsetWidth ในเงื่อนไข if เพื่อไม่ให้ชน eslint no-unused-expressions) แล้วใส่คลาสกลับเข้าไปใหม่
+    // เป็นเทคนิคมาตรฐานสำหรับ "restart" CSS animation เดิมซ้ำโดยไม่ต้อง remount ContactTable เลย (การ
+    // remount จะรีเซ็ต state ภายในตาราง เช่น dialog ยืนยันลบที่อาจเปิดค้างอยู่ ซึ่งไม่ควรเกิดขึ้น) ข้อมูล
+    // ในตารางเองสลับตามปกติของ React ระหว่างช่วงกลาง animation (opacity ต่ำสุด) ทำให้ดูเหมือน fade
+    // out/in ต่อเนื่องโดยไม่ต้องหน่วงข้อมูลจริงเลย — ดูรายละเอียดเพิ่มเติมที่คอมเมนต์
+    // .table-filter-transition ใน app/globals.css
+    const el = tableWrapperRef.current;
+    if (el) {
+      el.classList.remove('table-filter-transition');
+      if (el.offsetWidth >= 0) {
+        el.classList.add('table-filter-transition');
+      }
+    }
+  }
+
+  // Arrow key navigation สำหรับ Segmented Control (role=tablist) — ตามแนวทาง WAI-ARIA APG "automatic
+  // activation": ArrowLeft/ArrowRight เลื่อน focus ไปแท็บถัดไป/ก่อนหน้าแล้วเลือกทันที (Home/End ไปแท็บ
+  // แรก/สุดท้าย) เสริมจาก Tab+Enter/Space ที่ปุ่ม <button> รองรับเองอยู่แล้วโดยธรรมชาติ
+  function handleSegmentedKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    const currentIndex = PARTNER_TABS.indexOf(partnerFilter);
+    let nextIndex: number | null = null;
+    if (e.key === 'ArrowRight') nextIndex = (currentIndex + 1) % PARTNER_TABS.length;
+    else if (e.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + PARTNER_TABS.length) % PARTNER_TABS.length;
+    else if (e.key === 'Home') nextIndex = 0;
+    else if (e.key === 'End') nextIndex = PARTNER_TABS.length - 1;
+
+    if (nextIndex !== null) {
+      e.preventDefault();
+      const nextValue = PARTNER_TABS[nextIndex];
+      handlePartnerFilterChange(nextValue);
+      tabRefs.current[nextValue]?.focus();
+    }
   }
 
   function handleSearchChange(value: string) {
@@ -308,24 +425,53 @@ export default function ContactsPage() {
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-8">
       <div className="mb-8 flex flex-col gap-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-2">
-            {(['all', 'customer', 'vendor'] as const).map((pt) => (
-              <button
-                key={pt}
-                onClick={() => handlePartnerFilterChange(pt)}
-                className={`btn-press rounded-full px-4 py-2 text-sm font-medium transition-colors duration-[250ms] ${
-                  partnerFilter === pt
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'border border-border bg-white text-text-sub hover:bg-page-bg'
-                }`}
-                data-testid={`contact-filter-${pt}`}
-              >
-                {pt === 'all' ? `ทั้งหมด (${counts.all})` : pt === 'customer' ? `ลูกค้า (${counts.customer})` : `ผู้จัดจำหน่าย (${counts.vendor})`}
-              </button>
-            ))}
+          {/* Segmented Control — role=tablist/tab + aria-selected ตามสเปก Accessibility, รองรับ
+              ArrowLeft/ArrowRight/Home/End (handleSegmentedKeyDown) นอกเหนือจาก Tab+Enter/Space ที่
+              <button> รองรับเองอยู่แล้ว ตัว indicator (span ตัวแรก) เลื่อน/ปรับขนาดด้วย DOM ref ตรงๆ
+              (positionIndicator) ไม่ใช่ React state — ดูคอมเมนต์ที่ประกาศ ref ด้านบน */}
+          <div
+            ref={segmentedListRef}
+            role="tablist"
+            aria-label="กรองประเภทรายชื่อ"
+            onKeyDown={handleSegmentedKeyDown}
+            className="entrance-animate entrance-delay-1 relative flex flex-wrap gap-1 rounded-full border border-border bg-white p-1"
+            data-testid="contact-segmented-control"
+          >
+            <span
+              ref={indicatorRef}
+              aria-hidden="true"
+              className="pointer-events-none absolute top-0 left-0 rounded-full bg-primary shadow-sm transition-[transform,width,height] duration-[240ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+              style={{ width: 0, height: 0, transform: 'translate(0px, 0px)' }}
+              data-testid="contact-segmented-indicator"
+            />
+            {PARTNER_TABS.map((pt) => {
+              const isActive = partnerFilter === pt;
+              return (
+                <button
+                  key={pt}
+                  ref={(el) => {
+                    tabRefs.current[pt] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  tabIndex={isActive ? 0 : -1}
+                  onClick={() => handlePartnerFilterChange(pt)}
+                  className={`btn-press relative z-10 rounded-full px-4 py-2 text-sm font-medium transition-colors duration-[220ms] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+                    isActive ? 'text-white' : 'text-text-sub hover:text-primary'
+                  }`}
+                  data-testid={`contact-filter-${pt}`}
+                >
+                  {pt === 'all' ? `ทั้งหมด (${counts.all})` : pt === 'customer' ? `ลูกค้า (${counts.customer})` : `ผู้จัดจำหน่าย (${counts.vendor})`}
+                </button>
+              );
+            })}
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div
+            className="entrance-animate entrance-delay-2 flex flex-wrap gap-2"
+            data-testid="contact-toolbar-actions"
+          >
             <div className="relative">
               <Search
                 size={18}
@@ -389,7 +535,15 @@ export default function ContactsPage() {
       {loading ? (
         <p className="py-12 text-center text-sm text-text-sub">กำลังโหลดข้อมูล...</p>
       ) : (
-        <>
+        // wrapper รอบตาราง+pagination ทั้งก้อน — ทำ 2 หน้าที่: (1) entrance-animate/-delay-3 (staggered
+        // entrance ตอนเปิดหน้าครั้งแรก) (2) เป้าหมายของ table-filter-transition (dip animation ตอนเปลี่ยน
+        // Segmented Control — ดู handlePartnerFilterChange/tableWrapperRef) ไม่แตะ thead/tbody ข้างใน
+        // ContactTable เลยสักนิด (ครอบทั้งก้อนจากข้างนอก) จึง Header ตารางไม่มีทางหายระหว่าง transition
+        <div
+          ref={tableWrapperRef}
+          className="entrance-animate entrance-delay-3"
+          data-testid="contact-table-wrapper"
+        >
           <ContactTable
             contacts={paginatedContacts}
             onView={openViewModal}
@@ -429,7 +583,7 @@ export default function ContactsPage() {
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {modalMode && (
