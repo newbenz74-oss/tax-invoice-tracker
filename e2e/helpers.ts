@@ -49,3 +49,11 @@ export async function gotoOverduePurchaseTax(page: Page) {
   await page.goto('/dashboard');
   await page.getByTestId('nav-item-overdue-purchase-tax').click();
 }
+
+/** ไปหน้า "Bank Reconcile" (กระทบยอด > เดิมขึ้น "เร็วๆ นี้" มาตลอด) โดยตรง — อยู่ใต้หมวด "กระทบยอด" ที่
+ * expand อยู่แล้วโดยค่าเริ่มต้นเช่นเดียวกับหมวดอื่น (defaultExpandedState) จึงคลิก nav-item ได้เลย ไม่ต้อง
+ * ขยายหมวดก่อน — เฟส 1 เท่านั้น (อัปโหลด + จับคู่คอลัมน์ + พรีวิว) ดู components/BankReconcilePage.tsx */
+export async function gotoBankReconcile(page: Page) {
+  await page.goto('/dashboard');
+  await page.getByTestId('nav-item-bank-reconcile').click();
+}

@@ -96,7 +96,10 @@ export const NAV_STRUCTURE: NavEntry[] = [
     label: 'กระทบยอด',
     icon: RefreshCw,
     children: [
-      { id: 'bank-reconcile', label: 'Bank Reconcile', icon: Landmark, implemented: false },
+      // implemented: true ตั้งแต่ 2026-07-16 (เดิม false มาตลอด ขึ้นหน้า "เร็วๆ นี้") — เฟส 1 เท่านั้น
+      // (อัปโหลด + จับคู่คอลัมน์ + พรีวิวข้อมูล) ยังไม่มีการจับคู่รายการ/ผลลัพธ์/export/บันทึกฐานข้อมูลใดๆ
+      // ดู components/BankReconcilePage.tsx — ไม่กระทบโครงสร้าง Sidebar หรือเมนูอื่นเลยแม้แต่น้อย
+      { id: 'bank-reconcile', label: 'Bank Reconcile', icon: Landmark, implemented: true },
       {
         // เดิมเป็น NavLeaf (implemented: false, ขึ้นหน้า "เร็วๆ นี้") — ปรับเป็น NavSection ที่มี
         // เมนูย่อย 2 อัน ตามสเปกรายงานภาษีซื้อ/ภาษีขาย (VAT Reconcile ทำหน้าที่เป็นแค่หมวดครอบ

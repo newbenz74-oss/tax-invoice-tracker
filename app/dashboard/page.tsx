@@ -14,6 +14,7 @@ import ExcelImportPanel from '@/components/ExcelImportPanel';
 import PurchaseTaxReport from '@/components/PurchaseTaxReport';
 import OverduePurchaseTaxReport from '@/components/OverduePurchaseTaxReport';
 import ContactsPage from '@/components/ContactsPage';
+import BankReconcilePage from '@/components/BankReconcilePage';
 import { useAuth } from '@/lib/AuthContext';
 import {
   bulkCreateInvoices,
@@ -149,6 +150,11 @@ function renderActiveContent(
       return <OverduePurchaseTaxReport onNavigate={onNavigate} />;
     case 'address-book':
       return <ContactsPage />;
+    // เฟส 1 เท่านั้น (อัปโหลด + จับคู่คอลัมน์ + พรีวิว) — ดูหมายเหตุเต็มที่ lib/navigation.ts และ
+    // components/BankReconcilePage.tsx ไม่มีการส่ง onNavigate/intent ใดๆ เข้าไปเพราะหน้านี้ยังไม่มี
+    // ปุ่มที่ต้องพาไปเมนูอื่น (ปุ่ม "บันทึกและไปขั้นตอนกระทบยอด" จบอยู่ในหน้าเดิมตามสเปกเฟสนี้)
+    case 'bank-reconcile':
+      return <BankReconcilePage />;
     default:
       return <ComingSoon label={title} />;
   }
