@@ -41,3 +41,11 @@ export async function gotoAddressBook(page: Page) {
   await page.goto('/dashboard');
   await page.getByTestId('nav-item-address-book').click();
 }
+
+/** ไปหน้า "ภาษีซื้อที่ยังไม่ได้รับ" (กระทบยอด > เดิมชื่อ "ภาษีซื้อไม่ถึงกำหนด") โดยตรง — อยู่ใต้หมวด
+ * "กระทบยอด" ที่ expand อยู่แล้วโดยค่าเริ่มต้นเช่นเดียวกับหมวดอื่นทั้งหมด (defaultExpandedState) จึงคลิก
+ * nav-item ได้เลยเหมือน gotoAddressBook/gotoRecordExpense ไม่ต้องขยายหมวดก่อน */
+export async function gotoOverduePurchaseTax(page: Page) {
+  await page.goto('/dashboard');
+  await page.getByTestId('nav-item-overdue-purchase-tax').click();
+}

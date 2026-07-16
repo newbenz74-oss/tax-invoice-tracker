@@ -283,6 +283,33 @@ body {
   overflow: hidden;
 }
 
+/* ----- Month-row Accordion ของหน้า "ภาษีซื้อที่ยังไม่ได้รับ" (2026-07-16) -----
+   เทคนิคเดียวกันทุกประการกับ .nav-accordion-panel ด้านบน (CSS Grid 0fr → 1fr + overflow:hidden บนลูก +
+   visibility สลับ delay ตามการเปิด/ปิด) แค่แยกชื่อคลาสต่างหากเพราะใช้คนละบริบท (ขยายแถวเดือนในตาราง
+   รายงาน ผ่าน <tr><td colSpan> แทนเมนู sidebar) — ดู components/OverduePurchaseTaxReport.tsx */
+.month-detail-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 250ms ease,
+    opacity 200ms ease,
+    visibility 0s linear 250ms;
+}
+.month-detail-panel.is-expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 250ms ease,
+    opacity 200ms ease,
+    visibility 0s linear 0s;
+}
+.month-detail-panel > div {
+  overflow: hidden;
+}
+
 /* ----- Staggered entrance (Fade + Slide Up เล็กน้อย) สำหรับเนื้อหาหน้า "สมุดรายชื่อ" -----
    เล่นอัตโนมัติทุกครั้งที่ element ที่ใส่คลาสนี้ mount ใหม่ (ContactsPage mount ใหม่ทุกครั้งที่นำทางมาที่
    เมนูนี้อยู่แล้ว ดู app/dashboard/page.tsx renderActiveContent — ไม่ต้องมี JS/useEffect ควบคุมเพิ่มเลย)

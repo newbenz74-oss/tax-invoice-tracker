@@ -53,7 +53,12 @@ export function isNavSection(entry: NavEntry): entry is NavSection {
 export type NavIntent =
   | { type: 'open-form' }
   | { type: 'open-import' }
-  | { type: 'filter'; status: InvoiceStatus | 'all' };
+  | { type: 'filter'; status: InvoiceStatus | 'all' }
+  // เพิ่มพร้อมฟีเจอร์ "ภาษีซื้อที่ยังไม่ได้รับ" (2026-07-16) — ปุ่ม "แก้ไข" ของหน้านั้นส่ง intent นี้มา
+  // เพื่อพาไปหน้า "บันทึกค่าใช้จ่าย" พร้อมเปิดฟอร์มแก้ไขรายการที่ระบุ invoiceId ไว้ล่วงหน้าทันที (อ่านค่า
+  // นี้แค่ตอน mount ครั้งแรกผ่าน useState lazy initializer เหมือน intent ชนิดอื่นๆ ทั้งหมดข้างต้น — ดู
+  // ExpenseRecordContent ใน app/dashboard/page.tsx)
+  | { type: 'edit-invoice'; invoiceId: string };
 
 export const NAV_STRUCTURE: NavEntry[] = [
   // เพิ่มเข้ามาในรอบปรับโครงสร้าง Navigation/Layout (2026-07-15 เซสชันเดียวกับรอบปรับ Theme) — เป็น
@@ -104,7 +109,10 @@ export const NAV_STRUCTURE: NavEntry[] = [
           { id: 'sales-tax-report', label: 'รายงานภาษีขาย', icon: FileOutput, implemented: false },
         ],
       },
-      { id: 'overdue-purchase-tax', label: 'ภาษีซื้อไม่ถึงกำหนด', icon: FileClock, implemented: false },
+      // implemented: true ตั้งแต่ 2026-07-16 (เดิม false มาตลอด ขึ้นหน้า "เร็วๆ นี้") — เปลี่ยนชื่อ label
+      // จาก "ภาษีซื้อไม่ถึงกำหนด" เป็น "ภาษีซื้อที่ยังไม่ได้รับ" ตามที่ผู้ใช้อนุญาตไว้เพื่อให้เข้าใจชัดเจน
+      // ขึ้นว่าเป็นรายงานติดตามเอกสาร ไม่ใช่รายงานภาษีซื้อสำหรับยื่น ภ.พ.30 (ดูหน้านั้นที่ 'purchase-tax-report')
+      { id: 'overdue-purchase-tax', label: 'ภาษีซื้อที่ยังไม่ได้รับ', icon: FileClock, implemented: true },
       { id: 'data-check', label: 'ตรวจสอบข้อมูล', icon: SearchCheck, implemented: false },
     ],
   },

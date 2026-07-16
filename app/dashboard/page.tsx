@@ -12,6 +12,7 @@ import InvoiceForm from '@/components/InvoiceForm';
 import InvoiceTable from '@/components/InvoiceTable';
 import ExcelImportPanel from '@/components/ExcelImportPanel';
 import PurchaseTaxReport from '@/components/PurchaseTaxReport';
+import OverduePurchaseTaxReport from '@/components/OverduePurchaseTaxReport';
 import ContactsPage from '@/components/ContactsPage';
 import { useAuth } from '@/lib/AuthContext';
 import {
@@ -144,6 +145,8 @@ function renderActiveContent(
       return <ExpenseRecordContent initialIntent={navIntent ?? null} />;
     case 'purchase-tax-report':
       return <PurchaseTaxReport />;
+    case 'overdue-purchase-tax':
+      return <OverduePurchaseTaxReport onNavigate={onNavigate} />;
     case 'address-book':
       return <ContactsPage />;
     default:
@@ -184,8 +187,20 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
   const [sortField, setSortField] = useState<SortField>('expected_date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
-  const [showForm, setShowForm] = useState(() => initialIntent?.type === 'open-form');
-  const [editingInvoice, setEditingInvoice] = useState<PendingTaxInvoice | null>(null);
+  // รายการที่ตรงกับ invoiceId ของ NavIntent ชนิด 'edit-invoice' (ปุ่ม "แก้ไข" จากหน้า "ภาษีซื้อที่ยังไม่
+  // ได้รับ" — ดู components/OverduePurchaseTaxReport.tsx) — คำนวณสดทุก render (ไม่ใช้ useMemo/useEffect
+  // เพราะไม่จำเป็น เป็นแค่ .find() ธรรมดา) แต่ใช้จริงแค่ตอน mount ครั้งแรกผ่าน useState lazy initializer
+  // ของ showForm/editingInvoice ด้านล่างเท่านั้น เหมือน intent ชนิดอื่นๆ ทั้งหมดในไฟล์นี้ — ใช้งานได้ถูกต้อง
+  // เพราะหน้าที่ส่ง intent นี้มาใช้ SWR key เดียวกัน (INVOICES_SWR_KEY) เสมอ ทำให้ cache ของ invoices ที่
+  // นี่ "อุ่น" อยู่แล้วตั้งแต่ render รอบแรก ไม่ต้องรอ fetch ใหม่ — ถ้าหารายการไม่เจอ (เช่น ถูกลบไปพอดี) ก็
+  // แค่ไม่เปิดฟอร์มให้อัตโนมัติเฉยๆ ผู้ใช้ยังเข้าหน้านี้ได้ปกติ ไม่ error ใดๆ
+  const editInvoiceMatch =
+    initialIntent?.type === 'edit-invoice' ? (invoices.find((inv) => inv.id === initialIntent.invoiceId) ?? null) : null;
+
+  const [showForm, setShowForm] = useState(
+    () => initialIntent?.type === 'open-form' || editInvoiceMatch !== null
+  );
+  const [editingInvoice, setEditingInvoice] = useState<PendingTaxInvoice | null>(() => editInvoiceMatch);
   const [showImportPanel, setShowImportPanel] = useState(() => initialIntent?.type === 'open-import');
   // Pagination (เพิ่มเข้ามาในรอบปรับโครงสร้าง Navigation/Layout 2026-07-15 ตามสเปก) — page state
   // ล้วนๆ ฝั่ง client (slice array ก่อน render) ไม่แตะ lib/invoiceLogic.ts หรือการเรียก API ใดๆ เลย

@@ -60,9 +60,11 @@ const PAGE_META: Record<string, { icon: LucideIcon; description: string }> = {
     icon: FileOutput,
     description: 'สรุปภาษีขายและใบกำกับภาษีที่ออกให้ลูกค้า',
   },
-  ภาษีซื้อไม่ถึงกำหนด: {
+  // key เปลี่ยนจาก 'ภาษีซื้อไม่ถึงกำหนด' เป็น 'ภาษีซื้อที่ยังไม่ได้รับ' ตาม label ใหม่ใน
+  // lib/navigation.ts (2026-07-16) — ต้องตรงกันเป๊ะเพราะ PAGE_META lookup ใช้ title (=label) ตรงๆ
+  ภาษีซื้อที่ยังไม่ได้รับ: {
     icon: FileClock,
-    description: 'รายการภาษีซื้อที่ยังไม่ถึงกำหนดชำระ',
+    description: 'ติดตามใบกำกับภาษีซื้อที่บันทึกค่าใช้จ่ายแล้วแต่ยังไม่ได้รับเอกสาร',
   },
   ตรวจสอบข้อมูล: {
     icon: SearchCheck,
