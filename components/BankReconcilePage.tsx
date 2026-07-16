@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, FileSpreadsheet, Landmark } from 'lucide-react';
+import { FileSpreadsheet, Landmark } from 'lucide-react';
 import BankReconcileUploadCard from './BankReconcileUploadCard';
 import BankReconcileColumnMapping from './BankReconcileColumnMapping';
+import BankReconcileResults from './BankReconcileResults';
 import type { BankColumnKey, BankColumnMapping, GLColumnKey, GLColumnMapping, UploadedFileState } from '@/types/bankReconcile';
 
 type Step = 'upload' | 'mapping' | 'done';
@@ -34,10 +35,12 @@ const EMPTY_GL_MAPPING: GLColumnMapping = {
  * 1. upload  — อัปโหลด Bank Statement + GL สองการ์ด ตรวจสอบไฟล์ทันทีที่เลือก (ดู BankReconcileUploadCard)
  * 2. mapping — จับคู่คอลัมน์ + พรีวิวข้อมูลหลัง normalize (ดู BankReconcileColumnMapping) แสดงเมื่อไฟล์
  *              ทั้งสองผ่านการตรวจสอบแล้วเท่านั้น
- * 3. done    — หน้าจอสำเร็จเฉยๆ (ไม่มีการนำทางไป route จริงที่ยังไม่มีอยู่ ไม่มีการบันทึกฐานข้อมูลใดๆ)
- *              ตามสเปก "The final button may navigate to the next step, but do not implement matching yet"
- *              — ตีความว่า "อาจนำทาง" ไม่ใช่ "ต้องนำทาง" จึงเลือกจบด้วยข้อความสำเร็จในหน้าเดิมแทนการยิงไปหา
- *              route/ตารางผลลัพธ์ที่ยังไม่มีอยู่จริง (ป้องกันไม่ให้ต้องสร้าง mock ผลกระทบยอดปลอมๆ ขึ้นมา)
+ * 3. done    — เดิมเป็นแค่หน้าจอสำเร็จเฉยๆ ในเฟส 1 ("ระบบกำลังพัฒนาขั้นตอนการจับคู่รายการอัตโนมัติ เร็วๆ นี้")
+ *              ตั้งแต่เฟส 2 (2026-07-16) เปลี่ยนเป็นแสดงผลการกระทบยอดจริงผ่าน BankReconcileResults (เครื่องมือ
+ *              จับคู่รายการ + ตารางผลลัพธ์ + KPI) แทนที่ข้อความ placeholder เดิมทั้งหมด — คง id ของ step ไว้
+ *              เป็น 'done' เหมือนเดิมโดยตั้งใจ (ไม่ rename เป็น 'reconcile' หรืออื่นๆ) เพื่อลด diff ที่ไม่
+ *              จำเป็นกับ state/logic ของเฟส 1 ที่ยังทำงานถูกต้องอยู่แล้ว ยังคงไม่มีการนำทางไป route ใหม่ใดๆ
+ *              และไม่มีการบันทึกฐานข้อมูลใดๆ ทั้งสิ้นเช่นเดิม (เฟส 2 ก็ยังเป็น client-side ล้วนๆ)
  */
 export default function BankReconcilePage() {
   const [step, setStep] = useState<Step>('upload');
@@ -86,7 +89,7 @@ export default function BankReconcilePage() {
       <p className="mb-6 text-sm font-medium text-text-sub" data-testid="bank-reconcile-step-indicator">
         {step === 'upload' && 'ขั้นตอนที่ 1 จาก 2: อัปโหลดไฟล์'}
         {step === 'mapping' && 'ขั้นตอนที่ 2 จาก 2: จับคู่คอลัมน์และตรวจสอบข้อมูล'}
-        {step === 'done' && 'เตรียมข้อมูลเสร็จสมบูรณ์'}
+        {step === 'done' && 'ผลการกระทบยอดรายการ'}
       </p>
 
       {step === 'upload' && (
@@ -152,27 +155,13 @@ export default function BankReconcilePage() {
       )}
 
       {step === 'done' && bankFile && glFile && (
-        <div className="card-surface flex flex-col items-center gap-4 rounded-2xl p-10 text-center" data-testid="bank-reconcile-done">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-success/10 text-success">
-            <CheckCircle2 size={28} aria-hidden="true" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-text">บันทึกข้อมูลเรียบร้อยแล้ว</h3>
-            <p className="mt-1 text-sm text-text-sub">
-              เตรียมข้อมูล Bank Statement ({bankFile.rowCount.toLocaleString('th-TH')} แถว) และ GL (
-              {glFile.rowCount.toLocaleString('th-TH')} แถว) พร้อมสำหรับขั้นตอนกระทบยอดแล้ว
-            </p>
-            <p className="mt-1 text-sm text-text-sub">ระบบกำลังพัฒนาขั้นตอนการจับคู่รายการอัตโนมัติ เร็วๆ นี้</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setStep('mapping')}
-            className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-text hover:bg-page-bg"
-            data-testid="done-back-to-mapping"
-          >
-            ← กลับไปแก้ไขการจับคู่คอลัมน์
-          </button>
-        </div>
+        <BankReconcileResults
+          bankFile={bankFile}
+          glFile={glFile}
+          bankMapping={bankMapping}
+          glMapping={glMapping}
+          onBack={() => setStep('mapping')}
+        />
       )}
     </main>
   );

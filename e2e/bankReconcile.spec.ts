@@ -250,12 +250,14 @@ test.describe('Bank Reconcile (เฟส 1: อัปโหลด + เตรี
     await page.getByTestId('mapping-clear').click();
     await expect(page.getByTestId('mapping-save')).toBeDisabled();
 
-    // จับคู่ใหม่แล้วบันทึก — จบที่หน้าจอสำเร็จในหน้าเดิม (ไม่มี route ผลลัพธ์/ตารางจับคู่ใดๆ ในเฟสนี้)
+    // จับคู่ใหม่แล้วบันทึก — จบที่หน้าผลการกระทบยอดในหน้าเดิม (ไม่มี route ใหม่ใดๆ ถูกสร้างขึ้น) ตั้งแต่เฟส 2
+    // (2026-07-16) หน้านี้แสดงผลการจับคู่จริงแทนข้อความ placeholder เดิมของเฟส 1 แล้ว — ดู
+    // e2e/bankReconcileMatch.spec.ts สำหรับเทสต์ครอบคลุมเครื่องมือจับคู่รายการโดยละเอียด
     await mapAllColumns(page);
     await page.getByTestId('mapping-save').click();
 
-    await expect(page.getByTestId('bank-reconcile-done')).toBeVisible();
-    await expect(page.getByTestId('bank-reconcile-done')).toContainText('บันทึกข้อมูลเรียบร้อยแล้ว');
+    await expect(page.getByTestId('reconcile-results')).toBeVisible();
+    await expect(page.getByTestId('kpi-total-bank-value')).toBeVisible();
     // URL ต้องยังอยู่ที่ /dashboard เดิมเสมอ (ไม่มี route ใหม่ใดๆ ถูกสร้างขึ้นในเฟสนี้)
     await expect(page).toHaveURL(/\/dashboard$/);
 
