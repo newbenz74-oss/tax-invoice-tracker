@@ -196,11 +196,15 @@ test.describe('Bank Reconcile (เฟส 2: เครื่องมือจั
     await page.getByTestId('reconcile-detail-close').click();
     await expect(page.getByTestId('reconcile-detail-modal')).toHaveCount(0);
 
-    // ดูรายการที่อาจตรงกัน — อ่านอย่างเดียว ไม่มีปุ่มเลือก/ยืนยันใดๆ
+    // ดูรายการที่อาจตรงกัน — อ่านอย่างเดียว ไม่มีปุ่มเลือก/ยืนยันใดๆ ภายใน Modal นี้ (ตรวจเฉพาะภายใน Modal เอง
+    // ไม่ใช่ทั้งหน้า เพราะตั้งแต่เฟส 3 ตารางหลักที่ยังอยู่ข้างหลัง overlay มีปุ่ม "เลือกรายการ GL"/"ยืนยันว่า
+    // ตรงกัน" ของแถวอื่นๆ อยู่แล้วโดยเจตนา — ไม่เกี่ยวกับ Modal อ่านอย่างเดียวนี้เลย)
     await page.getByTestId('reconcile-view-candidates-bank-2').click();
     await expect(page.getByTestId('reconcile-candidates-modal')).toBeVisible();
     await expect(page.getByTestId('reconcile-candidate-gl-2')).toBeVisible();
-    await expect(page.getByRole('button', { name: /เลือก|ยืนยัน/ })).toHaveCount(0);
+    await expect(
+      page.getByTestId('reconcile-candidates-modal').getByRole('button', { name: /เลือก|ยืนยัน/ })
+    ).toHaveCount(0);
     await page.getByTestId('reconcile-candidates-close').click();
 
     // ปุ่มนี้ต้องปิดใช้งานเมื่อไม่มีผู้สมัคร GL เลย (แถว not_found_in_gl)

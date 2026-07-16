@@ -10,33 +10,49 @@ import {
   Landmark,
   Layers,
   SearchX,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 import { normalizeBankRows, normalizeGLRows } from '@/lib/bankReconcileNormalize';
 import { isBankMappingComplete, isGLMappingComplete } from '@/lib/bankReconcileValidation';
-import { runReconciliationMatch, toMatchBankRows, toMatchGLRows } from '@/lib/bankReconcileMatching';
+import { toMatchBankRows, toMatchGLRows } from '@/lib/bankReconcileMatching';
+import { computeGLOnlyTotal, DATE_TOLERANCE_DAYS, DATE_TOLERANCE_LABELS, DEFAULT_DATE_TOLERANCE } from '@/lib/bankReconcileMatchLogic';
+import { buildMatchGroup, deriveMatchType, mergeManualMatches, undoMatchGroup } from '@/lib/bankReconcileManualMatch';
 import {
-  computeReconcileSummary,
-  computeStatusCounts,
-  DATE_TOLERANCE_DAYS,
-  DATE_TOLERANCE_LABELS,
-  DEFAULT_DATE_TOLERANCE,
-  DEFAULT_RECONCILE_FILTERS,
-  filterBankResults,
-  type ReconcileFilters,
-} from '@/lib/bankReconcileMatchLogic';
+  AMOUNT_TOLERANCE_LABELS,
+  computeReconcileRowSummary,
+  computeReconcileTabCounts,
+  DEFAULT_AMOUNT_TOLERANCE,
+  DEFAULT_RECONCILE_ROW_FILTERS,
+  filterReconcileRows,
+  formatGroupSummary,
+  RECONCILE_TAB_LABELS,
+  resolveAmountTolerance,
+  type ReconcileRowFilters,
+  type ReconcileTab,
+} from '@/lib/bankReconcileManualMatchLogic';
 import type {
+  AmountToleranceOption,
   BankColumnMapping,
-  BankMatchResult,
-  BankRowMatchStatus,
   DateToleranceOption,
   GLColumnMapping,
+  MatchGLRow,
+  MatchGroup,
+  ReconcileRow,
+  ReviewFlag,
+  RowNote,
   UploadedFileState,
 } from '@/types/bankReconcile';
 import BankReconcileResultTable from './BankReconcileResultTable';
 import BankReconcileCandidatesModal from './BankReconcileCandidatesModal';
 import BankReconcileDetailDrawer from './BankReconcileDetailDrawer';
 import BankReconcileUnmatchedGL from './BankReconcileUnmatchedGL';
+import BankReconcileNoteDialog from './BankReconcileNoteDialog';
+import BankReconcileUndoConfirmDialog from './BankReconcileUndoConfirmDialog';
+import BankReconcileConfirmMatchDialog from './BankReconcileConfirmMatchDialog';
+import BankReconcileMatchDrawer from './BankReconcileMatchDrawer';
+import BankReconcileGroupDetailDrawer from './BankReconcileGroupDetailDrawer';
 
 const THB2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 
@@ -48,30 +64,43 @@ interface BankReconcileResultsProps {
   onBack: () => void;
 }
 
-const SEGMENTED_TABS: Array<{ value: BankRowMatchStatus | 'all'; label: string }> = [
-  { value: 'all', label: 'ทั้งหมด' },
-  { value: 'matched_exact', label: 'เรียบร้อย' },
-  { value: 'matched_tolerance', label: 'น่าจะตรงกัน' },
-  { value: 'ambiguous', label: 'พบหลายรายการ' },
-  { value: 'pending_review', label: 'รอตรวจสอบ' },
-  { value: 'not_found_in_gl', label: 'ไม่พบใน GL' },
+const SEGMENTED_TABS: ReconcileTab[] = [
+  'all',
+  'matched_exact',
+  'matched_tolerance',
+  'confirmed',
+  'ambiguous',
+  'pending_review',
+  'review_required',
+  'not_found_in_gl',
 ];
 
 const TOLERANCE_OPTIONS: DateToleranceOption[] = ['same_day', '1_day', '3_days', '7_days'];
+const AMOUNT_TOLERANCE_OPTIONS: AmountToleranceOption[] = ['zero', 'small', 'one', 'custom'];
+
+/** เป้าหมายที่กำลังแก้ไขหมายเหตุอยู่ — แถวเดี่ยว (RowNote ก่อนจับคู่) หรือกลุ่มจับคู่ด้วยตนเอง (MatchGroup.note)
+ * เก็บแค่ id ไม่เก็บ object เต็ม เพื่อ derive ค่าล่าสุดจาก state จริงเสมอ (ดูหมายเหตุที่ viewingGroupId ด้านล่าง) */
+type NoteEditTarget = { kind: 'row'; bankRowId: string } | { kind: 'group'; groupId: string };
 
 /**
- * เฟส 2 ของ Bank Reconcile — เครื่องมือจับคู่รายการ + ตารางผลลัพธ์ ทำหน้าที่เป็น orchestrator เดียวที่คุม
- * ทุกอย่าง: normalize (เฟส 1 เดิม ไม่แตะ) -> แปลงเป็นมุมมองจับคู่ (lib/bankReconcileMatching.ts) -> รันจับคู่
- * -> กรอง/นับ/สรุป (lib/bankReconcileMatchLogic.ts) -> ส่งต่อให้ตาราง/การ์ด/Modal แสดงผล ทุกอย่างเป็น
- * client-side ล้วนๆ ในหน่วยความจำเบราว์เซอร์เท่านั้น ไม่มีการบันทึกฐานข้อมูล/persist session ใดๆ ตามสเปกเฟส 2
- * ("Do not create production database records yet... Save session [เป็นเฟสถัดไป]") การทำเครื่องหมาย
- * "รอตรวจสอบ" ด้วยตนเอง (flaggedIds) เป็นแค่ state ชั่วคราวในหน่วยความจำ หายเมื่อรีเฟรชหน้า ไม่ใช่การยืนยัน/
- * แก้ไขผลการจับคู่ใดๆ ("Do not implement manual confirmation or manual selection yet")
+ * เฟส 3 ของ Bank Reconcile — เพิ่มเครื่องมือจับคู่รายการด้วยตนเอง (Manual Reconciliation) เข้าไปในเฟส 2 เดิม
+ * ทำหน้าที่เป็น orchestrator เดียวที่คุมทุกอย่างเหมือนเดิม แค่เพิ่มชั้น "จับคู่ด้วยตนเอง" คั่นก่อนแสดงผล:
+ * normalize (เฟส 1 เดิม ไม่แตะ) -> แปลงเป็นมุมมองจับคู่ (เฟส 2 เดิม ไม่แตะ) -> mergeManualMatches() (เฟส 3 ใหม่
+ * — กรองแถวที่จับคู่ด้วยตนเองแล้วออกก่อน แล้วเรียก runReconciliationMatch() เดิมของเฟส 2 ตรงๆ กับส่วนที่เหลือ
+ * แล้วผสานกลับ) -> กรอง/นับ/สรุป (เฟส 3 ใหม่ ขนานกับของเฟส 2) -> ส่งต่อให้ตาราง/การ์ด/Modal/Drawer แสดงผล
+ * ทุกอย่างยังเป็น client-side ล้วนๆ ในหน่วยความจำเบราว์เซอร์เท่านั้นเหมือนเดิม ไม่มีการบันทึกฐานข้อมูล/persist
+ * session ใดๆ ตามสเปกเฟส 3 ตรงๆ ("Do not implement save session, database persistence... yet — Phase 4")
  *
- * KPI cards + ตัวนับบน Segmented Control คำนวณจากผลลัพธ์ "ทั้งหมด" เสมอ (matchOutput ทั้งก้อน) ไม่ผูกกับ
- * search/filters/แท็บที่เลือกอยู่ในขณะนั้น — เป็นดุลยพินิจที่ตัดสินใจเอง (ธรรมเนียม overview dashboard ทั่วไป
- * ที่ตัวเลขสรุปต้องนิ่ง ไม่กระโดดตามตัวกรองที่ผู้ใช้กำลังไล่ดูอยู่) เปลี่ยนค่าจริงเฉพาะตอน tolerance เปลี่ยน
- * หรือรันจับคู่ใหม่เท่านั้น ส่วนตัวกรอง/ค้นหา/Segmented Control มีผลแค่กับ "ตาราง" ที่แสดงผลด้านล่าง
+ * state ใหม่ทั้งหมดของเฟส 3 (matchGroups/reviewFlags/notes/amountToleranceOption/selectedBankIds) อยู่ในหน่วยความจำ
+ * ล้วนๆ เหมือนกับ flaggedIds เดิมของเฟส 2 ทุกประการ (หายเมื่อรีเฟรชหน้า) — ปุ่ม "ทำเครื่องหมายรอตรวจสอบ" เดิม
+ * ของเฟส 2 ถูกอัปเกรดให้ผูกกับ ReviewFlag ของเฟส 3 แทน flaggedIds Set เดิม (พฤติกรรม/DOM/testid ที่ผู้ใช้เห็น
+ * เหมือนเดิมทุกประการ แค่โครงสร้างข้อมูลภายในเก็บ reviewed_by/reviewed_at เพิ่มตามสเปกเฟส 3 ส่วน "7. MARK FOR
+ * REVIEW" — เป็นดุลยพินิจที่ตัดสินใจเอง ระบุไว้ในสรุปผล เพราะสองฟีเจอร์นี้ใช้ปุ่ม/ป้ายกำกับเดียวกันเป๊ะตามสเปก)
+ *
+ * Dialog/Drawer ที่เปิดอยู่ทั้งหมดเก็บแค่ "id" ไม่เก็บ object เต็ม (viewingGroupId ไม่ใช่ viewingGroup object) แล้ว
+ * derive ค่าจริงจาก state ล่าสุดทุกครั้งที่ render (rowById.get(id)/matchGroups.find(...)) กัน bug ข้อมูลค้าง
+ * (stale) เวลามีการแก้ไขบางอย่าง (เช่น แก้หมายเหตุ) ขณะที่ modal เดิมยังเปิดค้างอยู่ — ปลอดภัยกว่าการเก็บ
+ * snapshot object ไว้ตรงๆ ซึ่งจะไม่อัปเดตตามการเปลี่ยนแปลงของ state ต้นทางเอง
  */
 export default function BankReconcileResults({
   bankFile,
@@ -80,12 +109,30 @@ export default function BankReconcileResults({
   glMapping,
   onBack,
 }: BankReconcileResultsProps) {
+  const { session } = useAuth();
+  const currentUserEmail = session?.user?.email ?? '';
+
   const [dateTolerance, setDateTolerance] = useState<DateToleranceOption>(DEFAULT_DATE_TOLERANCE);
-  const [filters, setFilters] = useState<ReconcileFilters>(DEFAULT_RECONCILE_FILTERS);
+  const [amountToleranceOption, setAmountToleranceOption] = useState<AmountToleranceOption>(DEFAULT_AMOUNT_TOLERANCE);
+  const [customAmountTolerance, setCustomAmountTolerance] = useState(0);
+  const [filters, setFilters] = useState<ReconcileRowFilters>(DEFAULT_RECONCILE_ROW_FILTERS);
   const [searchDraft, setSearchDraft] = useState('');
-  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set());
-  const [viewingDetail, setViewingDetail] = useState<BankMatchResult | null>(null);
-  const [viewingCandidates, setViewingCandidates] = useState<BankMatchResult | null>(null);
+
+  // เฟส 3: ความสัมพันธ์การจับคู่ด้วยตนเองทั้งหมด เก็บแยกจากข้อมูล Bank/GL ต้นฉบับเสมอ (ไม่แก้ไข matchBankRows/
+  // matchGLRows ที่ไหนเลยทั้งไฟล์นี้ ตามสเปก "Store matching relationships separately from Bank and GL data")
+  const [matchGroups, setMatchGroups] = useState<MatchGroup[]>([]);
+  const [reviewFlags, setReviewFlags] = useState<Record<string, ReviewFlag>>({});
+  const [notes, setNotes] = useState<Record<string, RowNote>>({});
+  const [selectedBankIds, setSelectedBankIds] = useState<Set<string>>(new Set());
+
+  // Dialog/Drawer ที่เปิดอยู่ — เก็บ id ล้วนๆ (ดูหมายเหตุด้านบน)
+  const [viewingDetailId, setViewingDetailId] = useState<string | null>(null);
+  const [viewingCandidatesId, setViewingCandidatesId] = useState<string | null>(null);
+  const [confirmingSuggestedId, setConfirmingSuggestedId] = useState<string | null>(null);
+  const [matchDrawerBankIds, setMatchDrawerBankIds] = useState<string[] | null>(null);
+  const [undoingGroupId, setUndoingGroupId] = useState<string | null>(null);
+  const [viewingGroupId, setViewingGroupId] = useState<string | null>(null);
+  const [noteEditTarget, setNoteEditTarget] = useState<NoteEditTarget | null>(null);
 
   const filesReady =
     Boolean(bankFile?.validation.valid) &&
@@ -109,22 +156,80 @@ export default function BankReconcileResults({
   );
 
   const toleranceDays = DATE_TOLERANCE_DAYS[dateTolerance];
-
-  const matchOutput = useMemo(
-    () => runReconciliationMatch(matchBankRows, matchGLRows, toleranceDays),
-    [matchBankRows, matchGLRows, toleranceDays]
+  const amountTolerance = useMemo(
+    () => resolveAmountTolerance(amountToleranceOption, customAmountTolerance),
+    [amountToleranceOption, customAmountTolerance]
   );
 
-  const statusCounts = useMemo(() => computeStatusCounts(matchOutput.bankResults), [matchOutput]);
+  // หัวใจของเฟส 3 — ผสานผลจับคู่ด้วยตนเองเข้ากับเอนจินอัตโนมัติเดิมของเฟส 2 (ดูหมายเหตุยาวที่
+  // mergeManualMatches ใน lib/bankReconcileManualMatch.ts)
+  const mergedOutput = useMemo(
+    () =>
+      mergeManualMatches({
+        matchBankRows,
+        matchGLRows,
+        toleranceDays,
+        matchGroups,
+        reviewFlags,
+        notes,
+      }),
+    [matchBankRows, matchGLRows, toleranceDays, matchGroups, reviewFlags, notes]
+  );
+
+  const rowById = useMemo(() => new Map(mergedOutput.rows.map((r) => [r.bank.bank_row_id, r] as const)), [mergedOutput.rows]);
+
+  const tabCounts = useMemo(() => computeReconcileTabCounts(mergedOutput.rows), [mergedOutput.rows]);
+  const glOnlyTotal = useMemo(() => computeGLOnlyTotal(mergedOutput.glOnlyResults), [mergedOutput.glOnlyResults]);
   const summary = useMemo(
-    () => computeReconcileSummary(matchOutput.bankResults, matchOutput.glOnlyResults),
-    [matchOutput]
+    () => computeReconcileRowSummary(mergedOutput.rows, mergedOutput.glOnlyResults.length, glOnlyTotal),
+    [mergedOutput.rows, mergedOutput.glOnlyResults, glOnlyTotal]
   );
+  const filteredRows = useMemo(() => filterReconcileRows(mergedOutput.rows, filters), [mergedOutput.rows, filters]);
 
-  const filteredResults = useMemo(() => filterBankResults(matchOutput.bankResults, filters), [matchOutput, filters]);
+  // ---- derive ข้อมูลของ dialog/drawer ที่เปิดอยู่จาก id เสมอ (ไม่เก็บ snapshot) ----
+  const viewingDetail = viewingDetailId ? rowById.get(viewingDetailId) ?? null : null;
+  const viewingCandidates = viewingCandidatesId ? rowById.get(viewingCandidatesId) ?? null : null;
+  const confirmingSuggested = confirmingSuggestedId ? rowById.get(confirmingSuggestedId) ?? null : null;
+  const matchDrawerBankRows = useMemo(
+    () => (matchDrawerBankIds ? matchBankRows.filter((b) => matchDrawerBankIds.includes(b.bank_row_id)) : null),
+    [matchDrawerBankIds, matchBankRows]
+  );
+  const undoingGroup = undoingGroupId ? matchGroups.find((g) => g.match_group_id === undoingGroupId) ?? null : null;
+  const undoingGroupBankRows = useMemo(
+    () => (undoingGroup ? matchBankRows.filter((b) => undoingGroup.bank_transaction_ids.includes(b.bank_row_id)) : []),
+    [undoingGroup, matchBankRows]
+  );
+  const undoingGroupGLRows = useMemo(
+    () => (undoingGroup ? matchGLRows.filter((g) => undoingGroup.gl_transaction_ids.includes(g.gl_row_id)) : []),
+    [undoingGroup, matchGLRows]
+  );
+  const viewingGroup = viewingGroupId ? matchGroups.find((g) => g.match_group_id === viewingGroupId) ?? null : null;
+  const viewingGroupBankRows = useMemo(
+    () => (viewingGroup ? matchBankRows.filter((b) => viewingGroup.bank_transaction_ids.includes(b.bank_row_id)) : []),
+    [viewingGroup, matchBankRows]
+  );
+  const viewingGroupGLRows = useMemo(
+    () => (viewingGroup ? matchGLRows.filter((g) => viewingGroup.gl_transaction_ids.includes(g.gl_row_id)) : []),
+    [viewingGroup, matchGLRows]
+  );
+  const noteEditContext = useMemo(() => {
+    if (!noteEditTarget) return null;
+    if (noteEditTarget.kind === 'group') {
+      const group = matchGroups.find((g) => g.match_group_id === noteEditTarget.groupId);
+      if (!group) return null;
+      return { title: 'แก้ไขหมายเหตุ', subtitle: formatGroupSummary(group), initialNote: group.note };
+    }
+    const row = rowById.get(noteEditTarget.bankRowId);
+    if (!row) return null;
+    return {
+      title: row.note ? 'แก้ไขหมายเหตุ' : 'เพิ่มหมายเหตุ',
+      subtitle: row.bank.bank_description || '-',
+      initialNote: row.note?.note ?? '',
+    };
+  }, [noteEditTarget, matchGroups, rowById]);
 
-  function handleStatusTabClick(status: BankRowMatchStatus | 'all') {
-    setFilters((prev) => ({ ...prev, status }));
+  function handleTabClick(tab: ReconcileTab) {
+    setFilters((prev) => ({ ...prev, tab }));
   }
 
   function handleSearchSubmit() {
@@ -133,16 +238,118 @@ export default function BankReconcileResults({
 
   function handleClearFilters() {
     setSearchDraft('');
-    setFilters(DEFAULT_RECONCILE_FILTERS);
+    setFilters(DEFAULT_RECONCILE_ROW_FILTERS);
   }
 
-  function toggleFlag(result: BankMatchResult) {
-    setFlaggedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(result.bank.bank_row_id)) next.delete(result.bank.bank_row_id);
-      else next.add(result.bank.bank_row_id);
+  function handleToggleReviewFlag(row: ReconcileRow) {
+    const id = row.bank.bank_row_id;
+    setReviewFlags((prev) => {
+      const next = { ...prev };
+      if (next[id]) {
+        delete next[id];
+      } else {
+        next[id] = { review_required: true, reviewed_by: currentUserEmail, reviewed_at: new Date().toISOString() };
+      }
       return next;
     });
+  }
+
+  function handleEditNote(row: ReconcileRow) {
+    setNoteEditTarget(
+      row.matchGroup ? { kind: 'group', groupId: row.matchGroup.match_group_id } : { kind: 'row', bankRowId: row.bank.bank_row_id }
+    );
+  }
+
+  function handleSaveNote(noteText: string) {
+    if (!noteEditTarget) return;
+    if (noteEditTarget.kind === 'group') {
+      const groupId = noteEditTarget.groupId;
+      setMatchGroups((prev) => prev.map((g) => (g.match_group_id === groupId ? { ...g, note: noteText } : g)));
+    } else {
+      const id = noteEditTarget.bankRowId;
+      setNotes((prev) => ({
+        ...prev,
+        [id]: { note: noteText, updated_by: currentUserEmail, updated_at: new Date().toISOString() },
+      }));
+    }
+    setNoteEditTarget(null);
+  }
+
+  function handleToggleSelectBank(bankRowId: string) {
+    setSelectedBankIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(bankRowId)) next.delete(bankRowId);
+      else next.add(bankRowId);
+      return next;
+    });
+  }
+
+  function handleCombineSelectedBankRows() {
+    if (selectedBankIds.size < 2) return;
+    setMatchDrawerBankIds(Array.from(selectedBankIds));
+  }
+
+  function handleConfirmSuggested(note: string, suggestedGL: MatchGLRow) {
+    if (!confirmingSuggested) return;
+    const group = buildMatchGroup({
+      matchGroupId: `mg-${crypto.randomUUID()}`,
+      matchType: deriveMatchType(1, 1, 'suggested'),
+      bankRows: [confirmingSuggested.bank],
+      glRows: [suggestedGL],
+      matchedBy: currentUserEmail,
+      matchedAt: new Date().toISOString(),
+      note,
+      amountTolerance,
+      autoMatchScore: confirmingSuggested.matchScore,
+      autoMatchReason: confirmingSuggested.matchReason,
+    });
+    setMatchGroups((prev) => [...prev, group]);
+    setConfirmingSuggestedId(null);
+  }
+
+  function handleMatchDrawerConfirm(selectedGLRows: MatchGLRow[], note: string) {
+    if (!matchDrawerBankRows || matchDrawerBankRows.length === 0) return;
+    const group = buildMatchGroup({
+      matchGroupId: `mg-${crypto.randomUUID()}`,
+      matchType: deriveMatchType(matchDrawerBankRows.length, selectedGLRows.length, 'manual'),
+      bankRows: matchDrawerBankRows,
+      glRows: selectedGLRows,
+      matchedBy: currentUserEmail,
+      matchedAt: new Date().toISOString(),
+      note,
+      amountTolerance,
+      autoMatchScore: null,
+      autoMatchReason: null,
+    });
+    setMatchGroups((prev) => [...prev, group]);
+    setSelectedBankIds(new Set());
+    setMatchDrawerBankIds(null);
+  }
+
+  function handleUndoMatchFromRow(row: ReconcileRow) {
+    if (!row.matchGroup) return;
+    setUndoingGroupId(row.matchGroup.match_group_id);
+  }
+
+  function handleRequestUndoFromGroupDrawer() {
+    if (!viewingGroupId) return;
+    setUndoingGroupId(viewingGroupId);
+    setViewingGroupId(null);
+  }
+
+  function handleUndoConfirmed() {
+    if (!undoingGroupId) return;
+    setMatchGroups((prev) => undoMatchGroup(prev, undoingGroupId));
+    setUndoingGroupId(null);
+  }
+
+  function handleRequestEditMatch() {
+    if (!viewingGroupId) return;
+    const group = matchGroups.find((g) => g.match_group_id === viewingGroupId);
+    if (!group) return;
+    setMatchGroups((prev) => undoMatchGroup(prev, viewingGroupId));
+    setViewingGroupId(null);
+    setMatchDrawerBankIds(group.bank_transaction_ids);
   }
 
   if (!filesReady) {
@@ -186,9 +393,39 @@ export default function BankReconcileResults({
             </option>
           ))}
         </select>
+
+        <span className="hidden h-8 w-px bg-border sm:block" aria-hidden="true" />
+
+        <label htmlFor="amount-tolerance-select" className="text-sm font-medium text-text">
+          ค่าคลาดเคลื่อนของยอดเงินที่ยอมรับได้ (Amount Tolerance)
+        </label>
+        <select
+          id="amount-tolerance-select"
+          value={amountToleranceOption}
+          onChange={(e) => setAmountToleranceOption(e.target.value as AmountToleranceOption)}
+          className="focus-ring-primary h-11 rounded-[10px] border border-border bg-white px-3 text-sm text-text"
+          data-testid="amount-tolerance-select"
+        >
+          {AMOUNT_TOLERANCE_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>
+              {AMOUNT_TOLERANCE_LABELS[opt]}
+            </option>
+          ))}
+        </select>
+        {amountToleranceOption === 'custom' && (
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            value={customAmountTolerance}
+            onChange={(e) => setCustomAmountTolerance(Number(e.target.value))}
+            className="focus-ring-primary h-11 w-32 rounded-[10px] border border-border bg-white px-3 text-sm text-text"
+            data-testid="amount-tolerance-custom-input"
+          />
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <KpiCard
           testId="kpi-total-bank"
           icon={Landmark}
@@ -212,6 +449,14 @@ export default function BankReconcileResults({
           iconColor="text-primary"
           label="น่าจะตรงกัน"
           value={summary.matchedTolerance.toLocaleString('th-TH')}
+        />
+        <KpiCard
+          testId="kpi-confirmed-manual"
+          icon={ShieldCheck}
+          iconBg="bg-teal-100"
+          iconColor="text-teal-700"
+          label="ยืนยันด้วยตนเอง"
+          value={summary.confirmedManual.toLocaleString('th-TH')}
         />
         <KpiCard
           testId="kpi-ambiguous"
@@ -257,21 +502,20 @@ export default function BankReconcileResults({
 
       <div className="flex flex-wrap gap-2" data-testid="reconcile-segmented-control">
         {SEGMENTED_TABS.map((tab) => {
-          const count = tab.value === 'all' ? summary.totalBank : statusCounts[tab.value];
-          const isActive = filters.status === tab.value;
+          const isActive = filters.tab === tab;
           return (
             <button
-              key={tab.value}
+              key={tab}
               type="button"
-              onClick={() => handleStatusTabClick(tab.value)}
+              onClick={() => handleTabClick(tab)}
               className={`btn-press rounded-full px-4 py-2 text-xs font-semibold ${
                 isActive
                   ? 'bg-primary text-white shadow-sm'
                   : 'border border-border bg-white text-text-sub hover:bg-page-bg'
               }`}
-              data-testid={`reconcile-tab-${tab.value}`}
+              data-testid={`reconcile-tab-${tab}`}
             >
-              {tab.label} ({count.toLocaleString('th-TH')})
+              {RECONCILE_TAB_LABELS[tab]} ({tabCounts[tab].toLocaleString('th-TH')})
             </button>
           );
         })}
@@ -287,7 +531,7 @@ export default function BankReconcileResults({
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSearchSubmit();
             }}
-            placeholder="รายละเอียด Bank, เลขที่เอกสาร GL, รายละเอียด GL, จำนวนเงิน"
+            placeholder="รายละเอียด Bank, เลขที่เอกสาร GL, รายละเอียด GL, จำนวนเงิน, หมายเหตุ, ผู้ยืนยัน"
             className="focus-ring-primary h-11 rounded-[10px] border border-border bg-white px-3 text-sm text-text"
             data-testid="reconcile-search-input"
           />
@@ -354,19 +598,112 @@ export default function BankReconcileResults({
         </button>
       </div>
 
+      {selectedBankIds.size > 0 && (
+        <div
+          className="card-surface flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-4"
+          data-testid="reconcile-combine-bar"
+        >
+          <p className="text-sm font-medium text-text">
+            เลือกไว้ {selectedBankIds.size} รายการ — รวมรายการ Bank เหล่านี้เพื่อจับคู่กับ GL รายการเดียวกัน
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedBankIds(new Set())}
+              className="btn-press rounded-[10px] border border-border bg-white px-3.5 py-2 text-xs font-medium text-text-sub hover:bg-page-bg"
+              data-testid="reconcile-combine-clear"
+            >
+              ล้างการเลือก
+            </button>
+            <button
+              type="button"
+              disabled={selectedBankIds.size < 2}
+              onClick={handleCombineSelectedBankRows}
+              className="btn-press rounded-[10px] bg-primary px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+              data-testid="reconcile-combine-confirm"
+            >
+              รวมรายการ Bank เพื่อจับคู่
+            </button>
+          </div>
+        </div>
+      )}
+
       <BankReconcileResultTable
-        results={filteredResults}
-        flaggedIds={flaggedIds}
-        onViewDetail={setViewingDetail}
-        onViewCandidates={setViewingCandidates}
-        onTogglePendingFlag={toggleFlag}
+        results={filteredRows}
+        selectedBankIds={selectedBankIds}
+        onToggleSelect={handleToggleSelectBank}
+        onViewDetail={(row) => setViewingDetailId(row.bank.bank_row_id)}
+        onViewCandidates={(row) => setViewingCandidatesId(row.bank.bank_row_id)}
+        onToggleReviewFlag={handleToggleReviewFlag}
+        onEditNote={handleEditNote}
+        onConfirmSuggested={(row) => setConfirmingSuggestedId(row.bank.bank_row_id)}
+        onSelectGL={(row) => setMatchDrawerBankIds([row.bank.bank_row_id])}
+        onUndoMatch={handleUndoMatchFromRow}
+        onViewGroup={(group) => setViewingGroupId(group.match_group_id)}
       />
 
-      <BankReconcileUnmatchedGL glOnlyResults={matchOutput.glOnlyResults} />
+      <BankReconcileUnmatchedGL glOnlyResults={mergedOutput.glOnlyResults} />
 
-      {viewingDetail && <BankReconcileDetailDrawer result={viewingDetail} onClose={() => setViewingDetail(null)} />}
+      {viewingDetail && (
+        <BankReconcileDetailDrawer
+          result={viewingDetail}
+          onViewGroup={(group) => {
+            setViewingDetailId(null);
+            setViewingGroupId(group.match_group_id);
+          }}
+          onClose={() => setViewingDetailId(null)}
+        />
+      )}
       {viewingCandidates && (
-        <BankReconcileCandidatesModal result={viewingCandidates} onClose={() => setViewingCandidates(null)} />
+        <BankReconcileCandidatesModal result={viewingCandidates} onClose={() => setViewingCandidatesId(null)} />
+      )}
+      {confirmingSuggested && (
+        <BankReconcileConfirmMatchDialog
+          row={confirmingSuggested}
+          onConfirm={handleConfirmSuggested}
+          onClose={() => setConfirmingSuggestedId(null)}
+        />
+      )}
+      {matchDrawerBankRows && matchDrawerBankRows.length > 0 && (
+        <BankReconcileMatchDrawer
+          bankRows={matchDrawerBankRows}
+          glRows={matchGLRows}
+          consumedBankIds={mergedOutput.consumedBankIds}
+          consumedGLIds={mergedOutput.consumedGLIds}
+          autoUsedGLIds={mergedOutput.autoUsedGLIds}
+          amountTolerance={amountTolerance}
+          onConfirm={handleMatchDrawerConfirm}
+          onClose={() => setMatchDrawerBankIds(null)}
+        />
+      )}
+      {undoingGroup && (
+        <BankReconcileUndoConfirmDialog
+          group={undoingGroup}
+          bankRows={undoingGroupBankRows}
+          glRows={undoingGroupGLRows}
+          onConfirm={handleUndoConfirmed}
+          onClose={() => setUndoingGroupId(null)}
+        />
+      )}
+      {viewingGroup && (
+        <BankReconcileGroupDetailDrawer
+          group={viewingGroup}
+          bankRows={viewingGroupBankRows}
+          glRows={viewingGroupGLRows}
+          onRequestEditMatch={handleRequestEditMatch}
+          onRequestUndoMatch={handleRequestUndoFromGroupDrawer}
+          onRequestEditNote={() => setNoteEditTarget({ kind: 'group', groupId: viewingGroup.match_group_id })}
+          onClose={() => setViewingGroupId(null)}
+        />
+      )}
+      {noteEditContext && (
+        <BankReconcileNoteDialog
+          title={noteEditContext.title}
+          subtitle={noteEditContext.subtitle}
+          initialNote={noteEditContext.initialNote}
+          onSave={handleSaveNote}
+          onClose={() => setNoteEditTarget(null)}
+        />
       )}
     </div>
   );

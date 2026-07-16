@@ -13,14 +13,20 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-/** ป้ายกำกับภาษาไทยของสถานะจับคู่ทั้ง 6 ค่า — ใช้ map เดียวกันทั้งฝั่งแถว Bank (BankRowMatchStatus) และฝั่ง
- * GL-only (ค่า 'not_found_in_bank' เดียว) เพราะ MatchStatus เป็น superset ของทั้งสองอยู่แล้ว */
+/** ป้ายกำกับภาษาไทยของสถานะจับคู่ทั้ง 9 ค่า — ใช้ map เดียวกันทั้งฝั่งแถว Bank (BankRowMatchStatus) และฝั่ง
+ * GL-only (ค่า 'not_found_in_bank' เดียว) เพราะ MatchStatus เป็น superset ของทั้งสองอยู่แล้ว — 3 ค่าสุดท้าย
+ * ก่อน not_found_in_bank (confirmed_manual/confirmed_tolerance/confirmed_variance) เพิ่มเข้ามาในเฟส 3
+ * (เครื่องมือจับคู่ด้วยตนเอง) เป็นการเพิ่ม key ต่อท้ายเท่านั้น — TypeScript บังคับให้ครบทุก key ของ MatchStatus
+ * อยู่แล้ว (Record<MatchStatus,string>) จึงไม่มีทางลืมเพิ่ม ไม่มีการแก้ไข label/สีของ 6 ค่าเดิมของเฟส 1/2 เลย */
 export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
   matched_exact: 'เรียบร้อย',
   matched_tolerance: 'น่าจะตรงกัน',
   ambiguous: 'พบหลายรายการที่อาจตรงกัน',
   pending_review: 'รอตรวจสอบ',
   not_found_in_gl: 'ไม่พบใน GL',
+  confirmed_manual: 'ยืนยันด้วยตนเอง',
+  confirmed_tolerance: 'ตรงกันภายในค่าคลาดเคลื่อน',
+  confirmed_variance: 'ยืนยันแบบมีผลต่าง',
   not_found_in_bank: 'ไม่พบใน Bank',
 };
 
@@ -29,13 +35,24 @@ export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
  * เข้ากับ token เดิมที่มีอยู่แล้ว (คงธีมสีเดิมของทั้งระบบ) ส่วน ambiguous (ส้ม) และ not_found_in_bank (ม่วง)
  * ไม่มี token ให้ใช้ตรงๆ จึงใช้คลาสสีสำเร็จรูปของ Tailwind v4 ตรงๆ แทนการเพิ่ม token ใหม่ใน globals.css
  * (เลือกไม่แก้ไฟล์ธีมกลางที่ใช้ร่วมกับทุกฟีเจอร์ เพื่อลดความเสี่ยงกระทบหน้าอื่น) — pending_review ใช้ warning
- * (โทนอำพัน #f59e0b อยู่แล้วในระบบ) ตรงกับตัวเลือก "Amber" ที่สเปกอนุญาตให้ใช้แทน Orange ได้พอดี */
+ * (โทนอำพัน #f59e0b อยู่แล้วในระบบ) ตรงกับตัวเลือก "Amber" ที่สเปกอนุญาตให้ใช้แทน Orange ได้พอดี
+ *
+ * เฟส 3 เพิ่ม 3 สถานะใหม่ (เพิ่ม key ต่อท้ายเท่านั้น เหมือน MATCH_STATUS_LABELS ด้านบน): confirmed_manual ใช้
+ * teal เข้ม (bg-teal-200/text-teal-900) ตามสเปกที่ระบุ "dark green or teal" — จงใจให้เข้ม/อิ่มตัวกว่า badge
+ * อื่นทั้งหมดในระบบ (ซึ่งใช้โทนอ่อน /15 หรือ 100-level เกือบทั้งหมด) เพื่อให้ "ยืนยันโดยมนุษย์แล้ว" ดูเด่นแยก
+ * จาก matched_exact (เขียวอ่อน, จับคู่อัตโนมัติ) ได้ชัดเจนแม้เป็นสีตระกูลใกล้กัน — confirmed_tolerance ใช้ cyan
+ * (Blue-green ตามสเปก) — confirmed_variance ใช้ amber เข้ม (bg-amber-200/text-amber-900) เข้มกว่า pending_review
+ * (bg-warning/15 ที่เป็นโทนอ่อนกว่า) เพื่อแยกแยะ "รอตรวจสอบอัตโนมัติ" กับ "ยืนยันแล้วแต่มีผลต่างที่ต้องระวัง" ได้
+ * ด้วยตา ไม่ต้องอ่านข้อความ label ก็แยกออก */
 export const MATCH_STATUS_BADGE_CLASS: Record<MatchStatus, string> = {
   matched_exact: 'bg-success/15 text-success',
   matched_tolerance: 'bg-primary/15 text-primary',
   ambiguous: 'bg-orange-100 text-orange-700',
   pending_review: 'bg-warning/15 text-warning',
   not_found_in_gl: 'bg-danger/15 text-danger',
+  confirmed_manual: 'bg-teal-200 text-teal-900',
+  confirmed_tolerance: 'bg-cyan-100 text-cyan-800',
+  confirmed_variance: 'bg-amber-200 text-amber-900',
   not_found_in_bank: 'bg-purple-100 text-purple-700',
 };
 

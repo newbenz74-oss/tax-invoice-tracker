@@ -88,15 +88,22 @@ export interface NormalizedGLRow {
  * (ไม่มี LABELS/BADGE_CLASS/ฟังก์ชันใดๆ อยู่ที่นี่ — สิ่งเหล่านั้นอยู่ใน lib/bankReconcileMatchLogic.ts แทน
  * ตามธรรมเนียมเดิมของโปรเจกต์ เช่น OverdueAgingStatus + OVERDUE_AGING_LABELS ใน lib/overduePurchaseTaxLogic.ts) */
 
-/** สถานะผลการจับคู่ทั้งหมด 6 ค่า — 5 ค่าแรกใช้กับแถว Bank (ดู BankRowMatchStatus ด้านล่าง) ค่าสุดท้าย
+/** สถานะผลการจับคู่ทั้งหมด 9 ค่า — 8 ค่าแรกใช้กับแถว Bank (ดู BankRowMatchStatus ด้านล่าง) ค่าสุดท้าย
  * (not_found_in_bank) ใช้เฉพาะกับแถว GL ที่เหลือค้างในส่วน "รายการใน GL ที่ไม่พบใน Bank Statement" เท่านั้น
- * รวมไว้ใน union เดียวกันเพื่อให้ MATCH_STATUS_LABELS/MATCH_STATUS_BADGE_CLASS ใช้ map เดียวกันได้ทั้งสองฝั่ง */
+ * รวมไว้ใน union เดียวกันเพื่อให้ MATCH_STATUS_LABELS/MATCH_STATUS_BADGE_CLASS ใช้ map เดียวกันได้ทั้งสองฝั่ง
+ * — 3 ค่าสุดท้ายก่อน not_found_in_bank (confirmed_manual/confirmed_tolerance/confirmed_variance) เพิ่มเข้ามา
+ * ในเฟส 3 (เครื่องมือจับคู่ด้วยตนเอง) ต่อท้าย union เดิมของเฟส 2 เท่านั้น ไม่แก้ไข/ลบ/เรียงลำดับ 6 ค่าเดิมใหม่
+ * เลยแม้แต่ค่าเดียว (ดู lib/bankReconcileManualMatch.ts สำหรับตรรกะที่ผลิตค่าทั้งสามนี้) */
 export type MatchStatus =
   | 'matched_exact' // เรียบร้อย — ยอดเงินตรงเป๊ะ + วันที่ตรงเป๊ะ + มี GL ที่ยังไม่ถูกใช้ตรงเงื่อนไขพอดี 1 รายการ
   | 'matched_tolerance' // น่าจะตรงกัน — ยอดเงินตรงเป๊ะ + วันที่อยู่ในช่วง tolerance (ไม่ตรงเป๊ะ) + ผู้สมัครเดียว
   | 'ambiguous' // พบหลายรายการที่อาจตรงกัน — มี GL มากกว่า 1 รายการตรงเงื่อนไข (เป๊ะหรือใน tolerance) ห้ามเลือกอัตโนมัติ
-  | 'pending_review' // รอตรวจสอบ — ยอดเงินตรงกันใน GL แต่ทุกวันที่ที่มีอยู่นอกช่วง tolerance
+  | 'pending_review' // รอตรวจสอบ — ยอดเงินตรงกันใน GL แต่ทุกวันที่ที่มีอยู่นอกช่วง tolerance (สถานะที่คำนวณอัตโนมัติ
+  // ต่างจาก ReviewFlag.review_required ด้านล่างซึ่งเป็นการทำเครื่องหมายด้วยตนเอง คนละแกนกัน — ดูหมายเหตุที่ ReviewFlag)
   | 'not_found_in_gl' // ไม่พบใน GL — ไม่มี GL ที่ยังไม่ถูกใช้ที่ยอดเงินตรงกันเลย
+  | 'confirmed_manual' // ยืนยันด้วยตนเอง (เฟส 3) — ผู้ใช้ยืนยันการจับคู่เอง และผลต่างยอดเงิน = 0.00 พอดี
+  | 'confirmed_tolerance' // ตรงกันภายในค่าคลาดเคลื่อน (เฟส 3) — ยืนยันเองแล้ว ผลต่างยอดเงิน > 0 แต่อยู่ในค่าคลาดเคลื่อนที่ตั้งไว้
+  | 'confirmed_variance' // ยืนยันแบบมีผลต่าง (เฟส 3) — ยืนยันเองแบบ override ผลต่างยอดเงินเกินค่าคลาดเคลื่อน (บังคับมีหมายเหตุ)
   | 'not_found_in_bank'; // ไม่พบใน Bank — เฉพาะแถว GL ที่เหลือค้างหลังจับคู่ (ไม่ปรากฏใน BankMatchResult)
 
 /** สถานะที่ใช้กับแถว Bank เท่านั้น (ตัด not_found_in_bank ออก) — ใช้เป็นชนิดของ BankMatchResult.status และ
@@ -159,4 +166,95 @@ export interface GLOnlyResult {
 export interface ReconcileMatchOutput {
   bankResults: BankMatchResult[];
   glOnlyResults: GLOnlyResult[];
+}
+
+/* ============================== เฟส 3: เครื่องมือจับคู่รายการด้วยตนเอง (Manual Reconciliation) ==============================
+ * เพิ่มเข้ามา 2026-07-16 — ต่อยอดจากเฟส 2 โดยตรง ไม่แก้ไข type ใดๆ ของเฟส 1/2 ด้านบนแม้แต่ฟิลด์เดียว (ยกเว้น
+ * การ "เพิ่มค่าใหม่ต่อท้าย" ใน MatchStatus union เท่านั้น) หลักการสำคัญที่สุดของเฟสนี้คือ "ห้ามแก้ไขค่าที่นำ
+ * เข้ามาต้นฉบับ (Bank/GL) เด็ดขาด — เก็บความสัมพันธ์การจับคู่ด้วยตนเองแยกต่างหากเสมอ" (สเปก "Manual matching
+ * must never modify the original imported values. Store matching relationships separately") ดังนั้นชนิดข้อมูล
+ * ด้านล่างนี้ทั้งหมดเป็น "ชั้นทับซ้อน" (overlay) เก็บแยกจาก MatchBankRow/MatchGLRow โดยสิ้นเชิง อ้างอิงกันแค่
+ * ผ่าน id (bank_row_id/gl_row_id) เท่านั้น ไม่มี field ใดของ MatchBankRow/MatchGLRow ถูกเปลี่ยนค่าเลย */
+
+/** ประเภทการจับคู่ด้วยตนเอง 4 แบบตามที่สเปกแนะนำไว้ตรงๆ — คำนวณอัตโนมัติจากจำนวนแถว Bank/GL ที่อยู่ในกลุ่มตอน
+ * ยืนยัน ไม่ใช่ค่าที่ผู้ใช้เลือกเอง (ดู deriveMatchType ใน lib/bankReconcileManualMatch.ts) */
+export type MatchType = 'one_to_one' | 'one_to_many' | 'many_to_one' | 'manual_override';
+
+/** สถานะผลการยืนยันด้วยตนเอง 3 แบบ (สับเซตของ MatchStatus ด้านบน) — คำนวณครั้งเดียว ณ ตอนยืนยัน แล้ว "แช่แข็ง"
+ * เก็บไว้ใน MatchGroup.status ถาวร (ไม่คำนวณใหม่ตาม Amount Tolerance ที่อาจถูกปรับเปลี่ยนภายหลัง) ต่างจาก Date
+ * Tolerance ของเฟส 2 ที่ทำให้ผลอัตโนมัติ "รีเฟรชสด" ทุกครั้งที่เปลี่ยนค่าโดยเจตนา — เพราะที่นี่เป็นการตัดสินใจ
+ * ของมนุษย์ที่ยืนยันไปแล้ว ไม่ควรเปลี่ยนความหมายย้อนหลังเองแค่เพราะมีคนปรับตัวเลื่อนค่าคลาดเคลื่อนส่วนกลางทีหลัง
+ * (ต้องกดยกเลิกแล้วจับคู่ใหม่เท่านั้นถึงจะได้ค่าจัดประเภทใหม่) เป็นดุลยพินิจที่ตัดสินใจเอง ระบุไว้ในสรุปผล */
+export type ManualConfirmStatus = 'confirmed_manual' | 'confirmed_tolerance' | 'confirmed_variance';
+
+/** กลุ่มการจับคู่ด้วยตนเองหนึ่งกลุ่ม — หน่วยเดียวที่ใช้แทนทั้ง "ยืนยันรายการที่แนะนำ" (1 Bank : 1 GL),
+ * "1 Bank ต่อหลาย GL", และ "หลาย Bank ต่อ 1 GL" (bank_transaction_ids/gl_transaction_ids มีสมาชิกกี่ตัวก็ได้
+ * ตั้งแต่ 1 ตัวขึ้นไปทั้งคู่ — match_type แค่บอกความหมายให้ผู้ใช้อ่านง่าย ไม่ใช่ตัวจำกัดรูปร่างข้อมูล)
+ * date_difference_days มีความหมายชัดเจนเฉพาะกลุ่ม 1:1 เท่านั้น (null เสมอถ้ามีมากกว่า 1 ฝั่งใดฝั่งหนึ่ง เพราะ
+ * "วันที่ต่างกัน" ระหว่างหลายคู่ไม่มีนิยามเดียวที่ชัดเจน — ดูรายละเอียดรายแถวได้ใน Group Detail Drawer แทน) */
+export interface MatchGroup {
+  match_group_id: string;
+  match_type: MatchType;
+  status: ManualConfirmStatus;
+  bank_transaction_ids: string[];
+  gl_transaction_ids: string[];
+  bank_total: number;
+  gl_total: number;
+  amount_difference: number;
+  date_difference_days: number | null;
+  manual_match: true;
+  matched_by: string;
+  matched_at: string; // ISO datetime (เก็บเป็น string เสมอ ไม่ใช่ Date object — สอดคล้องกับ transactionDate/date ของเฟส 1 ที่เก็บเป็น ISO string ทั้งหมด)
+  note: string;
+  /** คะแนน/เหตุผลจากเครื่องมือจับคู่อัตโนมัติ ณ ตอนที่ยืนยัน — เก็บไว้แสดงคู่กับผลยืนยันเสมอตามสเปก "Preserve
+   * the original automatic score and reason" — null เมื่อยืนยันจากแถวที่ไม่เคยมีข้อเสนออัตโนมัติมาก่อนเลย
+   * (เช่น not_found_in_gl ที่เลือก GL เองทั้งหมด หรือกลุ่ม one_to_many/many_to_one ที่ไม่มี "คะแนนอัตโนมัติ"
+   * เดี่ยวๆ ให้อ้างอิงตั้งแต่แรก) */
+  auto_match_score: number | null;
+  auto_match_reason: string | null;
+}
+
+/** การทำเครื่องหมาย "ต้องตรวจสอบ" ด้วยตนเอง — คนละแกนกับสถานะอัตโนมัติ pending_review โดยเจตนา (แถวสถานะใดก็
+ * ทำเครื่องหมายนี้ได้ทั้งหมด ไม่ใช่แค่ pending_review) ข้อความหมายเหตุของการตรวจสอบใช้ร่วมกับ RowNote ของแถว
+ * เดียวกันเสมอ (ไม่แยกฟิลด์ review_note ต่างหาก) เพื่อไม่ให้มีหมายเหตุสองช่องที่อาจไม่ตรงกันของแถวเดียวกัน —
+ * ดูเหตุผลเต็มในหมายเหตุของ getRowNote ใน lib/bankReconcileManualMatch.ts */
+export interface ReviewFlag {
+  review_required: true;
+  reviewed_by: string;
+  reviewed_at: string; // ISO datetime
+}
+
+/** หมายเหตุอิสระของแถว Bank หนึ่งแถว (แถวที่ยังไม่ได้จับคู่ด้วยตนเอง) — แถวที่กลายเป็นส่วนหนึ่งของ MatchGroup
+ * แล้วให้ใช้ MatchGroup.note แทน (ดู getRowNote) ไม่ใช้ทั้งสองพร้อมกัน */
+export interface RowNote {
+  note: string;
+  updated_by: string;
+  updated_at: string; // ISO datetime
+}
+
+/** ตัวเลือกค่าคลาดเคลื่อนของยอดเงินที่ยอมรับได้ตอนยืนยันจับคู่ด้วยตนเอง (แยกจาก DateToleranceOption ของเฟส 2
+ * โดยสิ้นเชิง — คนละมิติ: อันนี้ควบคุม "ผลต่างยอดเงินที่ยอมให้ยืนยันได้โดยไม่ต้อง override" ส่วน Date Tolerance
+ * ควบคุมเฉพาะการจับคู่อัตโนมัติเท่านั้น) ดู AMOUNT_TOLERANCE_VALUES ใน lib/bankReconcileManualMatchLogic.ts
+ * สำหรับค่าตัวเลขจริงของแต่ละตัวเลือก และ DEFAULT_AMOUNT_TOLERANCE = 'zero' ตามสเปกตรงๆ ("Default: 0.00") */
+export type AmountToleranceOption = 'zero' | 'small' | 'one' | 'custom';
+
+/** แถวผลลัพธ์ตัวเต็มที่ UI ของเฟส 3 ใช้แสดงจริง — ทับซ้อน BankMatchResult ของเฟส 2 ด้วยข้อมูลจับคู่ด้วยตนเอง
+ * (matchGroup/reviewFlag/note) โดยตั้งใจให้ทุกฟิลด์ที่ชื่อ/ชนิดตรงกับ BankMatchResult ทุกประการ (bank, status,
+ * matchedGL, candidates, matchScore, amountDifference, dateDifferenceDays, matchReason) เพื่อให้ ReconcileRow
+ * หนึ่งค่ายังส่งเข้า component เดิมของเฟส 2 ที่รับ props ชนิด BankMatchResult ได้ตรงๆ ผ่าน structural typing
+ * โดยไม่ต้องแก้ไข component เดิมเหล่านั้นเลย (เช่น BankReconcileCandidatesModal) — matchedGLRows คือฟิลด์ใหม่
+ * เดียวที่เพิ่มเข้ามาสำหรับกรณีจับคู่แบบกลุ่ม (matchedGL เดี่ยวไม่พอสื่อความหมายเมื่อมี GL มากกว่า 1 แถว) */
+export interface ReconcileRow {
+  bank: MatchBankRow;
+  status: BankRowMatchStatus;
+  matchedGL: MatchGLRow | null;
+  matchedGLRows: MatchGLRow[];
+  candidates: MatchGLRow[];
+  matchScore: number | null;
+  amountDifference: number | null;
+  dateDifferenceDays: number | null;
+  matchReason: string;
+  matchGroup: MatchGroup | null;
+  reviewFlag: ReviewFlag | null;
+  note: RowNote | null;
 }

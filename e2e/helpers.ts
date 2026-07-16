@@ -16,6 +16,19 @@ export async function setupMockSupabase(page: Page, seed: MockSeed = {}) {
   await page.addInitScript(installMockSupabase, seed);
 }
 
+/** ติดตามว่ามี native dialog (alert/confirm/prompt) เกิดขึ้นระหว่างเทสต์หรือไม่ — ปิด dialog อัตโนมัติทันที
+ * (dismiss) เพื่อไม่ให้เทสต์ค้างรอ แล้วบันทึกข้อความไว้ให้ assert ท้ายเทสต์ว่าต้องว่างเสมอ ใช้พิสูจน์ว่าโค้ด
+ * ไม่มีการเรียก alert()/confirm()/prompt() เลยตามที่สเปกกำหนด (เช่น Bank Reconcile เฟส 3 ส่วน "13. MANUAL
+ * MATCH VALIDATION" ที่ห้ามใช้ alert() แสดง error โดยเด็ดขาด — ต้องแสดงใน Modal/Drawer เองเท่านั้น) */
+export function attachDialogGuard(page: Page): string[] {
+  const dialogs: string[] = [];
+  page.on('dialog', (dialog) => {
+    dialogs.push(`${dialog.type()}: ${dialog.message()}`);
+    void dialog.dismiss();
+  });
+  return dialogs;
+}
+
 /** วันที่ ISO (YYYY-MM-DD) ห่างจากวันนี้ตาม offsetDays (ติดลบ = ในอดีต) — ใช้ทดสอบ aging bucket แบบสัมพัทธ์กับเวลาจริง */
 export function isoDaysFromNow(offsetDays: number): string {
   const d = new Date();
