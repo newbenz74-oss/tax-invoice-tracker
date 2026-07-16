@@ -1,10 +1,12 @@
 import {
+  BookUser,
   FileClock,
   FileCheck2,
   FileInput,
   FileOutput,
   Landmark,
   LayoutDashboard,
+  Library,
   ScrollText,
   SearchCheck,
   Send,
@@ -69,6 +71,19 @@ export const NAV_STRUCTURE: NavEntry[] = [
       // implemented: true และเป็น DEFAULT_ACTIVE_ID ด้านล่าง ทำให้เป็นหน้าแรกของระบบ
       { id: 'record-expense', label: 'บันทึกค่าใช้จ่าย', icon: Wallet, implemented: true },
       { id: 'payment-report', label: 'รายงานจ่ายเงิน', icon: ScrollText, implemented: false },
+    ],
+  },
+  {
+    // เพิ่มเข้ามาพร้อมฟีเจอร์ "สมุดรายชื่อ" (2026-07-16) — หมวด Master Data สำหรับข้อมูลอ้างอิงที่ใช้ร่วม
+    // กันหลายฟีเจอร์ในระบบ (เริ่มจากรายชื่อลูกค้า/ผู้จัดจำหน่ายเป็นเมนูแรก) วางไว้ระหว่าง
+    // "บันทึกการจ่ายเงิน" กับ "กระทบยอด" ตามที่ผู้ใช้ระบุลำดับเมนูมาโดยตรง
+    id: 'master-data',
+    label: 'ข้อมูลหลัก (Master Data)',
+    icon: Library,
+    children: [
+      // ตาราง business_partners ใหม่ทั้งหมด ไม่เกี่ยวข้องกับ pending_tax_invoices เดิมเลย — ดู
+      // supabase/migration_004_business_partners.sql และ components/ContactsPage.tsx
+      { id: 'address-book', label: 'สมุดรายชื่อ', icon: BookUser, implemented: true },
     ],
   },
   {

@@ -34,11 +34,41 @@ export interface MockSeedInvoice {
   tax_type?: 'no_vat' | 'claimable_vat' | 'non_claimable_vat' | null;
 }
 
+// เพิ่มสำหรับฟีเจอร์ "สมุดรายชื่อ" (ตาราง business_partners ใหม่) — ดู
+// supabase/migration_004_business_partners.sql ทุกฟิลด์ที่ optional ในนี้จะ default ตามที่ฐานข้อมูลจริง
+// กำหนดไว้ (branch_type → 'head_office', status → 'active') ไม่กระทบ MockSeedInvoice/pending_tax_invoices
+// เดิมด้านบนเลยแม้แต่บรรทัดเดียว
+export interface MockSeedContact {
+  id?: string;
+  partner_type: 'customer' | 'vendor';
+  contact_code: string;
+  entity_type: 'individual' | 'company';
+  company_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  tax_id?: string | null;
+  branch_type?: 'head_office' | 'branch';
+  branch_number?: string | null;
+  address?: string | null;
+  subdistrict?: string | null;
+  district?: string | null;
+  province?: string | null;
+  postal_code?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  contact_person?: string | null;
+  note?: string | null;
+  status?: 'active' | 'inactive';
+  created_by?: string | null;
+}
+
 export interface MockSeed {
   users?: MockSeedUser[];
   /** ถ้าใส่ email นี้ จะเริ่มต้นด้วย session ที่ login ไว้แล้ว (ข้ามหน้า login ได้เลย) */
   loggedInAs?: string;
   invoices?: MockSeedInvoice[];
+  /** ข้อมูลสมุดรายชื่อเริ่มต้น (ตาราง business_partners) — ไม่ระบุ = เริ่มต้นด้วยรายการว่างเปล่า */
+  contacts?: MockSeedContact[];
 }
 
 export function installMockSupabase(seed: MockSeed = {}) {
@@ -58,7 +88,10 @@ export function installMockSupabase(seed: MockSeed = {}) {
     password: u.password,
   }));
 
-  const tables: { pending_tax_invoices: Record<string, unknown>[] } = {
+  const tables: {
+    pending_tax_invoices: Record<string, unknown>[];
+    business_partners: Record<string, unknown>[];
+  } = {
     pending_tax_invoices: (seed.invoices ?? []).map((inv) => ({
       id: inv.id ?? genId(),
       vendor_name: inv.vendor_name,
@@ -82,6 +115,33 @@ export function installMockSupabase(seed: MockSeed = {}) {
       vat_claim_month: inv.vat_claim_month ?? null,
       vat_claim_year: inv.vat_claim_year ?? null,
       tax_type: inv.tax_type ?? null,
+    })),
+    // ตารางใหม่สำหรับฟีเจอร์ "สมุดรายชื่อ" — แยกจาก pending_tax_invoices โดยสิ้นเชิง (คนละ array คนละ
+    // seed) ไม่กระทบการ seed/query ของ pending_tax_invoices เลย
+    business_partners: (seed.contacts ?? []).map((c) => ({
+      id: c.id ?? genId(),
+      partner_type: c.partner_type,
+      contact_code: c.contact_code,
+      entity_type: c.entity_type,
+      company_name: c.company_name ?? null,
+      first_name: c.first_name ?? null,
+      last_name: c.last_name ?? null,
+      tax_id: c.tax_id ?? null,
+      branch_type: c.branch_type ?? 'head_office',
+      branch_number: c.branch_number ?? null,
+      address: c.address ?? null,
+      subdistrict: c.subdistrict ?? null,
+      district: c.district ?? null,
+      province: c.province ?? null,
+      postal_code: c.postal_code ?? null,
+      phone: c.phone ?? null,
+      email: c.email ?? null,
+      contact_person: c.contact_person ?? null,
+      note: c.note ?? null,
+      status: c.status ?? 'active',
+      created_by: c.created_by ?? null,
+      created_at: nowISO(),
+      updated_at: nowISO(),
     })),
   };
 
@@ -209,12 +269,19 @@ export function installMockSupabase(seed: MockSeed = {}) {
             id: genId(),
             created_at: nowISO(),
             updated_at: nowISO(),
-            status: 'pending',
+            // default 'pending' เฉพาะตาราง pending_tax_invoices เท่านั้น (พฤติกรรมเดิมทุกประการ) —
+            // ตารางอื่น (เช่น business_partners ที่ใช้ status active/inactive) ไม่ใส่ default นี้ให้
+            // เพราะผู้เรียก (lib/contactApi.ts) กำหนดค่า status ที่ถูกต้องมาเสมออยู่แล้ว
+            ...(this.table === 'pending_tax_invoices' ? { status: 'pending' } : {}),
             ...p,
           };
-          const amount = Number(newRow.amount_excl_vat ?? 0);
-          const vat = Number(newRow.vat_amount ?? 0);
-          newRow.total_amount = round2(amount + vat);
+          // total_amount คำนวณเฉพาะแถวที่มีฟิลด์ยอดเงินของใบกำกับภาษีจริงๆ เท่านั้น (กันไม่ให้ตารางอื่น
+          // ที่ไม่มีฟิลด์นี้ เช่น business_partners ถูกใส่ total_amount: 0 ปนเข้าไปโดยไม่มีความหมาย)
+          if ('amount_excl_vat' in newRow || 'vat_amount' in newRow) {
+            const amount = Number(newRow.amount_excl_vat ?? 0);
+            const vat = Number(newRow.vat_amount ?? 0);
+            newRow.total_amount = round2(amount + vat);
+          }
           return newRow;
         });
         rows.push(...newRows);

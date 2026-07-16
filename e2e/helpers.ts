@@ -34,3 +34,10 @@ export async function gotoRecordExpense(page: Page) {
   await page.goto('/dashboard');
   await page.getByTestId('nav-item-record-expense').click();
 }
+
+/** ไปหน้า "สมุดรายชื่อ" (ข้อมูลหลัก / Master Data) โดยตรง — เมนูนี้อยู่ในหมวดที่ expand อยู่แล้วโดย
+ * ค่าเริ่มต้น (ดู lib/navigation.ts defaultExpandedState) จึงคลิกที่ nav-item ได้เลยไม่ต้องขยายหมวดก่อน */
+export async function gotoAddressBook(page: Page) {
+  await page.goto('/dashboard');
+  await page.getByTestId('nav-item-address-book').click();
+}

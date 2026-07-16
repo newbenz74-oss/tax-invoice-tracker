@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  BookUser,
   FileClock,
   FileInput,
   FileOutput,
@@ -42,6 +43,10 @@ const PAGE_META: Record<string, { icon: LucideIcon; description: string }> = {
   รายงานจ่ายเงิน: {
     icon: ScrollText,
     description: 'สรุปประวัติการจ่ายเงินทั้งหมด',
+  },
+  สมุดรายชื่อ: {
+    icon: BookUser,
+    description: 'จัดการข้อมูลลูกค้าและผู้จัดจำหน่าย',
   },
   'Bank Reconcile': {
     icon: Landmark,

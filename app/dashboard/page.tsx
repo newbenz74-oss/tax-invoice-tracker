@@ -12,6 +12,7 @@ import InvoiceForm from '@/components/InvoiceForm';
 import InvoiceTable from '@/components/InvoiceTable';
 import ExcelImportPanel from '@/components/ExcelImportPanel';
 import PurchaseTaxReport from '@/components/PurchaseTaxReport';
+import ContactsPage from '@/components/ContactsPage';
 import { useAuth } from '@/lib/AuthContext';
 import {
   bulkCreateInvoices,
@@ -143,6 +144,8 @@ function renderActiveContent(
       return <ExpenseRecordContent initialIntent={navIntent ?? null} />;
     case 'purchase-tax-report':
       return <PurchaseTaxReport />;
+    case 'address-book':
+      return <ContactsPage />;
     default:
       return <ComingSoon label={title} />;
   }
