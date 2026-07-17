@@ -196,6 +196,7 @@ export default function BankReconcilePage() {
             statusText="ไม่พบข้อมูลใน Bank Statement"
             emptyText="ไม่มีรายการ GL ที่ไม่พบข้อมูลใน Bank Statement"
             rows={result.glUnmatched}
+            showDocumentNo
           />
         </>
       )}

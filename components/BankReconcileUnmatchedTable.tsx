@@ -13,13 +13,14 @@ function formatDateDisplay(iso: string): string {
 
 /** รูปร่างแถวขั้นต่ำที่ตารางนี้ต้องใช้ — ทั้ง BankTransaction และ GLTransaction มีฟิลด์ครบตามนี้อยู่แล้ว
  * (โครงสร้างแบบ structural typing ของ TypeScript) จึงส่ง array ของ type ใดก็ได้เข้ามาตรงๆ โดยไม่ต้อง
- * แปลงรูปแบบก่อน — ตั้งใจไม่รวม documentNo ไว้ในนี้ เพราะสเปกระบุชัดว่าตาราง "GL ไม่สำเร็จ" ไม่แสดง
- * เลขที่เอกสาร (ต่างจากตาราง "กระทบยอดสำเร็จ" ที่แสดง) */
+ * แปลงรูปแบบก่อน — documentNo เป็น optional เพราะ BankTransaction ไม่มีฟิลด์นี้เลย (ใช้ได้เฉพาะฝั่ง GL
+ * ผ่าน prop showDocumentNo ด้านล่าง) */
 export interface UnmatchedRowInput {
   id: string;
   date: string;
   type: 'receive' | 'payment';
   amount: number;
+  documentNo?: string;
 }
 
 interface BankReconcileUnmatchedTableProps {
@@ -28,12 +29,17 @@ interface BankReconcileUnmatchedTableProps {
   statusText: string;
   emptyText: string;
   rows: UnmatchedRowInput[];
+  /** แสดงคอลัมน์ "เลขที่เอกสาร" ต่อจากคอลัมน์วันที่ (ก่อนคอลัมน์รับ) หรือไม่ — เดิมสเปกระบุว่า Section 3
+   * "GL ไม่สำเร็จ" ไม่แสดงเลขที่เอกสารเลย แต่ผู้ใช้ขอเพิ่มกลับมาเฉพาะฝั่งนี้ทีหลัง (2026-07-17) หลังทดสอบ
+   * ใช้งานจริงแล้วพบว่าอยากรู้เลขที่เอกสาร/ใบสำคัญของแต่ละแถวเพื่อไปตามหาในโปรแกรมบัญชีต่อ — Section 2
+   * "Bank Statement ไม่สำเร็จ" ยังคงไม่มีคอลัมน์นี้เหมือนเดิม (ไม่ส่ง prop นี้เข้ามาเลย ค่าเริ่มต้นคือ false) */
+  showDocumentNo?: boolean;
 }
 
-/** SECTION 2 "Bank Statement ไม่สำเร็จ" และ SECTION 3 "GL ไม่สำเร็จ" ใช้ตารางหน้าตาเดียวกันทุกประการ
- * (คอลัมน์: วันที่ / รับ / จ่าย / สถานะ เท่านั้น — ไม่มีคอลัมน์ของอีกฝั่งปนอยู่เลยตามสเปก) จึงรวมเป็น
- * component เดียว ใช้ซ้ำ 2 จุด ต่างกันแค่ title/testId/statusText/emptyText/ข้อมูลที่ส่งเข้ามา */
-export default function BankReconcileUnmatchedTable({ title, testId, statusText, emptyText, rows }: BankReconcileUnmatchedTableProps) {
+/** SECTION 2 "Bank Statement ไม่สำเร็จ" และ SECTION 3 "GL ไม่สำเร็จ" ใช้ตารางหน้าตาเดียวกันเป็นหลัก (คอลัมน์
+ * วันที่ / รับ / จ่าย / สถานะ) จึงรวมเป็น component เดียว ใช้ซ้ำ 2 จุด ต่างกันแค่ title/testId/statusText/
+ * emptyText/ข้อมูลที่ส่งเข้ามา และคอลัมน์เลขที่เอกสารที่แสดงเฉพาะฝั่ง GL เมื่อ showDocumentNo=true เท่านั้น */
+export default function BankReconcileUnmatchedTable({ title, testId, statusText, emptyText, rows, showDocumentNo = false }: BankReconcileUnmatchedTableProps) {
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -56,6 +62,7 @@ export default function BankReconcileUnmatchedTable({ title, testId, statusText,
               <thead className="sticky top-0 bg-table-header">
                 <tr>
                   <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">วันที่</th>
+                  {showDocumentNo && <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">เลขที่เอกสาร</th>}
                   <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">รับ</th>
                   <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">จ่าย</th>
                   <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">สถานะ</th>
@@ -65,6 +72,7 @@ export default function BankReconcileUnmatchedTable({ title, testId, statusText,
                 {paged.map((row) => (
                   <tr key={row.id} className="hover:bg-table-row-hover" data-testid={`${testId}-row-${row.id}`}>
                     <td className="px-3.5 py-2.5 text-text-sub">{formatDateDisplay(row.date)}</td>
+                    {showDocumentNo && <td className="px-3.5 py-2.5 text-text-sub">{row.documentNo || '-'}</td>}
                     <td className="font-numeric px-3.5 py-2.5 text-right text-text">
                       {row.type === 'receive' ? row.amount.toLocaleString('th-TH', THB2) : '-'}
                     </td>
