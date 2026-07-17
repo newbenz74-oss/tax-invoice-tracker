@@ -115,8 +115,14 @@ export default function LoginPage() {
     <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-[#1a5f85] px-4 py-10 sm:py-12">
       {/* พื้นหลังวิดีโอทะเล (ไฟล์ VFX ที่ผู้ใช้เตรียมมา บีบอัดจากต้นฉบับ 2560x1440/56MB เหลือ 1280x720/
           ~9MB ด้วย ffmpeg libx264 CRF 30 + ตัดเสียงทิ้งเพราะเล่นแบบ muted เสมอ) แทนพื้นหลังไล่สีฟ้าเดิม
-          — วางเป็น layer แยกด้านหลังสุด (-z-10) เต็มพื้นที่ ก่อนเนื้อหาการ์ด login */}
-      <div className="absolute inset-0 -z-10">
+          — วางเป็น layer แยกด้านหลังสุดเต็มพื้นที่ ก่อนเนื้อหาการ์ด login
+          หมายเหตุ: ตั้งใจไม่ใช้ z-index ติดลบ (-z-10) กับ layer นี้ — พบว่า Chrome บางเครื่องมีปัญหาจริง
+          ไม่ paint <video> element เลยเมื่ออยู่ใน stacking context ที่ z-index ติดลบ (วิดีโอเล่นอยู่จริงใน
+          DOM ตรวจสอบผ่าน readyState/currentTime ได้ปกติ แต่จอไม่แสดงผลอะไรเลย) แก้โดยให้ layer นี้อยู่ z-0
+          (ปกติ ไม่ติดลบ) แล้วให้การ์ด login ด้านล่างเป็น `relative z-10` แทน — อาศัยลำดับ z-index บวกตามปกติ
+          ให้การ์ดวาดทับพื้นหลังแทนการใช้ z-index ติดลบกับพื้นหลัง ผลลัพธ์การจัดวางเหมือนเดิมทุกประการ แต่
+          หลีกเลี่ยงบั๊กนี้ได้ */}
+      <div className="absolute inset-0 z-0">
         {prefersReducedMotion ? (
           <Image
             src="/videos/login-background-poster.jpg"
@@ -145,7 +151,7 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-[#0a3a5c]/50 via-[#0a3a5c]/25 to-[#031f33]/65" />
       </div>
 
-      <div className="w-full max-w-[640px]">
+      <div className="relative z-10 w-full max-w-[640px]">
         <div className="rounded-2xl bg-white p-6 shadow-[0_20px_50px_-12px_rgba(15,64,105,0.35)] sm:p-10 md:p-12">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--login-primary-light)]">
