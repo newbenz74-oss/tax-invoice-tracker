@@ -15,7 +15,9 @@ import PurchaseTaxReport from '@/components/PurchaseTaxReport';
 import OverduePurchaseTaxReport from '@/components/OverduePurchaseTaxReport';
 import ContactsPage from '@/components/ContactsPage';
 import BankReconcilePage from '@/components/BankReconcilePage';
+import BankReconcileConfirmDialog from '@/components/BankReconcileConfirmDialog';
 import { useAuth } from '@/lib/AuthContext';
+import { isBankReconcileDirty } from '@/lib/bankReconcileNavGuard';
 import {
   bulkCreateInvoices,
   cancelInvoice as apiCancelInvoice,
@@ -91,6 +93,12 @@ function DashboardShell() {
   // มาด้วยตรงๆ (เช่นคลิกเมนูใน Sidebar ตามปกติ) เพื่อไม่ให้ intent เก่าจากการนำทางครั้งก่อนหลงเหลือ
   //มาปนกับการคลิกเมนูปกติครั้งถัดไป
   const [navIntent, setNavIntent] = useState<NavIntent | null>(null);
+  // เฟส 4 ของ Bank Reconcile ("5. UNSAVED CHANGES PROTECTION"): การนำทาง (เปลี่ยนเมนู Sidebar) ที่ถูกกัก
+  // ไว้ชั่วคราวเพราะกำลังออกจากเมนู 'bank-reconcile' ขณะมีการเปลี่ยนแปลงที่ยังไม่ได้บันทึกอยู่ — ไม่ใช่ null
+  // เฉพาะตอนรอผู้ใช้ยืนยัน "ออกจากหน้านี้โดยไม่บันทึก" ผ่าน BankReconcileConfirmDialog ด้านล่างเท่านั้น เมนูอื่น
+  // ทั้งหมดไม่มีทางทำให้ state นี้ไม่ใช่ null เลย (ดู handleSelect — เงื่อนไขเช็คเจาะจง activeId ปัจจุบันเป็น
+  // 'bank-reconcile' เท่านั้น)
+  const [pendingNav, setPendingNav] = useState<{ id: string; intent: NavIntent | null } | null>(null);
 
   // บันทึกเมนูที่ active ไว้ทุกครั้งที่เปลี่ยน เพื่อให้จำได้ข้าม refresh
   useEffect(() => {
@@ -104,25 +112,56 @@ function DashboardShell() {
   const activeEntry = findNavLeaf(activeId);
   const title = activeEntry?.label ?? '';
 
-  function handleSelect(id: string, intent: NavIntent | null = null) {
+  function commitNav(id: string, intent: NavIntent | null) {
     setActiveId(id);
     setNavIntent(intent);
     setMobileNavOpen(false);
   }
 
+  // เฟส 4: ก่อนสลับออกจากเมนู 'bank-reconcile' เช็ค flag ข้าม component (lib/bankReconcileNavGuard.ts) ที่
+  // components/BankReconcileResults.tsx เขียนไว้ทุกครั้งที่ dirty state เปลี่ยน — ถ้ามีการเปลี่ยนแปลงที่ยังไม่ได้
+  // บันทึกอยู่ (และไม่ใช่ session ที่ปิดแล้ว/อ่านอย่างเดียว) จะกักการนำทางไว้ก่อนแล้วแสดง dialog ยืนยันแทนที่จะ
+  // สลับเมนูทันที เงื่อนไข id !== activeId กันไม่ให้คลิกเมนูเดิมซ้ำ (ไม่ใช่การนำทางออกจริง) ไปเข้าเงื่อนไขนี้โดย
+  // ไม่จำเป็น
+  function handleSelect(id: string, intent: NavIntent | null = null) {
+    if (id !== activeId && activeId === 'bank-reconcile' && isBankReconcileDirty()) {
+      setPendingNav({ id, intent });
+      return;
+    }
+    commitNav(id, intent);
+  }
+
   return (
-    <div className="flex min-h-screen bg-page-bg">
-      <Sidebar
-        activeId={activeId}
-        onSelect={(id) => handleSelect(id)}
-        isOpen={mobileNavOpen}
-        onClose={() => setMobileNavOpen(false)}
-      />
-      <div className="flex min-h-screen flex-1 flex-col min-[992px]:ml-[250px]">
-        <Header title={title} onMenuClick={() => setMobileNavOpen(true)} />
-        {renderActiveContent(activeId, Boolean(activeEntry?.implemented), title, handleSelect, navIntent)}
+    <>
+      <div className="flex min-h-screen bg-page-bg">
+        <Sidebar
+          activeId={activeId}
+          onSelect={(id) => handleSelect(id)}
+          isOpen={mobileNavOpen}
+          onClose={() => setMobileNavOpen(false)}
+        />
+        <div className="flex min-h-screen flex-1 flex-col min-[992px]:ml-[250px]">
+          <Header title={title} onMenuClick={() => setMobileNavOpen(true)} />
+          {renderActiveContent(activeId, Boolean(activeEntry?.implemented), title, handleSelect, navIntent)}
+        </div>
       </div>
-    </div>
+
+      {pendingNav && (
+        <BankReconcileConfirmDialog
+          testIdPrefix="sidebar-unsaved-leave"
+          title="ออกจากหน้านี้?"
+          message="มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก ต้องการออกจากหน้านี้หรือไม่"
+          confirmLabel="ออกจากหน้านี้โดยไม่บันทึก"
+          danger
+          onConfirm={() => {
+            const nav = pendingNav;
+            setPendingNav(null);
+            commitNav(nav.id, nav.intent);
+          }}
+          onClose={() => setPendingNav(null)}
+        />
+      )}
+    </>
   );
 }
 

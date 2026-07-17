@@ -41,7 +41,9 @@ async function mapAllColumns(page: import('@playwright/test').Page) {
 }
 
 test.describe('Bank Reconcile (เฟส 1: อัปโหลด + เตรียมข้อมูล)', () => {
-  test('เมนู Sidebar เปิดหน้าได้จริง (ไม่ใช่ "เร็วๆ นี้" อีกต่อไป) ปุ่มถัดไปปิดอยู่ตั้งแต่ต้น', async ({ page }) => {
+  test('เมนู Sidebar เปิดหน้าได้จริง (ไม่ใช่ "เร็วๆ นี้" อีกต่อไป) หน้ารายการโหลดก่อนเสมอ แล้วปุ่มถัดไปปิดอยู่ตั้งแต่ต้นหลังกด "สร้างรอบใหม่"', async ({
+    page,
+  }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
     await page.goto('/dashboard');
@@ -51,6 +53,12 @@ test.describe('Bank Reconcile (เฟส 1: อัปโหลด + เตรี
     await expect(page.getByTestId('coming-soon')).toHaveCount(0);
     await expect(page.getByRole('heading', { level: 1, name: 'Bank Reconcile' })).toBeVisible();
     await expect(page.getByTestId('bank-reconcile-page')).toBeVisible();
+    // เฟส 4: เข้าเมนูนี้ครั้งแรกจะเจอหน้ารายการ "ประวัติการกระทบยอดธนาคาร" ก่อนเสมอ (ไม่ใช่ขั้นตอนอัปโหลดไฟล์
+    // โดยตรงแบบเฟส 1 เดิมอีกต่อไป) ต้องกด "+ สร้างรอบกระทบยอดใหม่" ก่อนจึงจะเห็นการ์ดอัปโหลด — ดูเหตุผลเต็มที่
+    // components/BankReconcilePage.tsx
+    await expect(page.getByTestId('bank-reconcile-session-list')).toBeVisible();
+    await page.getByTestId('session-list-create-new').click();
+
     await expect(page.getByTestId('bank-upload-card')).toBeVisible();
     await expect(page.getByTestId('gl-upload-card')).toBeVisible();
     await expect(page.getByTestId('next-to-mapping')).toBeDisabled();

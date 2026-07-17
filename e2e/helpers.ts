@@ -63,10 +63,23 @@ export async function gotoOverduePurchaseTax(page: Page) {
   await page.getByTestId('nav-item-overdue-purchase-tax').click();
 }
 
-/** ไปหน้า "Bank Reconcile" (กระทบยอด > เดิมขึ้น "เร็วๆ นี้" มาตลอด) โดยตรง — อยู่ใต้หมวด "กระทบยอด" ที่
- * expand อยู่แล้วโดยค่าเริ่มต้นเช่นเดียวกับหมวดอื่น (defaultExpandedState) จึงคลิก nav-item ได้เลย ไม่ต้อง
- * ขยายหมวดก่อน — เฟส 1 เท่านั้น (อัปโหลด + จับคู่คอลัมน์ + พรีวิว) ดู components/BankReconcilePage.tsx */
+/** ไปหน้า "Bank Reconcile" (กระทบยอด > เดิมขึ้น "เร็วๆ นี้" มาตลอด) แล้วกด "+ สร้างรอบกระทบยอดใหม่" ต่อทันที
+ * เพื่อไปถึงขั้นตอนอัปโหลดไฟล์ — ตั้งแต่เฟส 4 (2026-07-16) หน้านี้เปลี่ยนจุดเริ่มต้นเป็นหน้ารายการ "ประวัติการ
+ * กระทบยอดธนาคาร" (step 'list') แทนขั้นตอนอัปโหลดโดยตรงแบบเดิม (ดู components/BankReconcilePage.tsx) ฟังก์ชัน
+ * นี้คงพฤติกรรม "ไปถึงขั้นตอนอัปโหลดไฟล์" แบบเดิมทุกประการไว้ให้เทสต์เฟส 1-3 ที่มีอยู่แล้วจำนวนมาก
+ * (bankReconcile.spec.ts/bankReconcileMatch.spec.ts/bankReconcileManualMatch.spec.ts) ไม่ต้องแก้ไขเลยแม้แต่
+ * บรรทัดเดียว — เทสต์ที่ต้องการทดสอบหน้ารายการเองโดยเฉพาะให้ใช้ gotoBankReconcileList() ด้านล่างแทน */
 export async function gotoBankReconcile(page: Page) {
+  await page.goto('/dashboard');
+  await page.getByTestId('nav-item-bank-reconcile').click();
+  await page.getByTestId('session-list-create-new').click();
+}
+
+/** ไปหน้า "Bank Reconcile" แล้วหยุดอยู่ที่หน้ารายการ "ประวัติการกระทบยอดธนาคาร" (step 'list') ตรงๆ โดยไม่กด
+ * "สร้างรอบกระทบยอดใหม่" ต่อ — ใช้กับเทสต์เฟส 4 ที่ทดสอบหน้ารายการเอง (filter/tab/pagination/แถวแอ็กชัน/เปิดรอบ
+ * เดิม) ต่างจาก gotoBankReconcile() ที่คลิกผ่านไปขั้นตอนอัปโหลดไฟล์ให้ทันทีเพื่อความเข้ากันได้ย้อนหลังกับเทสต์
+ * เฟส 1-3 เดิม */
+export async function gotoBankReconcileList(page: Page) {
   await page.goto('/dashboard');
   await page.getByTestId('nav-item-bank-reconcile').click();
 }
