@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 
 const VIDEO_SOURCES = [
-  '/videos/login-bg-1-shark.mp4',
   '/videos/login-bg-2-sea.mp4',
+  '/videos/login-bg-1-shark.mp4',
   '/videos/login-bg-3-dolphin.mp4',
   '/videos/login-bg-4.mp4',
   '/videos/login-bg-5.mp4',
