@@ -81,3 +81,11 @@ export async function gotoHiddenNavItem(page: Page, id: string) {
 export async function gotoOverduePurchaseTax(page: Page) {
   await gotoHiddenNavItem(page, 'overdue-purchase-tax');
 }
+
+/** ไปหน้า "Bank Reconcile" (เวอร์ชันออกแบบใหม่ทั้งหมด 2026-07-17) โดยตรง — เมนูนี้เป็นเมนูระดับบนสุดแบบ
+ * standalone (ไม่ได้ซ้อนอยู่ใต้หมวดใดๆ ตั้งแต่รอบปรับโครงสร้าง Sidebar) จึงคลิก nav-item ได้ทันทีเหมือน
+ * gotoAddressBook ไม่ต้องขยายหมวดก่อน */
+export async function gotoBankReconcile(page: Page) {
+  await page.goto('/dashboard');
+  await page.getByTestId('nav-item-bank-reconcile').click();
+}

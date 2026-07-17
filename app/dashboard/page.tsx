@@ -14,6 +14,7 @@ import ExcelImportPanel from '@/components/ExcelImportPanel';
 import PurchaseTaxReport from '@/components/PurchaseTaxReport';
 import OverduePurchaseTaxReport from '@/components/OverduePurchaseTaxReport';
 import ContactsPage from '@/components/ContactsPage';
+import BankReconcilePage from '@/components/BankReconcilePage';
 import { useAuth } from '@/lib/AuthContext';
 import {
   bulkCreateInvoices,
@@ -154,21 +155,12 @@ function renderActiveContent(
       return <OverduePurchaseTaxReport onNavigate={onNavigate} />;
     case 'address-book':
       return <ContactsPage />;
-    // Bank Reconcile ถูกรื้อทิ้งทั้งหมดและอยู่ระหว่างออกแบบใหม่ (2026-07-17) — ของเดิมทั้งหมด (multi-step
-    // workflow, column mapping, preview, matching, หน้าผลลัพธ์, session list ฯลฯ) ถูกลบออกตามคำขอ คงไว้แค่
-    // เมนู Sidebar (lib/navigation.ts ไม่ถูกแก้ไข) + หัวข้อหน้า (Header แสดง <h1> จาก title prop อยู่แล้ว
-    // ไม่ต้องซ้ำ h1 ที่นี่) + placeholder เปล่านี้เท่านั้น รอ implementation ใหม่ในอนาคต
+    // Bank Reconcile เวอร์ชันออกแบบใหม่ทั้งหมด (2026-07-17) — เป็นรายงานเปรียบเทียบ Bank Statement กับ GL
+    // ล้วนๆ (ไม่มีการแก้ไข/ยืนยัน/บันทึกข้อมูลบัญชีใดๆ) แทนที่ placeholder เดิมที่ค้างมาตั้งแต่รอบรื้อทิ้ง
+    // ของเก่า — component ทำงานฝั่ง client ทั้งหมด ไม่มี prop ใดๆ ที่ต้องส่งเข้าไป (ไม่ต้องพึ่ง onNavigate
+    // เพราะไม่มีปุ่มพาไปหน้าอื่นในหน้านี้)
     case 'bank-reconcile':
-      return (
-        <main
-          className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center px-4 py-16 text-center sm:px-6"
-          data-testid="bank-reconcile-placeholder"
-        >
-          <h2 className="text-lg font-bold text-text">Bank Reconcile</h2>
-          <p className="mt-2 max-w-sm text-sm text-text-sub">This module is under redesign.</p>
-          <p className="max-w-sm text-sm text-text-sub">(New workflow will be implemented later.)</p>
-        </main>
-      );
+      return <BankReconcilePage />;
     default:
       return <ComingSoon label={title} />;
   }
