@@ -157,8 +157,8 @@ export default function LoginPage() {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--login-primary-light)]">
               <Receipt className="h-6 w-6 text-[var(--login-primary)]" strokeWidth={2} />
             </div>
-            <h1 className="text-2xl font-bold text-[var(--login-primary)]">เว็บติดตามใบกำกับภาษี</h1>
-            <p className="mt-1.5 text-sm text-gray-500">BENZ — ระบบสำหรับทีมภายใน</p>
+            <h1 className="text-2xl font-bold text-[var(--login-primary)]">ACC Reconcile</h1>
+            <p className="mt-1.5 text-sm text-gray-500">ระบบสำหรับทีมภายใน</p>
           </div>
 
           <div className="mb-6 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 text-sm font-medium">
