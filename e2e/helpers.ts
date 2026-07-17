@@ -39,10 +39,13 @@ export function isoDaysFromNow(offsetDays: number): string {
   return `${y}-${m}-${day}`;
 }
 
-/** ไปหน้า "บันทึกค่าใช้จ่าย" โดยตรง (ไม่ใช่หน้า Dashboard ภาพรวมที่เป็นค่าเริ่มต้นหลัง 2026-07-15) —
- * เทสต์ที่ทดสอบพฤติกรรมของตาราง/ฟอร์ม/filter/pagination ควรเรียกฟังก์ชันนี้แทน page.goto('/dashboard')
- * ตรงๆ (ตั้งแต่รอบปรับโครงสร้าง Navigation/Layout ที่เปลี่ยน DEFAULT_ACTIVE_ID เป็น 'dashboard' หน้า
- * "บันทึกค่าใช้จ่าย" ไม่ใช่หน้าแรกที่เห็นหลัง goto('/dashboard') อีกต่อไป ต้องคลิกเมนูก่อน) */
+/** ไปหน้า "บันทึกค่าใช้จ่าย" (เมนู Sidebar ชื่อ "บันทึกการจ่ายเงิน" ตั้งแต่รอบปรับลดหมวดให้เหลือเมนูเดียว
+ * 2026-07-17 — id/route/component เดิมทุกประการ แค่ label เปลี่ยน) โดยตรง (ไม่ใช่หน้า Dashboard ภาพรวมที่
+ * เป็นค่าเริ่มต้นหลัง 2026-07-15) — เทสต์ที่ทดสอบพฤติกรรมของตาราง/ฟอร์ม/filter/pagination ควรเรียก
+ * ฟังก์ชันนี้แทน page.goto('/dashboard') ตรงๆ (ตั้งแต่รอบปรับโครงสร้าง Navigation/Layout ที่เปลี่ยน
+ * DEFAULT_ACTIVE_ID เป็น 'dashboard' หน้านี้ไม่ใช่หน้าแรกที่เห็นหลัง goto('/dashboard') อีกต่อไป ต้องคลิก
+ * เมนูก่อน) — เมนูนี้เป็น NavLeaf ระดับบนสุดแล้ว (ไม่ได้ซ้อนอยู่ใต้หมวดใดๆ อีกต่อไป) จึงคลิกได้ทันทีเหมือน
+ * เดิมทุกประการ ไม่ต้องขยายหมวดก่อน */
 export async function gotoRecordExpense(page: Page) {
   await page.goto('/dashboard');
   await page.getByTestId('nav-item-record-expense').click();

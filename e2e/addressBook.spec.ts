@@ -21,7 +21,7 @@ test.describe('สมุดรายชื่อ: นำทางเข้าเ
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
 
-  test('เมนูเดิม (Dashboard, บันทึกค่าใช้จ่าย, กระทบยอด ฯลฯ) ยังทำงานปกติหลังเพิ่มเมนูใหม่', async ({ page }) => {
+  test('เมนูเดิม (Dashboard, บันทึกการจ่ายเงิน, กระทบยอด ฯลฯ) ยังทำงานปกติหลังเพิ่มเมนูใหม่', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
     await page.goto('/dashboard');
@@ -30,7 +30,7 @@ test.describe('สมุดรายชื่อ: นำทางเข้าเ
     await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
 
     await page.getByTestId('nav-item-record-expense').click();
-    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกค่าใช้จ่าย' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกการจ่ายเงิน' })).toBeVisible();
     await expect(page.getByTestId('open-add-form')).toBeVisible();
 
     await page.getByTestId('nav-item-purchase-tax-report').click();

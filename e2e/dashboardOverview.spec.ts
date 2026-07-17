@@ -159,7 +159,7 @@ test.describe('Dashboard ภาพรวม', () => {
 
     await page.getByTestId('stat-pending').click();
 
-    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกค่าใช้จ่าย' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกการจ่ายเงิน' })).toBeVisible();
     await expect(page.getByText('ผู้ขาย รอรับ คลิกการ์ด')).toBeVisible();
     await expect(page.getByText('ผู้ขาย ได้รับแล้ว คลิกการ์ด')).not.toBeVisible();
 
@@ -197,7 +197,7 @@ test.describe('Dashboard ภาพรวม', () => {
 
     await page.getByTestId('stat-received').click();
 
-    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกค่าใช้จ่าย' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกการจ่ายเงิน' })).toBeVisible();
     await expect(page.getByText('ผู้ขาย ได้รับแล้ว คลิกการ์ด2')).toBeVisible();
     await expect(page.getByText('ผู้ขาย รอรับ คลิกการ์ด2')).not.toBeVisible();
 
@@ -224,12 +224,12 @@ test.describe('Dashboard ภาพรวม', () => {
     await page.goto('/dashboard');
 
     await page.getByTestId('quick-action-add-expense').click();
-    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกค่าใช้จ่าย' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกการจ่ายเงิน' })).toBeVisible();
     await expect(page.getByTestId('invoice-form')).toBeVisible();
 
     await page.getByTestId('nav-item-dashboard').click();
     await page.getByTestId('quick-action-import-excel').click();
-    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกค่าใช้จ่าย' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกการจ่ายเงิน' })).toBeVisible();
     await expect(page.getByTestId('excel-import-panel')).toBeVisible();
 
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
@@ -274,12 +274,12 @@ test.describe('Dashboard ภาพรวม', () => {
     await page.goto('/dashboard');
 
     await page.getByTestId('view-all-pending').click();
-    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกค่าใช้จ่าย' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกการจ่ายเงิน' })).toBeVisible();
     await expect(page.getByText('ผู้ขาย ดูทั้งหมด')).toBeVisible();
 
     await page.getByTestId('nav-item-dashboard').click();
     await page.getByTestId('view-all-overdue').click();
-    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกค่าใช้จ่าย' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'บันทึกการจ่ายเงิน' })).toBeVisible();
     await expect(page.getByText('ผู้ขาย ดูทั้งหมด')).toBeVisible();
 
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);

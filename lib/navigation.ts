@@ -7,11 +7,9 @@ import {
   Landmark,
   LayoutDashboard,
   Library,
-  ScrollText,
   SearchCheck,
   Send,
   RefreshCw,
-  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 import type { InvoiceStatus } from '@/types/invoice';
@@ -66,18 +64,15 @@ export const NAV_STRUCTURE: NavEntry[] = [
   // ก็ตาม เพราะ Dashboard มีเนื้อหาเดียว (หน้าภาพรวม) ไม่มีเมนูย่อยจริงให้ต้องขยาย/ยุบ — ทำเป็น section
   // ที่มีลูกเดียวจะเพิ่มการคลิกเปล่าประโยชน์โดยไม่จำเป็น ใช้ label เดียวกับ PAGE_META ใน Header.tsx
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, implemented: true },
-  {
-    id: 'payments',
-    label: 'บันทึกการจ่ายเงิน',
-    icon: Send,
-    children: [
-      // เมนูนี้ใช้หน้าเดิมของ Dashboard เป็นเนื้อหาหลัก (สถิติ/ตาราง/filter/นำเข้า Excel/สรุป VAT
-      // รายเดือน — logic เดิมทั้งหมดไม่ถูกแก้ ดู DashboardContent ใน app/dashboard/page.tsx) —
-      // implemented: true และเป็น DEFAULT_ACTIVE_ID ด้านล่าง ทำให้เป็นหน้าแรกของระบบ
-      { id: 'record-expense', label: 'บันทึกค่าใช้จ่าย', icon: Wallet, implemented: true },
-      { id: 'payment-report', label: 'รายงานจ่ายเงิน', icon: ScrollText, implemented: false },
-    ],
-  },
+  // อัปเดต 2026-07-17 (ปรับลดหมวด "บันทึกการจ่ายเงิน" ให้เหลือเมนูเดียว): เดิมเป็น NavSection ที่มี 2
+  // เมนูย่อย (บันทึกค่าใช้จ่าย/รายงานจ่ายเงิน) — ผู้ใช้ขอให้ยุบเหลือเป็น NavLeaf เดี่ยวคลิกแล้วเข้าหน้า
+  // "บันทึกค่าใช้จ่าย" เดิมทันที ไม่ต้องขยายหมวดก่อน — คง id เดิม 'record-expense' ไว้ (ไม่เปลี่ยน route/
+  // component/localStorage ที่ผู้ใช้เคยบันทึกไว้) แค่เปลี่ยน label เป็นชื่อหมวดเดิม "บันทึกการจ่ายเงิน"
+  // และใช้ไอคอนของหมวดเดิม (Send) แทน — เมนู "รายงานจ่ายเงิน" (payment-report, implemented: false) ถูก
+  // ลบออกจาก Sidebar ไปเลยตามที่ขอ (ไม่เคยมีหน้า/component จริงเป็นของตัวเอง มีแต่ ComingSoon fallback
+  // ร่วมกับเมนูอื่นที่ยังไม่ implement — ไม่มีอะไรถูกลบทิ้งจริง) — ดู components/Header.tsx PAGE_META ที่
+  // ต้องอัปเดต key ตามให้ตรงกับ label ใหม่นี้ด้วย (title ของหน้าอ้างอิง label นี้ตรงๆ ผ่าน findNavLeaf)
+  { id: 'record-expense', label: 'บันทึกการจ่ายเงิน', icon: Send, implemented: true },
   {
     id: 'reconcile',
     label: 'กระทบยอด',

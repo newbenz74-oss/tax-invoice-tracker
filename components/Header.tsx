@@ -9,9 +9,8 @@ import {
   Landmark,
   LayoutDashboard,
   Menu,
-  ScrollText,
   SearchCheck,
-  Wallet,
+  Send,
   type LucideIcon,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -36,13 +35,14 @@ const PAGE_META: Record<string, { icon: LucideIcon; description: string }> = {
     icon: LayoutDashboard,
     description: 'ภาพรวมระบบและสรุปข้อมูลสำคัญ',
   },
-  บันทึกค่าใช้จ่าย: {
-    icon: Wallet,
+  // key เปลี่ยนจาก 'บันทึกค่าใช้จ่าย' เป็น 'บันทึกการจ่ายเงิน' ตาม label ใหม่ใน lib/navigation.ts
+  // (2026-07-17 — ยุบหมวด "บันทึกการจ่ายเงิน" เหลือเมนูเดียว) ไอคอนเปลี่ยนจาก Wallet เป็น Send ให้ตรงกับ
+  // ไอคอน Sidebar ของเมนูนี้ตามกฎเดิม (ดูคอมเมนต์ด้านบน) — description คงข้อความเดิมไว้เพราะยังอธิบาย
+  // เนื้อหาหน้านี้ถูกต้อง (หน้า/component เดิมไม่ถูกแก้ไขเลย) — คีย์ 'รายงานจ่ายเงิน' เดิมถูกลบออกเพราะเมนู
+  // ปลายทางของมัน (payment-report) ไม่มีอยู่ใน Sidebar อีกต่อไปแล้ว
+  บันทึกการจ่ายเงิน: {
+    icon: Send,
     description: 'จัดการรายการค่าใช้จ่ายและติดตามใบกำกับภาษี',
-  },
-  รายงานจ่ายเงิน: {
-    icon: ScrollText,
-    description: 'สรุปประวัติการจ่ายเงินทั้งหมด',
   },
   สมุดรายชื่อ: {
     icon: BookUser,
