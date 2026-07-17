@@ -242,6 +242,15 @@ export function installMockSupabase(seed: MockSeed = {}) {
       return this;
     }
 
+    // .is('deleted_at', null) ของ Supabase จริงใช้เช็ค IS NULL/IS NOT NULL/IS TRUE/IS FALSE โดยเฉพาะ (ต่างจาก
+    // .eq() ที่ compile เป็น "= value" ธรรมดาซึ่งไม่ match NULL ใน SQL จริง) — mock นี้เทียบด้วย === ตรงๆ ก็ให้
+    // ผลถูกต้องเหมือนกันสำหรับกรณีใช้งานจริงในระบบนี้ (เทียบกับ null/true/false ล้วนๆ ไม่มี case อื่น) จึงใช้
+    // filter mechanism เดียวกับ eq() ได้เลยโดยไม่ต้องแยก logic ซ้ำ
+    is(field: string, value: unknown) {
+      this.filters.push([field, value]);
+      return this;
+    }
+
     order(field: string, opts?: { ascending?: boolean }) {
       this.orderBy = { field, ascending: opts?.ascending !== false };
       return this;
@@ -343,6 +352,12 @@ export function installMockSupabase(seed: MockSeed = {}) {
     auth,
     from(table: string) {
       return new QueryBuilder(table);
+    },
+    // ไม่มีโค้ดแอปจริงที่เหลืออยู่เรียก supabase.rpc(...) แล้ว (ฟีเจอร์เดียวที่เคยใช้ — Bank Reconcile
+    // auto-save — ถูกลบออกทั้งหมดตามคำขอ 2026-07-17) คงเมธอดนี้ไว้เป็น stub ทั่วไปเผื่อฟีเจอร์ใหม่ในอนาคต
+    // ต้องใช้ Postgres function ผ่าน RPC — เพิ่ม case แยกตาม fnName ได้เลยถ้าต้องใช้งานจริง
+    async rpc(fnName: string) {
+      return { data: null, error: { message: `Unknown rpc function: ${fnName}` } };
     },
   };
 

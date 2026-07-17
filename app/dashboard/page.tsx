@@ -14,10 +14,7 @@ import ExcelImportPanel from '@/components/ExcelImportPanel';
 import PurchaseTaxReport from '@/components/PurchaseTaxReport';
 import OverduePurchaseTaxReport from '@/components/OverduePurchaseTaxReport';
 import ContactsPage from '@/components/ContactsPage';
-import BankReconcilePage from '@/components/BankReconcilePage';
-import BankReconcileConfirmDialog from '@/components/BankReconcileConfirmDialog';
 import { useAuth } from '@/lib/AuthContext';
-import { isBankReconcileDirty } from '@/lib/bankReconcileNavGuard';
 import {
   bulkCreateInvoices,
   cancelInvoice as apiCancelInvoice,
@@ -93,13 +90,6 @@ function DashboardShell() {
   // มาด้วยตรงๆ (เช่นคลิกเมนูใน Sidebar ตามปกติ) เพื่อไม่ให้ intent เก่าจากการนำทางครั้งก่อนหลงเหลือ
   //มาปนกับการคลิกเมนูปกติครั้งถัดไป
   const [navIntent, setNavIntent] = useState<NavIntent | null>(null);
-  // เฟส 4 ของ Bank Reconcile ("5. UNSAVED CHANGES PROTECTION"): การนำทาง (เปลี่ยนเมนู Sidebar) ที่ถูกกัก
-  // ไว้ชั่วคราวเพราะกำลังออกจากเมนู 'bank-reconcile' ขณะมีการเปลี่ยนแปลงที่ยังไม่ได้บันทึกอยู่ — ไม่ใช่ null
-  // เฉพาะตอนรอผู้ใช้ยืนยัน "ออกจากหน้านี้โดยไม่บันทึก" ผ่าน BankReconcileConfirmDialog ด้านล่างเท่านั้น เมนูอื่น
-  // ทั้งหมดไม่มีทางทำให้ state นี้ไม่ใช่ null เลย (ดู handleSelect — เงื่อนไขเช็คเจาะจง activeId ปัจจุบันเป็น
-  // 'bank-reconcile' เท่านั้น)
-  const [pendingNav, setPendingNav] = useState<{ id: string; intent: NavIntent | null } | null>(null);
-
   // บันทึกเมนูที่ active ไว้ทุกครั้งที่เปลี่ยน เพื่อให้จำได้ข้าม refresh
   useEffect(() => {
     try {
@@ -118,16 +108,7 @@ function DashboardShell() {
     setMobileNavOpen(false);
   }
 
-  // เฟส 4: ก่อนสลับออกจากเมนู 'bank-reconcile' เช็ค flag ข้าม component (lib/bankReconcileNavGuard.ts) ที่
-  // components/BankReconcileResults.tsx เขียนไว้ทุกครั้งที่ dirty state เปลี่ยน — ถ้ามีการเปลี่ยนแปลงที่ยังไม่ได้
-  // บันทึกอยู่ (และไม่ใช่ session ที่ปิดแล้ว/อ่านอย่างเดียว) จะกักการนำทางไว้ก่อนแล้วแสดง dialog ยืนยันแทนที่จะ
-  // สลับเมนูทันที เงื่อนไข id !== activeId กันไม่ให้คลิกเมนูเดิมซ้ำ (ไม่ใช่การนำทางออกจริง) ไปเข้าเงื่อนไขนี้โดย
-  // ไม่จำเป็น
   function handleSelect(id: string, intent: NavIntent | null = null) {
-    if (id !== activeId && activeId === 'bank-reconcile' && isBankReconcileDirty()) {
-      setPendingNav({ id, intent });
-      return;
-    }
     commitNav(id, intent);
   }
 
@@ -145,22 +126,6 @@ function DashboardShell() {
           {renderActiveContent(activeId, Boolean(activeEntry?.implemented), title, handleSelect, navIntent)}
         </div>
       </div>
-
-      {pendingNav && (
-        <BankReconcileConfirmDialog
-          testIdPrefix="sidebar-unsaved-leave"
-          title="ออกจากหน้านี้?"
-          message="มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก ต้องการออกจากหน้านี้หรือไม่"
-          confirmLabel="ออกจากหน้านี้โดยไม่บันทึก"
-          danger
-          onConfirm={() => {
-            const nav = pendingNav;
-            setPendingNav(null);
-            commitNav(nav.id, nav.intent);
-          }}
-          onClose={() => setPendingNav(null)}
-        />
-      )}
     </>
   );
 }
@@ -189,11 +154,21 @@ function renderActiveContent(
       return <OverduePurchaseTaxReport onNavigate={onNavigate} />;
     case 'address-book':
       return <ContactsPage />;
-    // เฟส 1 เท่านั้น (อัปโหลด + จับคู่คอลัมน์ + พรีวิว) — ดูหมายเหตุเต็มที่ lib/navigation.ts และ
-    // components/BankReconcilePage.tsx ไม่มีการส่ง onNavigate/intent ใดๆ เข้าไปเพราะหน้านี้ยังไม่มี
-    // ปุ่มที่ต้องพาไปเมนูอื่น (ปุ่ม "บันทึกและไปขั้นตอนกระทบยอด" จบอยู่ในหน้าเดิมตามสเปกเฟสนี้)
+    // Bank Reconcile ถูกรื้อทิ้งทั้งหมดและอยู่ระหว่างออกแบบใหม่ (2026-07-17) — ของเดิมทั้งหมด (multi-step
+    // workflow, column mapping, preview, matching, หน้าผลลัพธ์, session list ฯลฯ) ถูกลบออกตามคำขอ คงไว้แค่
+    // เมนู Sidebar (lib/navigation.ts ไม่ถูกแก้ไข) + หัวข้อหน้า (Header แสดง <h1> จาก title prop อยู่แล้ว
+    // ไม่ต้องซ้ำ h1 ที่นี่) + placeholder เปล่านี้เท่านั้น รอ implementation ใหม่ในอนาคต
     case 'bank-reconcile':
-      return <BankReconcilePage />;
+      return (
+        <main
+          className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center px-4 py-16 text-center sm:px-6"
+          data-testid="bank-reconcile-placeholder"
+        >
+          <h2 className="text-lg font-bold text-text">Bank Reconcile</h2>
+          <p className="mt-2 max-w-sm text-sm text-text-sub">This module is under redesign.</p>
+          <p className="max-w-sm text-sm text-text-sub">(New workflow will be implemented later.)</p>
+        </main>
+      );
     default:
       return <ComingSoon label={title} />;
   }
