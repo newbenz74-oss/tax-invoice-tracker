@@ -1,12 +1,35 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Eye, EyeOff, Loader2, Lock, Receipt } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 
 type Mode = 'signin' | 'signup';
+
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+/** subscribe/getSnapshot สำหรับ useSyncExternalStore — วิธีมาตรฐานของ React สำหรับ subscribe ค่าจาก
+ * external API อย่าง matchMedia โดยไม่ชน react-hooks/set-state-in-effect (ห้าม setState ตรงๆ ใน
+ * effect body เพราะทำให้เกิด cascading render) getServerSnapshot คืนค่า false เสมอเพราะฝั่ง server
+ * ไม่มี window ให้เช็ค (ต้อง match กับค่าเริ่มต้นตอน hydrate เพื่อไม่ให้เกิด hydration mismatch) */
+function subscribeReducedMotion(callback: () => void): () => void {
+  if (typeof window === 'undefined' || !window.matchMedia) return () => {};
+  const mediaQuery = window.matchMedia(REDUCED_MOTION_QUERY);
+  mediaQuery.addEventListener('change', callback);
+  return () => mediaQuery.removeEventListener('change', callback);
+}
+
+function getReducedMotionSnapshot(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia(REDUCED_MOTION_QUERY).matches;
+}
+
+function getReducedMotionServerSnapshot(): boolean {
+  return false;
+}
 
 export default function LoginPage() {
   const { session, loading } = useAuth();
@@ -20,6 +43,16 @@ export default function LoginPage() {
   // ใหม่: toggle แสดง/ซ่อนรหัสผ่าน — เป็น UI state ล้วนๆ ไม่ถูกใช้ใน handleSubmit หรือ logic
   // การยืนยันตัวตนใดๆ เลย กระทบแค่ attribute "type" ของ <input> เท่านั้น
   const [showPassword, setShowPassword] = useState(false);
+  // 2026-07-17: พื้นหลังวิดีโอ (แทนพื้นหลังไล่สีฟ้าเดิม) — ถ้าผู้ใช้ตั้งค่า prefers-reduced-motion ไว้
+  // จะไม่ mount <video> เลย (ใช้ภาพนิ่ง poster แทน) ไม่ใช่แค่ซ่อนด้วย CSS เพื่อไม่ให้เบราว์เซอร์เสีย
+  // แบนด์วิดท์/แบตโหลดและเล่นวิดีโอที่มองไม่เห็นอยู่ดี ใช้ useSyncExternalStore (ไม่ใช่ useState+useEffect)
+  // เพราะเป็นวิธีมาตรฐานของ React สำหรับ subscribe ค่าจาก external API แบบนี้ — getServerSnapshot คืน
+  // false เสมอกัน hydration mismatch (server ไม่มี window ให้เช็คค่าจริง)
+  const prefersReducedMotion = useSyncExternalStore(
+    subscribeReducedMotion,
+    getReducedMotionSnapshot,
+    getReducedMotionServerSnapshot
+  );
 
   useEffect(() => {
     if (!loading && session) {
@@ -79,7 +112,39 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-gradient-to-br from-[#5cc3ec] via-[var(--login-bg)] to-[#2e9cd6] px-4 py-10 sm:py-12">
+    <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-[#1a5f85] px-4 py-10 sm:py-12">
+      {/* พื้นหลังวิดีโอทะเล (ไฟล์ VFX ที่ผู้ใช้เตรียมมา บีบอัดจากต้นฉบับ 2560x1440/56MB เหลือ 1280x720/
+          ~9MB ด้วย ffmpeg libx264 CRF 30 + ตัดเสียงทิ้งเพราะเล่นแบบ muted เสมอ) แทนพื้นหลังไล่สีฟ้าเดิม
+          — วางเป็น layer แยกด้านหลังสุด (-z-10) เต็มพื้นที่ ก่อนเนื้อหาการ์ด login */}
+      <div className="absolute inset-0 -z-10">
+        {prefersReducedMotion ? (
+          <Image
+            src="/videos/login-background-poster.jpg"
+            alt=""
+            aria-hidden="true"
+            fill
+            priority
+            className="object-cover"
+          />
+        ) : (
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            poster="/videos/login-background-poster.jpg"
+            aria-hidden="true"
+            className="h-full w-full object-cover"
+          >
+            <source src="/videos/login-background.mp4" type="video/mp4" />
+          </video>
+        )}
+        {/* overlay ไล่สีน้ำเงินเข้มทับวิดีโอ เพื่อให้การ์ดขาวตรงกลางและตัวอักษรสีขาวด้านล่างยังคมชัด
+            อ่านง่ายเหมือนพื้นหลังไล่สีเดิม ไม่ว่าเฟรมวิดีโอ ณ ขณะนั้นจะสว่าง/มืดแค่ไหน (เข้มขึ้นด้านล่าง
+            เพราะมีตัวอักษรขนาดเล็กวางอยู่) */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0a3a5c]/50 via-[#0a3a5c]/25 to-[#031f33]/65" />
+      </div>
+
       <div className="w-full max-w-[640px]">
         <div className="rounded-2xl bg-white p-6 shadow-[0_20px_50px_-12px_rgba(15,64,105,0.35)] sm:p-10 md:p-12">
           <div className="mb-8 text-center">
