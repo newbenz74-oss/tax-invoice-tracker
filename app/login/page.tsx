@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Eye, EyeOff, Loader2, Lock, Receipt } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { getSupabaseClient } from '@/lib/supabaseClient';
+import LoginBackgroundVideoCarousel from '@/components/LoginBackgroundVideoCarousel';
 
 type Mode = 'signin' | 'signup';
 
@@ -113,9 +114,10 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-[#1a5f85] px-4 py-10 sm:py-12">
-      {/* พื้นหลังวิดีโอทะเล (ไฟล์ VFX ที่ผู้ใช้เตรียมมา บีบอัดจากต้นฉบับ 2560x1440/56MB เหลือ 1280x720/
-          ~9MB ด้วย ffmpeg libx264 CRF 30 + ตัดเสียงทิ้งเพราะเล่นแบบ muted เสมอ) แทนพื้นหลังไล่สีฟ้าเดิม
-          — วางเป็น layer แยกด้านหลังสุดเต็มพื้นที่ ก่อนเนื้อหาการ์ด login
+      {/* พื้นหลังวิดีโอหน้า login แบบสลับ 5 คลิปวนลูป (2026-07-17): ฉลามวาฬ → ทะเล → โลมา → พื้นหลัง4 →
+          พื้นหลัง5 แล้ววนกลับไปคลิปแรก เล่นแบบ crossfade ไม่กระพริบระหว่างเปลี่ยนคลิป — ดู logic เต็มที่
+          components/LoginBackgroundVideoCarousel.tsx แทนพื้นหลังไล่สีฟ้าเดิม วางเป็น layer แยกด้านหลังสุด
+          เต็มพื้นที่ ก่อนเนื้อหาการ์ด login
           หมายเหตุ: ตั้งใจไม่ใช้ z-index ติดลบ (-z-10) กับ layer นี้ — พบว่า Chrome บางเครื่องมีปัญหาจริง
           ไม่ paint <video> element เลยเมื่ออยู่ใน stacking context ที่ z-index ติดลบ (วิดีโอเล่นอยู่จริงใน
           DOM ตรวจสอบผ่าน readyState/currentTime ได้ปกติ แต่จอไม่แสดงผลอะไรเลย) แก้โดยให้ layer นี้อยู่ z-0
@@ -133,17 +135,7 @@ export default function LoginPage() {
             className="object-cover"
           />
         ) : (
-          <video
-            autoPlay
-            muted
-            loop
-            playsInline
-            poster="/videos/login-background-poster.jpg"
-            aria-hidden="true"
-            className="h-full w-full object-cover"
-          >
-            <source src="/videos/login-background.mp4" type="video/mp4" />
-          </video>
+          <LoginBackgroundVideoCarousel />
         )}
         {/* overlay ไล่สีน้ำเงินเข้มทับวิดีโอ เพื่อให้การ์ดขาวตรงกลางและตัวอักษรสีขาวด้านล่างยังคมชัด
             อ่านง่ายเหมือนพื้นหลังไล่สีเดิม ไม่ว่าเฟรมวิดีโอ ณ ขณะนั้นจะสว่าง/มืดแค่ไหน (เข้มขึ้นด้านล่าง
