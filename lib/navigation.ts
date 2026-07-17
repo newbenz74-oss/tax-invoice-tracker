@@ -79,19 +79,6 @@ export const NAV_STRUCTURE: NavEntry[] = [
     ],
   },
   {
-    // เพิ่มเข้ามาพร้อมฟีเจอร์ "สมุดรายชื่อ" (2026-07-16) — หมวด Master Data สำหรับข้อมูลอ้างอิงที่ใช้ร่วม
-    // กันหลายฟีเจอร์ในระบบ (เริ่มจากรายชื่อลูกค้า/ผู้จัดจำหน่ายเป็นเมนูแรก) วางไว้ระหว่าง
-    // "บันทึกการจ่ายเงิน" กับ "กระทบยอด" ตามที่ผู้ใช้ระบุลำดับเมนูมาโดยตรง
-    id: 'master-data',
-    label: 'ข้อมูลหลัก (Master Data)',
-    icon: Library,
-    children: [
-      // ตาราง business_partners ใหม่ทั้งหมด ไม่เกี่ยวข้องกับ pending_tax_invoices เดิมเลย — ดู
-      // supabase/migration_004_business_partners.sql และ components/ContactsPage.tsx
-      { id: 'address-book', label: 'สมุดรายชื่อ', icon: BookUser, implemented: true },
-    ],
-  },
-  {
     id: 'reconcile',
     label: 'กระทบยอด',
     icon: RefreshCw,
@@ -117,6 +104,21 @@ export const NAV_STRUCTURE: NavEntry[] = [
       // ขึ้นว่าเป็นรายงานติดตามเอกสาร ไม่ใช่รายงานภาษีซื้อสำหรับยื่น ภ.พ.30 (ดูหน้านั้นที่ 'purchase-tax-report')
       { id: 'overdue-purchase-tax', label: 'ภาษีซื้อที่ยังไม่ได้รับ', icon: FileClock, implemented: true },
       { id: 'data-check', label: 'ตรวจสอบข้อมูล', icon: SearchCheck, implemented: false },
+    ],
+  },
+  {
+    // เพิ่มเข้ามาพร้อมฟีเจอร์ "สมุดรายชื่อ" (2026-07-16) — หมวด Master Data สำหรับข้อมูลอ้างอิงที่ใช้ร่วม
+    // กันหลายฟีเจอร์ในระบบ (เริ่มจากรายชื่อลูกค้า/ผู้จัดจำหน่ายเป็นเมนูแรก) เดิมวางไว้ระหว่าง
+    // "บันทึกการจ่ายเงิน" กับ "กระทบยอด" — ย้ายมาไว้ล่างสุด (หลัง "กระทบยอด") ในรอบปรับลำดับ Sidebar
+    // (2026-07-17) ตามที่ผู้ใช้ระบุลำดับเมนูใหม่มาโดยตรง — เปลี่ยนแค่ตำแหน่งในอาร์เรย์นี้เท่านั้น id/
+    // label/icon/children/implemented ทุกอย่างเดิมไม่แตะเลย
+    id: 'master-data',
+    label: 'ข้อมูลหลัก (Master Data)',
+    icon: Library,
+    children: [
+      // ตาราง business_partners ใหม่ทั้งหมด ไม่เกี่ยวข้องกับ pending_tax_invoices เดิมเลย — ดู
+      // supabase/migration_004_business_partners.sql และ components/ContactsPage.tsx
+      { id: 'address-book', label: 'สมุดรายชื่อ', icon: BookUser, implemented: true },
     ],
   },
 ];
