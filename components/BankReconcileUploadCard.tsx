@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { CheckCircle2, XCircle, type LucideIcon } from 'lucide-react';
-import { parseFileToRawTable } from '@/lib/bankReconcileParse';
+import { detectSourceFileType, parseFileToRawTable } from '@/lib/bankReconcileParse';
+import { extractPdfToRawTable, SCANNED_PDF_MESSAGE } from '@/lib/bankReconcilePdfParse';
 import { countDataRows, validateFileType, validateParsedTable } from '@/lib/bankReconcileValidation';
+import { SOURCE_FILE_TYPE_LABELS } from '@/types/bankReconcile';
 import type { UploadedFileState } from '@/types/bankReconcile';
 
 interface BankReconcileUploadCardProps {
@@ -15,14 +17,25 @@ interface BankReconcileUploadCardProps {
   testIdPrefix: string;
 }
 
-/** การ์ดอัปโหลดไฟล์ 1 ใบ — ใช้ซ้ำทั้ง Bank Statement และ GL จากระบบ Express (ต่างกันแค่ title/buttonLabel/
- * icon/testIdPrefix) รับผิดชอบการอ่าน+ตรวจสอบไฟล์ทั้งหมดในตัวเอง (เหมือนธรรมเนียมเดิมของ
- * components/ExcelImportPanel.tsx ที่ handleFileChange อ่าน+parse+ตรวจสอบเสร็จในที่เดียว) แล้วรายงานผล
- * ขึ้นไปให้ BankReconcilePage (parent) เก็บ state ไว้ตัดสินใจเปิด/ปิดปุ่ม "ถัดไป" เท่านั้น
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** การ์ดอัปโหลดไฟล์ 1 ใบ — ใช้ซ้ำทั้ง Bank Statement และ GL จากระบบ Express เขียนใหม่ 2026-07-17 เพื่อรองรับ
+ * ไฟล์ PDF เพิ่มเติมจากเดิม (เดิมรองรับแค่ Excel/CSV) ตามสเปกส่วน "UPLOAD BUTTONS"/"FILE TYPE DETECTION":
+ * accept รองรับ .pdf เพิ่ม, มีข้อความช่วยเหลือ "รองรับ Excel, CSV และ PDF" ใต้ปุ่มเสมอ, แสดงประเภทไฟล์ที่ตรวจ
+ * พบ + ขนาดไฟล์ + จำนวนหน้า (เฉพาะ PDF) ข้างชื่อไฟล์
  *
- * ปุ่มเลือกไฟล์คลิกซ้ำได้เสมอแม้เลือกไฟล์ไปแล้ว (ไม่ disable) — ทำให้ผู้ใช้เปลี่ยนเฉพาะไฟล์ใบนี้ใบเดียวได้
- * โดยไม่ต้องกดล้างไฟล์ทั้งหมด ส่วนปุ่ม "ล้างไฟล์" ที่ล้างทั้งสองใบพร้อมกันควบคุมจาก BankReconcilePage ผ่าน
- * การเปลี่ยน key เพื่อ remount การ์ดนี้ใหม่ทั้งหมด (คืนสู่สถานะเริ่มต้น) */
+ * แยกเส้นทางการอ่านไฟล์ตามประเภท: Excel/CSV ผ่าน parseFileToRawTable (lib/bankReconcileParse.ts, เดิมไม่แก้)
+ * PDF ผ่าน extractPdfToRawTable (lib/bankReconcilePdfParse.ts, ใหม่) — ทั้งสองเส้นทางให้ผลลัพธ์เป็น RawFileTable
+ * รูปแบบเดียวกัน จึงส่งต่อเข้า validateParsedTable/countDataRows ตัวเดียวกันได้ทั้งคู่ ไม่ต้องแยกโค้ดตรวจสอบ
+ *
+ * ถ้า PDF ตรวจพบว่าเป็นเอกสารสแกน (isScannedPdf) ถือเป็นไฟล์ไม่ผ่านการตรวจสอบทันที (validation.valid=false)
+ * แสดงข้อความเตือนตามสเปกเป๊ะ — ผู้ใช้ต้องเปลี่ยนไฟล์เท่านั้น ไม่มีทางกดข้ามต่อได้ตามสเปก "Do not build
+ * unreliable OCR" (ไม่มีระบบ OCR ในโปรเจกต์นี้จริง ยืนยันแล้วจาก package.json)
+ */
 export default function BankReconcileUploadCard({
   icon: Icon,
   title,
@@ -31,21 +44,73 @@ export default function BankReconcileUploadCard({
   onFileParsed,
   testIdPrefix,
 }: BankReconcileUploadCardProps) {
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStage, setProcessingStage] = useState<string | null>(null);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (processingStage) return; // กันคลิกซ้ำระหว่างประมวลผล (ตามสเปก "Disable duplicate upload ... clicks while processing")
 
-    setIsProcessing(true);
+    const typeError = validateFileType(file.name);
+    const sourceFileType = detectSourceFileType(file.name);
+    if (typeError || !sourceFileType) {
+      onFileParsed({
+        fileName: file.name,
+        fileSizeBytes: file.size,
+        sourceFileType: sourceFileType ?? 'excel',
+        table: { headers: [], rows: [] },
+        validation: { valid: false, errors: [typeError ?? 'ไม่รองรับไฟล์นี้'] },
+        rowCount: 0,
+        pageCount: null,
+        isScannedPdf: false,
+      });
+      e.target.value = '';
+      return;
+    }
+
+    setProcessingStage(sourceFileType === 'pdf' ? 'กำลังอ่านไฟล์ PDF...' : 'กำลังตรวจสอบไฟล์...');
     try {
-      const typeError = validateFileType(file.name);
-      if (typeError) {
+      if (sourceFileType === 'pdf') {
+        let extraction;
+        try {
+          extraction = await extractPdfToRawTable(file);
+        } catch (err) {
+          onFileParsed({
+            fileName: file.name,
+            fileSizeBytes: file.size,
+            sourceFileType: 'pdf',
+            table: { headers: [], rows: [] },
+            validation: { valid: false, errors: [err instanceof Error ? err.message : 'ไม่สามารถอ่านไฟล์ PDF นี้ได้'] },
+            rowCount: 0,
+            pageCount: null,
+            isScannedPdf: false,
+          });
+          return;
+        }
+
+        if (extraction.isScanned) {
+          onFileParsed({
+            fileName: file.name,
+            fileSizeBytes: file.size,
+            sourceFileType: 'pdf',
+            table: { headers: [], rows: [] },
+            validation: { valid: false, errors: [SCANNED_PDF_MESSAGE] },
+            rowCount: 0,
+            pageCount: extraction.pageCount,
+            isScannedPdf: true,
+          });
+          return;
+        }
+
         onFileParsed({
           fileName: file.name,
-          table: { headers: [], rows: [] },
-          validation: { valid: false, errors: [typeError] },
-          rowCount: 0,
+          fileSizeBytes: file.size,
+          sourceFileType: 'pdf',
+          table: extraction.table,
+          validation: validateParsedTable(extraction.table),
+          rowCount: countDataRows(extraction.table),
+          pageCount: extraction.pageCount,
+          isScannedPdf: false,
         });
         return;
       }
@@ -53,23 +118,28 @@ export default function BankReconcileUploadCard({
       const table = await parseFileToRawTable(file);
       onFileParsed({
         fileName: file.name,
+        fileSizeBytes: file.size,
+        sourceFileType,
         table,
         validation: validateParsedTable(table),
         rowCount: countDataRows(table),
+        pageCount: null,
+        isScannedPdf: false,
       });
     } catch {
       onFileParsed({
         fileName: file.name,
+        fileSizeBytes: file.size,
+        sourceFileType,
         table: { headers: [], rows: [] },
-        validation: {
-          valid: false,
-          errors: ['อ่านไฟล์ไม่สำเร็จ กรุณาตรวจสอบว่าไฟล์ไม่เสียหายและเป็นรูปแบบที่รองรับ'],
-        },
+        validation: { valid: false, errors: ['อ่านไฟล์ไม่สำเร็จ กรุณาตรวจสอบว่าไฟล์ไม่เสียหายและเป็นรูปแบบที่รองรับ'] },
         rowCount: 0,
+        pageCount: null,
+        isScannedPdf: false,
       });
     } finally {
-      setIsProcessing(false);
-      // เคลียร์ค่า input เพื่อให้เลือกไฟล์ชื่อเดิมซ้ำอีกครั้งได้ (เช่น แก้ไฟล์แล้วอัปโหลดทับด้วยชื่อเดิม)
+      setProcessingStage(null);
+      // เคลียร์ค่า input เพื่อให้เลือกไฟล์ชื่อเดิมซ้ำอีกครั้งได้
       e.target.value = '';
     }
   }
@@ -83,23 +153,40 @@ export default function BankReconcileUploadCard({
         <h3 className="text-sm font-bold text-text">{title}</h3>
       </div>
 
-      <label className="btn-press inline-flex cursor-pointer items-center rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover">
+      <label
+        className={`btn-press inline-flex items-center rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover ${
+          processingStage ? 'pointer-events-none opacity-60' : 'cursor-pointer'
+        }`}
+      >
         {buttonLabel}
         <input
           type="file"
-          accept=".xlsx,.xls,.csv"
+          accept=".xlsx,.xls,.csv,.pdf"
           onChange={handleFileChange}
+          disabled={Boolean(processingStage)}
           className="hidden"
           data-testid={`${testIdPrefix}-file-input`}
         />
       </label>
+      <p className="mt-2 text-xs text-text-sub" data-testid={`${testIdPrefix}-helper-text`}>
+        รองรับ Excel, CSV และ PDF
+      </p>
 
-      {isProcessing && <p className="mt-3 text-sm text-text-sub">กำลังตรวจสอบไฟล์...</p>}
+      {processingStage && (
+        <p className="mt-3 text-sm text-text-sub" data-testid={`${testIdPrefix}-processing`}>
+          {processingStage}
+        </p>
+      )}
 
-      {!isProcessing && fileState && (
+      {!processingStage && fileState && (
         <div className="mt-4 space-y-1.5 text-sm">
           <p className="text-text" data-testid={`${testIdPrefix}-file-name`}>
             ไฟล์: <span className="font-medium">{fileState.fileName}</span>
+          </p>
+          <p className="text-text-sub" data-testid={`${testIdPrefix}-file-type`}>
+            ประเภทไฟล์: {SOURCE_FILE_TYPE_LABELS[fileState.sourceFileType]}
+            <span className="font-numeric"> · {formatFileSize(fileState.fileSizeBytes)}</span>
+            {fileState.pageCount !== null && <span className="font-numeric"> · {fileState.pageCount} หน้า</span>}
           </p>
           <p className="font-numeric text-text-sub" data-testid={`${testIdPrefix}-row-count`}>
             จำนวนแถว: {fileState.rowCount.toLocaleString('th-TH')} แถว

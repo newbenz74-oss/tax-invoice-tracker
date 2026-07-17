@@ -1,10 +1,15 @@
-import type {
-  BankColumnMapping,
-  GLColumnMapping,
-  NormalizedBankRow,
-  NormalizedGLRow,
-  RawFileTable,
-} from '@/types/bankReconcile';
+import type { BankColumnMapping, BankRow, GLColumnMapping, GLRow, RawFileTable, TransactionDirection } from '@/types/bankReconcile';
+
+/**
+ * การแปลงข้อมูลดิบ (RawFileTable + ColumnMapping) ให้เป็น BankRow[]/GLRow[] ที่ normalize แล้ว — เขียนใหม่ทั้ง
+ * ไฟล์ 2026-07-17 สำหรับ Bank Reconcile เวอร์ชันใหม่ (จับคู่ด้วยทิศทาง+จำนวนเงินเท่านั้น) แทนที่ไฟล์เดิมที่ผลิต
+ * NormalizedBankRow/NormalizedGLRow (มี moneyIn/moneyOut แยกแกนเป็นตัวเลขบวกทั้งคู่ ไม่มี "ทิศทาง" ชัดเจน)
+ *
+ * หัวใจของไฟล์นี้คือ resolveDirectionAndAmount() — ใช้ตัวเดียวกันทั้ง Bank และ GL เพราะทั้งสองฝั่งมีโครงสร้าง
+ * การจับคู่คอลัมน์เหมือนกันเป๊ะหลัง mapping แล้ว (ผู้ใช้ระบุเองว่าคอลัมน์ไหนคือ "ฝั่งรับเงิน" คอลัมน์ไหนคือ
+ * "ฝั่งจ่ายเงิน" — ดูคอมเมนต์ที่ GLColumnKey ใน types/bankReconcile.ts) ระบบไม่ต้องรู้/ไม่ต้องเดาความหมายทาง
+ * บัญชีของ debit/credit เลยแม้แต่น้อย
+ */
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -17,9 +22,7 @@ function toISODate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/** แปลงเลข serial ของ Excel ให้เป็น Date — วันที่ 0 ของ Excel คือ 1899-12-30 (สูตรเดียวกับ
- * lib/excelImport.ts excelSerialToDate — คัดลอกมาเป็นฟังก์ชัน private ของไฟล์นี้เองตามธรรมเนียมเดิมของ
- * โปรเจกต์ที่ไม่ export helper ระดับเซลล์แบบนี้ข้ามไฟล์ เช่น round2 ที่มีสำเนาแยกอยู่หลายไฟล์แล้ว) */
+/** แปลงเลข serial ของ Excel ให้เป็น Date — วันที่ 0 ของ Excel คือ 1899-12-30 */
 function excelSerialToDate(serial: number): Date | null {
   if (!Number.isFinite(serial)) return null;
   const utcDays = Math.floor(serial - 25569);
@@ -27,21 +30,16 @@ function excelSerialToDate(serial: number): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** ตรวจสอบว่า ปี/เดือน/วัน ที่ให้มาเป็นวันที่จริงที่มีอยู่จริง (เช่น เดือน 13 หรือวันที่ 30 กุมภาพันธ์ ไม่ผ่าน) */
 function isRealDate(year: number, month: number, day: number): boolean {
   const date = new Date(Date.UTC(year, month - 1, day));
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
 /**
- * แปลงค่าจากเซลล์วันที่อย่างปลอดภัย ("Parse dates safely" + "Prevent NaN" ตามสเปก) — ไม่มีทางคืนค่าที่
- * เป็น "Invalid Date" ออกไปได้เลย คืน null เสมอถ้าแปลงไม่ได้ (ให้ UI แสดง "-" แทน)
- * รองรับ: Date object (ไฟล์ .xlsx/.xls ที่มีเซลล์รูปแบบวันที่จริง อ่านผ่าน cellDates:true),
- * เลข serial ของ Excel, string แบบ ISO YYYY-MM-DD, DD/MM/YYYY และ DD-MM-YYYY (ไฟล์ธนาคาร/CSV จริงมักใช้
- * เครื่องหมาย "-" คั่นวันที่แทน "/" จึงรองรับเพิ่มจาก lib/excelImport.ts ซึ่งรองรับเฉพาะ "/")
- * ตั้งใจไม่เดาปีพุทธศักราช (พ.ศ.) โดยอัตโนมัติ เพราะไฟล์ต้นทางไม่ได้ระบุมาตรงๆ ว่าใช้ปีแบบไหน การเดาผิด
- * จะทำให้ข้อมูลผิดเพี้ยนแบบเงียบๆ ซึ่งขัดกับหลักการของฟีเจอร์นี้โดยตรง — ถ้าปีดูไม่สมเหตุสมผล (เช่น
- * มากกว่า 2500 แต่ isRealDate ผ่าน) ก็ยังคงแปลงตามที่ระบุไว้ในไฟล์ตรงๆ ไม่ปรับแก้เอง
+ * แปลงค่าจากเซลล์วันที่อย่างปลอดภัย ("Parse dates safely" ตามสเปก) — ไม่มีทางคืน "Invalid Date" ออกไปได้เลย
+ * คืน null เสมอถ้าแปลงไม่ได้ รองรับ: Date object, เลข serial ของ Excel, string แบบ ISO YYYY-MM-DD, DD/MM/YYYY,
+ * DD-MM-YYYY — สเปกฉบับ rebuild นี้ไม่ได้ขอให้แปลงปีพุทธศักราชอัตโนมัติ (ต่างจากสเปก PDF-only รอบก่อนหน้าที่ถูก
+ * ยกเลิกไปแล้ว) จึงไม่ทำ เพื่อไม่ให้เดาข้อมูลผิดแบบเงียบๆ เกินขอบเขตที่ขอจริง
  */
 export function parseDateCell(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -82,29 +80,40 @@ export function parseDateCell(value: unknown): string | null {
 }
 
 /**
- * แปลงค่าจากเซลล์ตัวเลขอย่างปลอดภัยตามกฎ normalize ที่ระบุไว้เป๊ะ: ตัด comma คั่นหลักพันออก, trim ช่องว่าง,
- * ค่าว่าง = 0, เครื่องหมาย "-" = 0, ห้ามคืนค่า NaN เด็ดขาด (ถ้าอ่านเป็นตัวเลขไม่ได้เลยจะ fallback เป็น 0
- * แทนการปล่อยให้ NaN หลุดออกไป — ตรงตามสเปก "Prevent NaN" ตรงตัว ต่างจาก parseVatCell ใน
- * lib/excelImport.ts ที่คืนสถานะ "invalid" แยกไว้ เพราะที่นั่น VAT เป็นฟิลด์ที่ใช้ตัดสิน tax_type ทันที
- * ส่วนที่นี่เป็นแค่ตัวเลขพรีวิวเตรียมข้อมูลก่อนกระทบยอด (เฟส 1 ยังไม่มีการใช้ตัดสินใจอะไรเลย) จึง fallback
- * เป็น 0 ได้อย่างปลอดภัยตามที่สเปกระบุไว้ตรงๆ)
+ * แปลงค่าจากเซลล์จำนวนเงินเป็น "ขนาด" (magnitude) ที่ไม่ติดลบเสมอ ตามกฎ normalize ของสเปกส่วน "11. DATA
+ * NORMALIZATION" ครบทุกข้อ: ตัด comma คั่นหลักพันออก, trim ช่องว่าง, ตัดสัญลักษณ์สกุลเงินออก (฿, $, บาท),
+ * ค่าว่าง = 0, เครื่องหมาย "-" เดี่ยวๆ = 0, วงเล็บถือเป็นค่าติดลบได้ (เช่น "(1,234.56)") — แต่เนื่องจากฟังก์ชัน
+ * นี้คืนค่า "ขนาด" เสมอ (ไม่ใช่ค่าที่มีเครื่องหมาย) เครื่องหมายลบ/วงเล็บจึงแค่ถูกตัดทิ้งหลังตรวจพบ ไม่ทำให้ผลลัพธ์
+ * ติดลบ — ทิศทางธุรกรรม (รับเงิน/จ่ายเงิน) มาจาก "คอลัมน์ไหนที่มีค่า" ไม่ใช่จากเครื่องหมายในเซลล์ (ดู
+ * resolveDirectionAndAmount ด้านล่าง) ห้ามคืนค่า NaN เด็ดขาด (Prevent NaN) ปัดเป็นทศนิยม 2 ตำแหน่งเสมอ
  */
-export function parseAmountCell(value: unknown): number {
+export function parseAmountMagnitude(value: unknown): number {
   if (value === null || value === undefined) return 0;
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? round2(Math.abs(value)) : 0;
 
-  const raw = String(value).trim();
+  let raw = String(value).trim();
   if (raw === '' || raw === '-') return 0;
 
-  const cleaned = raw.replace(/,/g, '');
-  // ต้องเป็นตัวเลขล้วนๆ ทั้งสตริง (รองรับเครื่องหมายลบนำหน้า) — กัน parseFloat("12abc") หลุดมาเป็น 12
-  // แบบเงียบๆ เหมือนธรรมเนียมเดิมของ parseVatCell ใน lib/excelImport.ts
+  // วงเล็บ = ค่าติดลบตามธรรมเนียมบัญชี — ถอดวงเล็บออกก่อน (ผลลัพธ์เป็นขนาดอยู่แล้วจึงไม่ต้องใส่เครื่องหมายลบคืน)
+  const parenMatch = raw.match(/^\((.*)\)$/);
+  if (parenMatch) raw = parenMatch[1].trim();
+
+  // ตัดสัญลักษณ์สกุลเงินที่พบได้บ่อย + comma + ช่องว่างภายในตัวเลข (เช่น "฿ 1,234.56", "1 234.56")
+  const cleaned = raw
+    .replace(/[฿$]/g, '')
+    .replace(/บาท/g, '')
+    .replace(/,/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+  if (cleaned === '' || cleaned === '-') return 0;
+
+  // ต้องเป็นตัวเลขล้วนๆ ทั้งสตริง (รองรับเครื่องหมายลบนำหน้าที่อาจเหลืออยู่) กัน parseFloat("12abc") หลุดมาเป็น 12
   if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return 0;
   const parsed = parseFloat(cleaned);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(parsed) ? round2(Math.abs(parsed)) : 0;
 }
 
-/** แปลงค่าจากเซลล์ข้อความอย่างปลอดภัย (รายละเอียด/เลขที่เอกสาร) — ใช้แสดงผลเฉยๆ ไม่มีผลต่อการคำนวณ */
+/** แปลงค่าจากเซลล์ข้อความอย่างปลอดภัย (รายละเอียด/เลขที่เอกสาร/เลขที่บัญชี/รหัสบัญชี) */
 function cellToDisplayString(value: unknown): string {
   if (value === null || value === undefined) return '';
   if (value instanceof Date) return value.toLocaleDateString('th-TH');
@@ -117,8 +126,8 @@ function isCellBlank(value: unknown): boolean {
   return false;
 }
 
-/** แถวว่างทั้งแถว (ทุกเซลล์ว่างเปล่า) — ต้องข้ามไปตามสเปก "Ignore fully blank rows" ใช้ทั้งใน
- * lib/bankReconcileValidation.ts (นับจำนวนแถวข้อมูลจริง) และในการ normalize ด้านล่างนี้ */
+/** แถวว่างทั้งแถว (ทุกเซลล์ว่างเปล่า) — ต้องข้ามไปเสมอตามสเปก "Ignore blank rows" ไม่สร้าง BankRow/GLRow ให้เลย
+ * (ต่างจากแถวที่มีข้อมูลบางส่วนแต่หาทิศทางไม่ได้ ซึ่งจะกลายเป็นแถว status=invalid ให้ผู้ใช้เห็นและแก้ไข/ยกเว้นเอง) */
 export function isRowBlank(row: unknown[]): boolean {
   return row.every(isCellBlank);
 }
@@ -127,56 +136,119 @@ function mappedCell(row: unknown[], columnIndex: number | null): unknown {
   return columnIndex === null || columnIndex === undefined ? undefined : row[columnIndex];
 }
 
+export interface ResolvedDirection {
+  direction: TransactionDirection | null;
+  amount: number;
+  moneyIn: number;
+  moneyOut: number;
+  errors: string[];
+}
+
 /**
- * แปลงแถวดิบของ Bank Statement (ตามคอลัมน์ที่ผู้ใช้จับคู่ไว้) ให้เป็นแถวที่ normalize แล้ว — ข้ามแถวว่าง
- * ทั้งแถวไปอัตโนมัติ เลขแถว (rowNumber) อ้างอิงตำแหน่งจริงในไฟล์ต้นฉบับเสมอ (แถว 1 = header จึงแถวข้อมูล
- * แถวแรก = แถวที่ 2 ตามธรรมเนียมเดิมของ lib/excelImport.ts)
+ * หัวใจของการ normalize ทั้งไฟล์ — ใช้ร่วมกันทั้ง Bank (เงินเข้า/เงินออก) และ GL (ฝั่งรับเงิน/ฝั่งจ่ายเงิน) เพราะ
+ * เป็นแนวคิดเดียวกันเป๊ะหลัง column mapping แล้ว: มีคอลัมน์ "moneyIn" (รับเงิน) กับคอลัมน์ "moneyOut" (จ่ายเงิน)
+ * ให้ผู้ใช้จับคู่เอง — ทิศทางมาจาก "คอลัมน์ไหนมีค่าไม่เป็นศูนย์" ไม่ใช่จากเครื่องหมายในเซลล์ (amount ที่ parse
+ * ได้เป็นขนาดที่ไม่ติดลบอยู่แล้วเสมอจาก parseAmountMagnitude) ตามตัวอย่างสเปกเป๊ะ: "-5,000.00 payment" ต้อง
+ * กลายเป็น direction=payment, amount=5,000.00 — ในระบบนี้ค่า -5,000.00 ที่อยู่ในคอลัมน์ "เงินออก"/"ฝั่งจ่ายเงิน"
+ * จะให้ผลเดียวกันเป๊ะกับค่า 5,000.00 ธรรมดา (เพราะ parseAmountMagnitude ตัดเครื่องหมายทิ้งเป็นขนาดอยู่แล้ว)
  *
- * Sign convention: เงินเข้า = บวก, เงินออก = ลบ (ตามสเปกตรงๆ) signedAmount = moneyIn - moneyOut
+ * เงื่อนไข error สองแบบ (ตามสเปกส่วน "5. MATCHING RULE" ที่บอกว่าแต่ละแถวต้องมีทิศทางชัดเจนหนึ่งเดียว):
+ *   - ทั้งสองคอลัมน์มีค่า (>0) พร้อมกัน → หาทิศทางเดียวไม่ได้ → error ต้องให้ผู้ใช้แก้ไขเอง
+ *   - ทั้งสองคอลัมน์เป็น 0 พร้อมกัน (แต่แถวไม่ได้ว่างทั้งแถว — ถ้าว่างทั้งแถวจะถูกข้ามไปตั้งแต่ isRowBlank แล้ว)
+ *     → ไม่มีจำนวนเงินให้กระทบยอดเลย → error เช่นกัน
  */
-export function normalizeBankRows(table: RawFileTable, mapping: BankColumnMapping): NormalizedBankRow[] {
-  const result: NormalizedBankRow[] = [];
+export function resolveDirectionAndAmount(moneyInRaw: unknown, moneyOutRaw: unknown): ResolvedDirection {
+  const moneyIn = parseAmountMagnitude(moneyInRaw);
+  const moneyOut = parseAmountMagnitude(moneyOutRaw);
+
+  if (moneyIn > 0 && moneyOut > 0) {
+    return { direction: null, amount: 0, moneyIn, moneyOut, errors: ['พบทั้งเงินเข้าและเงินออกในแถวเดียวกัน กรุณาตรวจสอบ'] };
+  }
+  if (moneyIn > 0) {
+    return { direction: 'income', amount: moneyIn, moneyIn, moneyOut, errors: [] };
+  }
+  if (moneyOut > 0) {
+    return { direction: 'payment', amount: moneyOut, moneyIn, moneyOut, errors: [] };
+  }
+  return { direction: null, amount: 0, moneyIn, moneyOut, errors: ['ไม่พบจำนวนเงินเข้าหรือเงินออกในแถวนี้'] };
+}
+
+/** แปลงตาราง Bank Statement ดิบทั้งตารางเป็น BankRow[] ตาม mapping ที่ผู้ใช้เลือกไว้ — ข้ามแถวว่างทั้งแถวไป
+ * อัตโนมัติ เลขแถว (rowNumber) อ้างอิงตำแหน่งจริงในไฟล์ต้นฉบับเสมอ (แถว 1 = header) */
+export function buildBankRows(table: RawFileTable, mapping: BankColumnMapping): BankRow[] {
+  const result: BankRow[] = [];
   table.rows.forEach((row, idx) => {
     if (isRowBlank(row)) return;
-    const moneyIn = parseAmountCell(mappedCell(row, mapping.moneyIn));
-    const moneyOut = parseAmountCell(mappedCell(row, mapping.moneyOut));
+
+    const moneyInCell = mappedCell(row, mapping.moneyIn);
+    const moneyOutCell = mappedCell(row, mapping.moneyOut);
+    const {
+      direction,
+      amount,
+      moneyIn: moneyInRaw,
+      moneyOut: moneyOutRaw,
+      errors: directionErrors,
+    } = resolveDirectionAndAmount(moneyInCell, moneyOutCell);
+
+    const dateRaw = mappedCell(row, mapping.transactionDate);
+    const date = parseDateCell(dateRaw);
+
     result.push({
+      id: `bank-${idx + 2}`,
       rowNumber: idx + 2,
-      transactionDate: parseDateCell(mappedCell(row, mapping.transactionDate)),
+      date,
       description: cellToDisplayString(mappedCell(row, mapping.description)),
-      moneyIn,
-      moneyOut,
-      balance: parseAmountCell(mappedCell(row, mapping.balance)),
-      signedAmount: round2(moneyIn - moneyOut),
+      moneyInRaw,
+      moneyOutRaw,
+      direction,
+      amount,
+      balance: mapping.balance === null ? null : parseAmountMagnitude(mappedCell(row, mapping.balance)),
+      accountNo: cellToDisplayString(mappedCell(row, mapping.accountNo)),
+      rawRow: row,
+      excluded: false,
+      // หมายเหตุ: ไม่ตรวจสอบรูปแบบวันที่เป็นเงื่อนไขบล็อก isRowUsable ตามสเปกส่วน "8. DATE DISPLAY" ที่ระบุ
+      // ตรงๆ ว่า "dates are not required for matching" — วันที่ที่แปลงไม่ได้จะแสดงเป็น "-" เฉยๆ ในตาราง ไม่ถือ
+      // เป็นข้อผิดพลาดที่ต้องแก้ก่อนกระทบยอด (ต่างจากทิศทาง/จำนวนเงินที่จำเป็นต่อการจับคู่โดยตรง)
+      errors: [...directionErrors],
     });
   });
   return result;
 }
 
-/**
- * แปลงแถวดิบของ GL จากระบบ Express ให้เป็นแถวที่ normalize แล้ว — ข้ามแถวว่างทั้งแถวไปอัตโนมัติเหมือนกัน
- *
- * Sign convention (สำคัญ — จุดที่พลาดง่ายที่สุดของการกระทบยอดธนาคาร): บัญชีเงินสด/ธนาคารในทางบัญชีเป็น
- * บัญชีสินทรัพย์ (Asset) เดบิต (Debit) ทำให้ยอดเพิ่มขึ้น = เงินเข้า เครดิต (Credit) ทำให้ยอดลดลง = เงินออก
- * จึงต้องแปลง debit/credit ให้อยู่ใน sign convention เดียวกับ Bank Statement (เงินเข้า=บวก, เงินออก=ลบ)
- * ด้วยสูตร signedAmount = debit - credit เท่านั้น (ห้ามกลับด้าน) — นี่คือบั๊กที่เคยพบและแก้มาแล้วจริงใน
- * เครื่องมือกระทบยอดธนาคารรุ่นก่อนหน้า (ดู claude/bank-reconciliation-tool.md) นำ domain knowledge นี้มา
- * ใช้ตั้งแต่ต้นในเฟสนี้เลยเพื่อไม่ให้ต้องแก้บั๊กเดิมซ้ำอีกครั้งตอนสร้างขั้นตอนจับคู่รายการในเฟสถัดไป
- */
-export function normalizeGLRows(table: RawFileTable, mapping: GLColumnMapping): NormalizedGLRow[] {
-  const result: NormalizedGLRow[] = [];
+/** แปลงตาราง GL ดิบทั้งตารางเป็น GLRow[] ตาม mapping ที่ผู้ใช้เลือกไว้ — โครงสร้างขนานกับ buildBankRows ทุก
+ * ประการ ต่างแค่ docNo/accountCode แทน balance/accountNo */
+export function buildGLRows(table: RawFileTable, mapping: GLColumnMapping): GLRow[] {
+  const result: GLRow[] = [];
   table.rows.forEach((row, idx) => {
     if (isRowBlank(row)) return;
-    const debit = parseAmountCell(mappedCell(row, mapping.debit));
-    const credit = parseAmountCell(mappedCell(row, mapping.credit));
+
+    const moneyInCell = mappedCell(row, mapping.moneyIn);
+    const moneyOutCell = mappedCell(row, mapping.moneyOut);
+    const {
+      direction,
+      amount,
+      moneyIn: moneyInRaw,
+      moneyOut: moneyOutRaw,
+      errors: directionErrors,
+    } = resolveDirectionAndAmount(moneyInCell, moneyOutCell);
+
+    const dateRaw = mappedCell(row, mapping.date);
+    const date = parseDateCell(dateRaw);
+
     result.push({
+      id: `gl-${idx + 2}`,
       rowNumber: idx + 2,
-      date: parseDateCell(mappedCell(row, mapping.date)),
-      docNo: cellToDisplayString(mappedCell(row, mapping.docNo)),
+      date,
       description: cellToDisplayString(mappedCell(row, mapping.description)),
-      debit,
-      credit,
-      signedAmount: round2(debit - credit),
+      moneyInRaw,
+      moneyOutRaw,
+      direction,
+      amount,
+      docNo: cellToDisplayString(mappedCell(row, mapping.docNo)),
+      accountCode: cellToDisplayString(mappedCell(row, mapping.accountCode)),
+      rawRow: row,
+      excluded: false,
+      errors: [...directionErrors], // ดูหมายเหตุเดียวกับ buildBankRows ด้านบน — วันที่ไม่บล็อกความ "ใช้งานได้" ของแถว
     });
   });
   return result;

@@ -4,14 +4,16 @@ import { useEffect, useState } from 'react';
 import { FileSpreadsheet, Landmark } from 'lucide-react';
 import BankReconcileUploadCard from './BankReconcileUploadCard';
 import BankReconcileColumnMapping from './BankReconcileColumnMapping';
+import BankReconcilePreview from './BankReconcilePreview';
 import BankReconcileResults from './BankReconcileResults';
 import BankReconcileSessionList from './BankReconcileSessionList';
+import { buildBankRows, buildGLRows } from '@/lib/bankReconcileNormalize';
 import { fetchSessionDetail } from '@/lib/bankReconcileSessionApi';
 import { resetBankReconcileDirty } from '@/lib/bankReconcileNavGuard';
-import type { BankColumnKey, BankColumnMapping, GLColumnKey, GLColumnMapping, UploadedFileState } from '@/types/bankReconcile';
+import type { BankColumnKey, BankColumnMapping, BankRow, GLColumnKey, GLColumnMapping, GLRow, UploadedFileState } from '@/types/bankReconcile';
 import type { LoadedSessionData } from '@/types/bankReconcileSession';
 
-type Step = 'list' | 'upload' | 'mapping' | 'done';
+type Step = 'list' | 'upload' | 'mapping' | 'preview' | 'done';
 
 const EMPTY_BANK_MAPPING: BankColumnMapping = {
   transactionDate: null,
@@ -19,63 +21,60 @@ const EMPTY_BANK_MAPPING: BankColumnMapping = {
   moneyIn: null,
   moneyOut: null,
   balance: null,
+  accountNo: null,
 };
 
 const EMPTY_GL_MAPPING: GLColumnMapping = {
   date: null,
-  docNo: null,
   description: null,
-  debit: null,
-  credit: null,
+  moneyIn: null,
+  moneyOut: null,
+  docNo: null,
+  accountCode: null,
 };
 
 /**
- * Bank Reconcile — หน้ารวมทุกขั้นตอนของโมดูล ตั้งแต่เฟส 4 (2026-07-16) เป็นต้นไป จุดเริ่มต้น (step แรก) ของ
- * หน้านี้เปลี่ยนจาก 'upload' เป็น 'list' (หน้ารายการ "ประวัติการกระทบยอดธนาคาร" — สเปกส่วน "6. SESSION LIST
- * PAGE") — ทุก state ของเฟส 1-3 ที่มีอยู่แล้วด้านล่างนี้ไม่ถูกแก้ไขพฤติกรรมเลย มีแค่เพิ่ม step ใหม่คั่นก่อนหน้า
- * เดิม + เพิ่มสองเส้นทางนำทางใหม่ (สร้างรอบใหม่ / เปิดรอบเดิม) เข้ามาเท่านั้น
+ * Bank Reconcile — หน้ารวมทุกขั้นตอนของโมดูล เขียนใหม่ทั้งไฟล์ 2026-07-17 พร้อมกับการ rebuild โมดูลทั้งโมดูล
+ * ตามสเปก "REBUILD Bank Reconcile module from scratch" คงสัญญา default export ไม่มี prop บังคับไว้เหมือนเดิม
+ * ทุกประการ (app/dashboard/page.tsx เรียก <BankReconcilePage /> ตรงๆ — ดูข้อจำกัด "Do not modify ... Sidebar,
+ * or unrelated routes" — ไฟล์นี้และ app/dashboard/page.tsx/lib/navigation.ts ไม่ถูกแตะเลยแม้แต่บรรทัดเดียว)
  *
- * ขั้นตอน (step) ในหน้านี้:
- * 0. list    — หน้ารายการรอบกระทบยอดทั้งหมด (ดู BankReconcileSessionList) เป็น step เริ่มต้นของเมนูนี้เสมอ
- *              มีปุ่ม "+ สร้างรอบกระทบยอดใหม่" (ไป step 'upload' แบบเดิมทุกประการ) และปุ่ม "เปิด" ต่อแถว (โหลด
- *              รอบที่บันทึกไว้แล้วทั้งชุดผ่าน fetchSessionDetail แล้วข้ามไป step 'done' ตรงๆ โดยไม่ผ่าน
- *              'upload'/'mapping' เลย — ตามสเปกส่วน "8. OPEN EXISTING SESSION" ที่ห้ามรันจับคู่อัตโนมัติซ้ำ)
- * 1. upload  — อัปโหลด Bank Statement + GL สองการ์ด ตรวจสอบไฟล์ทันทีที่เลือก (ดู BankReconcileUploadCard) —
- *              พฤติกรรมเดิมทุกประการจากเฟส 1 มีเพิ่มแค่ลิงก์ "← กลับไปหน้ารายการ" เส้นเดียวที่ด้านบน
- * 2. mapping — จับคู่คอลัมน์ + พรีวิวข้อมูลหลัง normalize (ดู BankReconcileColumnMapping) แสดงเมื่อไฟล์
- *              ทั้งสองผ่านการตรวจสอบแล้วเท่านั้น — ไม่แตะเลยตั้งแต่เฟส 1
- * 3. done    — แสดงผลการกระทบยอดจริงผ่าน BankReconcileResults (เครื่องมือจับคู่รายการ + ตารางผลลัพธ์ + KPI +
- *              ตั้งแต่เฟส 4: การบันทึก/auto-save/completion/reopen/export/audit log ทั้งหมด) เข้าถึงได้สองทาง:
- *              (ก) จากการอัปโหลดไฟล์ใหม่ผ่าน upload→mapping ตามเดิม (loadedSession เป็น null, bankFile/glFile
- *              เป็นของจริงจากการอัปโหลด) หรือ (ข) จากการเปิดรอบเดิมที่หน้า list (loadedSession เป็นข้อมูลที่โหลด
- *              มา, bankFile/glFile เป็น null เสมอ) — ดูรายละเอียดที่คอมเมนต์บน prop loadedSession ของ
- *              BankReconcileResults.tsx โดยตรง คง id ของ step ไว้เป็น 'done' เหมือนเดิมโดยตั้งใจเพื่อลด diff
+ * ขั้นตอน (step) ในหน้านี้ — เพิ่ม step ใหม่ 'preview' คั่นระหว่าง 'mapping' กับ 'done' จากเดิม (สเปกส่วน "12.
+ * PREVIEW BEFORE RECONCILIATION" — "Do not start reconciliation until all included rows are valid"):
+ * 0. list    — หน้ารายการรอบกระทบยอดทั้งหมด (BankReconcileSessionList) จุดเริ่มต้นเสมอ
+ * 1. upload  — อัปโหลด Bank Statement + GL สองการ์ด (BankReconcileUploadCard, รองรับ Excel/CSV/PDF)
+ * 2. mapping — จับคู่คอลัมน์ (BankReconcileColumnMapping) กดบันทึกแล้วสร้าง BankRow[]/GLRow[] ผ่าน
+ *              buildBankRows/buildGLRows (lib/bankReconcileNormalize.ts) ทันที ก่อนไป step ถัดไป
+ * 3. preview — ตรวจสอบ/แก้ไขข้อมูลก่อนกระทบยอด (BankReconcilePreview) กด "เริ่มกระทบยอด" แล้วไป 'done'
+ * 4. done    — แสดงผลการกระทบยอดจริง (BankReconcileResults) เข้าถึงได้สองทาง: (ก) อัปโหลดไฟล์ใหม่ผ่าน
+ *              upload→mapping→preview ตามลำดับ (loadedSession เป็น null, onBack กลับไป 'preview' ได้) หรือ
+ *              (ข) เปิดรอบเดิมจากหน้ารายการ (loadedSession มีข้อมูล, onBack เป็น null เสมอ — ไม่มีทางย้อนกลับ
+ *              ไปแก้ไขข้อมูลดิบของรอบที่บันทึกไว้แล้วผ่านหน้าจอนี้ เป็นดุลยพินิจที่ตัดสินใจเอง เพื่อไม่ให้ธง
+ *              ตรวจสอบที่ผูกกับ id ของแถวที่โหลดมาสับสนถ้าข้อมูลดิบถูกแก้ไขทีหลัง — ระบุไว้ในสรุปผลตอนส่งมอบ)
  *
- * key={loadedSession?.session.id ?? 'new'} บน BankReconcileResults ด้านล่าง เป็นการป้องกันสองชั้น (defense in
- * depth) ให้ React บังคับ unmount/remount ทุกครั้งที่เปลี่ยนไปเปิดคนละรอบ แม้ในทางปฏิบัติการ conditional render
- * ของ step ('done' หายไปตอนกลับหน้า list แล้วโผล่ใหม่ตอนเปิดรอบถัดไป) จะทำให้ unmount/remount เกิดขึ้นเองอยู่
- * แล้วก็ตาม — ตามแนวทางเดียวกับ key={editingInvoice?.id ?? 'new'} ที่ใช้อยู่แล้วใน app/dashboard/page.tsx
+ * key={loadedSession?.session.id ?? 'new'} บน BankReconcileResults ป้องกันสองชั้นให้ React unmount/remount
+ * ทุกครั้งที่เปลี่ยนไปเปิดคนละรอบ — มิเรอร์เทคนิคเดียวกับ key={editingInvoice?.id ?? 'new'} ที่ใช้อยู่แล้วใน
+ * app/dashboard/page.tsx
  */
 export default function BankReconcilePage() {
   const [step, setStep] = useState<Step>('list');
-  // เปลี่ยนค่านี้ทุกครั้งที่กด "ล้างไฟล์" หรือ "สร้างรอบกระทบยอดใหม่" แล้วใช้เป็น key ของการ์ดทั้งสองใบ เพื่อ
-  // บังคับ remount กลับสู่สถานะเริ่มต้นทั้งหมด (input ที่เลือกไว้/สถานะ isProcessing ภายในการ์ด) โดยไม่ต้องเพิ่ม
-  // reset() แยก — เป็นเทคนิคเดียวกับที่ใช้อยู่แล้วใน app/dashboard/page.tsx (key={editingInvoice?.id ?? 'new'})
   const [resetCounter, setResetCounter] = useState(0);
 
   const [bankFile, setBankFile] = useState<UploadedFileState | null>(null);
   const [glFile, setGlFile] = useState<UploadedFileState | null>(null);
   const [bankMapping, setBankMapping] = useState<BankColumnMapping>(EMPTY_BANK_MAPPING);
   const [glMapping, setGlMapping] = useState<GLColumnMapping>(EMPTY_GL_MAPPING);
+  const [bankRows, setBankRows] = useState<BankRow[]>([]);
+  const [glRows, setGlRows] = useState<GLRow[]>([]);
+  /** true = มาถึง step 'done' ผ่านเส้นทางอัปโหลดไฟล์ใหม่ (upload→mapping→preview) เท่านั้น — ควบคุมว่า
+   * BankReconcileResults ควรแสดงปุ่ม "ย้อนกลับไปแก้ไขข้อมูล" หรือไม่ (ดูคอมเมนต์ที่ prop onBack ของ
+   * BankReconcileResults.tsx) */
+  const [cameFromPreview, setCameFromPreview] = useState(false);
 
-  // เฟส 4: ข้อมูลรอบกระทบยอดที่โหลดมาจากหน้ารายการ (ปุ่ม "เปิด") — ไม่ใช่ null เฉพาะตอนเปิดรอบเดิมเท่านั้น
   const [loadedSession, setLoadedSession] = useState<LoadedSessionData | null>(null);
   const [openingSessionId, setOpeningSessionId] = useState<string | null>(null);
   const [openSessionError, setOpenSessionError] = useState<string | null>(null);
 
-  // เฟส 4: รีเซ็ต flag "มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก" ทุกครั้งที่เข้าเมนูนี้ใหม่ กันค่าเก่าจากรอบก่อนหน้า
-  // ค้างข้ามการนำทางเข้า-ออกเมนูนี้หลายรอบ (ดู lib/bankReconcileNavGuard.ts — เป็น module-level flag ธรรมดา
-  // ไม่ผูกกับ lifecycle ของ component นี้โดยอัตโนมัติ จึงต้องรีเซ็ตเองตรงนี้)
   useEffect(() => {
     resetBankReconcileDirty();
   }, []);
@@ -84,8 +83,6 @@ export default function BankReconcilePage() {
 
   function handleBankFileParsed(state: UploadedFileState) {
     setBankFile(state);
-    // ไฟล์ใหม่อาจมีจำนวน/ลำดับคอลัมน์ต่างจากไฟล์เดิม — ล้างการจับคู่คอลัมน์เดิมทิ้งเสมอเพื่อไม่ให้ index
-    // ที่จับคู่ไว้ก่อนหน้าชี้ไปคอลัมน์ผิดของไฟล์ใหม่แบบเงียบๆ
     setBankMapping(EMPTY_BANK_MAPPING);
   }
 
@@ -110,33 +107,42 @@ export default function BankReconcilePage() {
     setGlMapping((prev) => ({ ...prev, [key]: value }));
   }
 
-  /** ปุ่ม "+ สร้างรอบกระทบยอดใหม่" บนหน้ารายการ — ล้าง state ของรอบที่เคยเปิดไว้ (ถ้ามี) ทั้งหมดก่อนเข้าสู่
-   * flow อัปโหลดไฟล์เดิมของเฟส 1 ทุกประการ */
+  /** ปุ่ม "ถัดไป: ตรวจสอบข้อมูล" ของขั้นตอนจับคู่คอลัมน์ — สร้าง BankRow[]/GLRow[] จากไฟล์ + การจับคู่ที่เลือก
+   * ไว้ทันที (ครั้งเดียวตรงนี้เท่านั้น — ขั้นตอนพรีวิวถัดไปแก้ไขค่าที่ normalize แล้วโดยตรง ไม่ normalize ซ้ำ) */
+  function handleMappingSave() {
+    if (!bankFile || !glFile) return;
+    setBankRows(buildBankRows(bankFile.table, bankMapping));
+    setGlRows(buildGLRows(glFile.table, glMapping));
+    setStep('preview');
+  }
+
+  function handleStartReconciliation() {
+    setLoadedSession(null);
+    setCameFromPreview(true);
+    setStep('done');
+  }
+
   function handleCreateNew() {
     setOpenSessionError(null);
     setLoadedSession(null);
+    setCameFromPreview(false);
     setBankFile(null);
     setGlFile(null);
     setBankMapping(EMPTY_BANK_MAPPING);
     setGlMapping(EMPTY_GL_MAPPING);
+    setBankRows([]);
+    setGlRows([]);
     setResetCounter((n) => n + 1);
     setStep('upload');
   }
 
-  /** ปุ่ม "เปิด" ต่อแถวบนหน้ารายการ — โหลดข้อมูลรอบกระทบยอดที่บันทึกไว้ทั้งชุดจาก Supabase ครั้งเดียว แล้วส่ง
-   * เข้า BankReconcileResults ผ่าน prop loadedSession โดยตรง ข้ามขั้นตอน upload/mapping ไปเลย (ไม่รันจับคู่
-   * อัตโนมัติซ้ำ ตามสเปกส่วน "8. OPEN EXISTING SESSION") — bankFile/glFile ตั้งเป็น null เสมอในเส้นทางนี้ (ดู
-   * คอมเมนต์ที่ prop เดียวกันใน BankReconcileResults.tsx) */
   async function handleOpenSession(sessionId: string) {
     setOpenSessionError(null);
     setOpeningSessionId(sessionId);
     try {
       const detail = await fetchSessionDetail(sessionId);
       setLoadedSession(detail);
-      setBankFile(null);
-      setGlFile(null);
-      setBankMapping(EMPTY_BANK_MAPPING);
-      setGlMapping(EMPTY_GL_MAPPING);
+      setCameFromPreview(false);
       setStep('done');
     } catch (err) {
       console.error('[BankReconcilePage] เปิดรอบกระทบยอดไม่สำเร็จ', err);
@@ -146,8 +152,6 @@ export default function BankReconcilePage() {
     }
   }
 
-  /** ลิงก์ "← กลับไปหน้ารายการ" จากขั้นตอน upload (ยังไม่มีอะไรให้เสียดาย — ไฟล์ที่เลือกไว้ยังไม่ผ่านการ
-   * ประมวลผลกระทบยอดใดๆ เลย เหมือนปุ่ม "ล้างไฟล์" เดิมที่ไม่มีการยืนยันอยู่แล้วในเฟส 1) */
   function handleBackToListFromUpload() {
     setBankFile(null);
     setGlFile(null);
@@ -156,10 +160,6 @@ export default function BankReconcilePage() {
     setStep('list');
   }
 
-  /** ส่งเป็น prop onBackToList ให้ BankReconcileResults เรียกกลับมา — ตัวคอมโพเนนต์นั้นเป็นผู้ตัดสินใจเองแล้วว่า
-   * ต้องแสดงกล่องยืนยัน "มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก" ก่อนหรือไม่ (ดู attemptLeave() ใน
-   * BankReconcileResults.tsx) — ฟังก์ชันนี้จึงแค่เคลียร์ loadedSession แล้วกลับหน้า list ตรงๆ โดยไม่ต้องยืนยัน
-   * ซ้ำอีกชั้น */
   function handleBackToList() {
     setLoadedSession(null);
     setStep('list');
@@ -169,19 +169,16 @@ export default function BankReconcilePage() {
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-8" data-testid="bank-reconcile-page">
       <p className="mb-6 text-sm font-medium text-text-sub" data-testid="bank-reconcile-step-indicator">
         {step === 'list' && 'ประวัติการกระทบยอดธนาคาร'}
-        {step === 'upload' && 'ขั้นตอนที่ 1 จาก 2: อัปโหลดไฟล์'}
-        {step === 'mapping' && 'ขั้นตอนที่ 2 จาก 2: จับคู่คอลัมน์และตรวจสอบข้อมูล'}
+        {step === 'upload' && 'ขั้นตอนที่ 1 จาก 3: อัปโหลดไฟล์'}
+        {step === 'mapping' && 'ขั้นตอนที่ 2 จาก 3: จับคู่คอลัมน์'}
+        {step === 'preview' && 'ขั้นตอนที่ 3 จาก 3: ตรวจสอบข้อมูลก่อนกระทบยอด'}
         {step === 'done' && 'ผลการกระทบยอดรายการ'}
       </p>
 
       {step === 'list' && (
         <div className="space-y-3">
           {openSessionError && (
-            <p
-              role="alert"
-              className="rounded-[10px] border border-danger/20 bg-danger/10 px-3.5 py-2.5 text-sm text-danger"
-              data-testid="session-list-open-error"
-            >
+            <p role="alert" className="rounded-[10px] border border-danger/20 bg-danger/10 px-3.5 py-2.5 text-sm text-danger" data-testid="session-list-open-error">
               {openSessionError}
             </p>
           )}
@@ -261,18 +258,31 @@ export default function BankReconcilePage() {
             setBankMapping(EMPTY_BANK_MAPPING);
             setGlMapping(EMPTY_GL_MAPPING);
           }}
-          onSave={() => setStep('done')}
+          onSave={handleMappingSave}
         />
       )}
 
-      {step === 'done' && (loadedSession || (bankFile && glFile)) && (
+      {step === 'preview' && (
+        <BankReconcilePreview
+          bankRows={bankRows}
+          glRows={glRows}
+          onBankRowsChange={setBankRows}
+          onGlRowsChange={setGlRows}
+          onBack={() => setStep('mapping')}
+          onStartReconciliation={handleStartReconciliation}
+        />
+      )}
+
+      {step === 'done' && (loadedSession || bankRows.length > 0) && (
         <BankReconcileResults
           key={loadedSession?.session.id ?? 'new'}
-          bankFile={bankFile}
-          glFile={glFile}
-          bankMapping={bankMapping}
-          glMapping={glMapping}
-          onBack={() => setStep('mapping')}
+          bankRows={bankRows}
+          glRows={glRows}
+          bankFileName={loadedSession?.session.bank_file_name ?? bankFile?.fileName ?? ''}
+          glFileName={loadedSession?.session.gl_file_name ?? glFile?.fileName ?? ''}
+          bankSourceFileType={loadedSession?.session.bank_source_file_type ?? bankFile?.sourceFileType ?? 'excel'}
+          glSourceFileType={loadedSession?.session.gl_source_file_type ?? glFile?.sourceFileType ?? 'excel'}
+          onBack={cameFromPreview ? () => setStep('preview') : null}
           onBackToList={handleBackToList}
           loadedSession={loadedSession}
         />

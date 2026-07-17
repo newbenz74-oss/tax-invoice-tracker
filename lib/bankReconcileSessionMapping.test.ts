@@ -1,452 +1,290 @@
 import { describe, expect, it } from 'vitest';
 import {
-  amountToleranceValueToOption,
-  buildSessionSavePayload,
-  daysToDateToleranceOption,
-  dateToleranceOptionToDays,
-  ensureStableId,
-  isUuid,
+  buildBankTransactionPayload,
+  buildGLTransactionPayload,
+  extractBankReviewFlags,
+  extractGLReviewFlags,
   mapDbRowsToSessionCore,
-  regenerateAllIds,
-  remapRecordKeys,
+  mapDbRowToBankRow,
+  mapDbRowToGLRow,
 } from './bankReconcileSessionMapping';
-import type { MatchBankRow, MatchGLRow, MatchGroup, ReconcileRow } from '@/types/bankReconcile';
-import type { BankTransactionDbRow, GLTransactionDbRow, MatchGroupDbRow, MatchGroupItemDbRow } from '@/types/bankReconcileSession';
+import { DEFAULT_BANK_REVIEW_FLAGS, DEFAULT_GL_REVIEW_FLAGS } from '@/types/bankReconcile';
+import type { BankReviewFlags, BankRow, GLReviewFlags, GLRow } from '@/types/bankReconcile';
+import type { BankTransactionDbRow, GLTransactionDbRow } from '@/types/bankReconcileSession';
 
-const SAMPLE_UUID = '11111111-2222-4333-8444-555555555555';
-const SAMPLE_UUID_2 = '66666666-7777-4888-8999-aaaaaaaaaaaa';
-
-function makeBankRow(overrides: Partial<MatchBankRow> = {}): MatchBankRow {
+function buildBankRow(overrides: Partial<BankRow> = {}): BankRow {
   return {
-    bank_row_id: 'bank-1',
-    bank_date: '2026-07-15',
-    bank_description: 'รับโอนจากลูกค้า A',
-    bank_money_in: 1000,
-    bank_money_out: 0,
-    bank_amount: 1000,
-    bank_balance: 5000,
-    raw_bank_row: ['15/07/2026', 'รับโอนจากลูกค้า A', '1000', '', '5000'],
+    id: 'bank-1',
+    rowNumber: 2,
+    date: '2026-07-15',
+    description: 'รับโอนจากลูกค้า A',
+    moneyInRaw: 1000,
+    moneyOutRaw: 0,
+    direction: 'income',
+    amount: 1000,
+    balance: 5000,
+    accountNo: '123-4-56789-0',
+    rawRow: ['15/07/2026', 'รับโอนจากลูกค้า A', '1000', '', '5000'],
+    excluded: false,
+    errors: [],
     ...overrides,
   };
 }
 
-function makeGLRow(overrides: Partial<MatchGLRow> = {}): MatchGLRow {
+function buildGLRow(overrides: Partial<GLRow> = {}): GLRow {
   return {
-    gl_row_id: 'gl-1',
-    gl_date: '2026-07-15',
-    gl_document_no: 'JV-001',
-    gl_description: 'รับชำระจากลูกค้า A',
-    gl_debit: 1000,
-    gl_credit: 0,
-    gl_amount: 1000,
-    raw_gl_row: ['15/07/2026', 'JV-001', 'รับชำระจากลูกค้า A', '1000', ''],
+    id: 'gl-1',
+    rowNumber: 2,
+    date: '2026-07-15',
+    description: 'รับชำระจากลูกค้า A',
+    moneyInRaw: 1000,
+    moneyOutRaw: 0,
+    direction: 'income',
+    amount: 1000,
+    docNo: 'JV-001',
+    accountCode: '1100',
+    rawRow: ['15/07/2026', 'JV-001', 'รับชำระจากลูกค้า A', '1000', ''],
+    excluded: false,
+    errors: [],
     ...overrides,
   };
 }
 
-function makeGroup(overrides: Partial<MatchGroup> = {}): MatchGroup {
+function buildBankDbRow(overrides: Partial<BankTransactionDbRow> = {}): BankTransactionDbRow {
   return {
-    match_group_id: 'mg-1',
-    match_type: 'one_to_one',
-    status: 'confirmed_manual',
-    bank_transaction_ids: ['bank-1'],
-    gl_transaction_ids: ['gl-1'],
-    bank_total: 1000,
-    gl_total: 1000,
-    amount_difference: 0,
-    date_difference_days: 0,
-    manual_match: true,
-    matched_by: 'user@example.com',
-    matched_at: '2026-07-16T10:00:00.000Z',
-    note: '',
-    auto_match_score: 100,
-    auto_match_reason: 'ยอดเงินตรงกัน และวันที่ตรงกัน',
+    id: 'uuid-bank-1',
+    session_id: 'session-1',
+    row_number: 2,
+    transaction_date: '2026-07-15',
+    description: 'รับโอนจากลูกค้า A',
+    money_in: 1000,
+    money_out: 0,
+    direction: 'income',
+    amount: 1000,
+    balance: 5000,
+    account_no: '123-4-56789-0',
+    raw_row: ['15/07/2026', 'รับโอนจากลูกค้า A', '1000', '', '5000'],
+    excluded: false,
+    row_errors: [],
+    needs_gl_entry: false,
+    reviewed: false,
+    review_note: '',
+    created_at: '2026-07-16T00:00:00.000Z',
     ...overrides,
   };
 }
 
-function makeRow(overrides: Partial<ReconcileRow> = {}): ReconcileRow {
+function buildGLDbRow(overrides: Partial<GLTransactionDbRow> = {}): GLTransactionDbRow {
   return {
-    bank: makeBankRow(),
-    status: 'matched_exact',
-    matchedGL: makeGLRow(),
-    matchedGLRows: [makeGLRow()],
-    candidates: [],
-    matchScore: 100,
-    amountDifference: 0,
-    dateDifferenceDays: 0,
-    matchReason: 'ยอดเงินตรงกัน และวันที่ตรงกัน',
-    matchGroup: null,
-    reviewFlag: null,
-    note: null,
+    id: 'uuid-gl-1',
+    session_id: 'session-1',
+    row_number: 2,
+    transaction_date: '2026-07-15',
+    description: 'รับชำระจากลูกค้า A',
+    money_in: 1000,
+    money_out: 0,
+    direction: 'income',
+    amount: 1000,
+    doc_no: 'JV-001',
+    account_code: '1100',
+    raw_row: ['15/07/2026', 'JV-001', 'รับชำระจากลูกค้า A', '1000', ''],
+    excluded: false,
+    row_errors: [],
+    needs_gl_review: false,
+    reviewed: false,
+    review_note: '',
+    created_at: '2026-07-16T00:00:00.000Z',
     ...overrides,
   };
 }
 
-describe('isUuid', () => {
-  it('ยอมรับ uuid มาตรฐานทุกรูปแบบตัวพิมพ์', () => {
-    expect(isUuid(SAMPLE_UUID)).toBe(true);
-    expect(isUuid(SAMPLE_UUID.toUpperCase())).toBe(true);
-  });
-
-  it('ปฏิเสธรูปแบบ id ของเฟส 2 เดิม ("bank-N"/"gl-N")', () => {
-    expect(isUuid('bank-1')).toBe(false);
-    expect(isUuid('gl-42')).toBe(false);
-  });
-
-  it('ปฏิเสธ match_group_id ที่มี prefix "mg-" นำหน้า uuid (ไม่ใช่ uuid ล้วนๆ)', () => {
-    expect(isUuid(`mg-${SAMPLE_UUID}`)).toBe(false);
-  });
-});
-
-describe('ensureStableId', () => {
-  it('คืนค่าเดิมเป๊ะเมื่อเป็น uuid อยู่แล้ว (changed: false)', () => {
-    const result = ensureStableId(SAMPLE_UUID);
-    expect(result).toEqual({ id: SAMPLE_UUID, changed: false });
-  });
-
-  it('สร้าง uuid ใหม่ให้เมื่อยังเป็นรูปแบบ "bank-N" เดิม (changed: true)', () => {
-    const result = ensureStableId('bank-7');
-    expect(result.changed).toBe(true);
-    expect(isUuid(result.id)).toBe(true);
-    expect(result.id).not.toBe('bank-7');
-  });
-});
-
-describe('dateToleranceOptionToDays / daysToDateToleranceOption', () => {
-  it('แปลงไป-กลับได้ครบทุกตัวเลือกเป๊ะ', () => {
-    expect(dateToleranceOptionToDays('same_day')).toBe(0);
-    expect(dateToleranceOptionToDays('1_day')).toBe(1);
-    expect(dateToleranceOptionToDays('3_days')).toBe(3);
-    expect(dateToleranceOptionToDays('7_days')).toBe(7);
-    expect(daysToDateToleranceOption(0)).toBe('same_day');
-    expect(daysToDateToleranceOption(1)).toBe('1_day');
-    expect(daysToDateToleranceOption(3)).toBe('3_days');
-    expect(daysToDateToleranceOption(7)).toBe('7_days');
-  });
-
-  it('fallback เป็นค่าเริ่มต้นของระบบ (3_days) เมื่อจำนวนวันไม่ตรงกับตัวเลือกใดเลย', () => {
-    expect(daysToDateToleranceOption(99)).toBe('3_days');
-  });
-});
-
-describe('amountToleranceValueToOption', () => {
-  it('จับคู่ค่าตัวเลขกับตัวเลือกสำเร็จรูปได้ถูกต้อง', () => {
-    expect(amountToleranceValueToOption(0)).toEqual({ option: 'zero', custom: 0 });
-    expect(amountToleranceValueToOption(0.01)).toEqual({ option: 'small', custom: 0 });
-    expect(amountToleranceValueToOption(1)).toEqual({ option: 'one', custom: 0 });
-  });
-
-  it('ค่าที่ไม่ตรงกับตัวเลือกสำเร็จรูปใดเลยถือเป็น custom พร้อมเก็บค่าเดิมไว้', () => {
-    expect(amountToleranceValueToOption(25.5)).toEqual({ option: 'custom', custom: 25.5 });
-  });
-
-  it('ค่าที่ไม่ใช่ตัวเลขจริง (NaN) fallback เป็นค่าเริ่มต้นของระบบ (zero) แทนที่จะเป็น custom', () => {
-    expect(amountToleranceValueToOption(NaN)).toEqual({ option: 'zero', custom: 0 });
-  });
-});
-
-describe('buildSessionSavePayload', () => {
-  it('แถวที่มี uuid ถาวรอยู่แล้วใช้ id เดิมต่อไป (idsChanged: false)', () => {
-    const rows: ReconcileRow[] = [makeRow({ bank: makeBankRow({ bank_row_id: SAMPLE_UUID }) })];
-    const glRows: MatchGLRow[] = [makeGLRow({ gl_row_id: SAMPLE_UUID_2 })];
-    const result = buildSessionSavePayload({ reconcileRows: rows, matchGLRows: glRows, matchGroups: [] });
-    expect(result.idsChanged).toBe(false);
-    expect(result.remappedMatchBankRows[0].bank_row_id).toBe(SAMPLE_UUID);
-    expect(result.remappedMatchGLRows[0].gl_row_id).toBe(SAMPLE_UUID_2);
-    expect(result.bankTransactionsPayload[0].id).toBe(SAMPLE_UUID);
-  });
-
-  it('แถวที่เพิ่งอัปโหลดสดๆ ("bank-N"/"gl-N") ได้ uuid ถาวรใหม่ (idsChanged: true) และกลุ่มจับคู่ถูกรีแมปตาม', () => {
-    const rows: ReconcileRow[] = [makeRow({ bank: makeBankRow({ bank_row_id: 'bank-1' }) })];
-    const glRows: MatchGLRow[] = [makeGLRow({ gl_row_id: 'gl-1' })];
-    const groups: MatchGroup[] = [makeGroup({ bank_transaction_ids: ['bank-1'], gl_transaction_ids: ['gl-1'] })];
-    const result = buildSessionSavePayload({ reconcileRows: rows, matchGLRows: glRows, matchGroups: groups });
-
-    expect(result.idsChanged).toBe(true);
-    const newBankId = result.remappedMatchBankRows[0].bank_row_id;
-    const newGlId = result.remappedMatchGLRows[0].gl_row_id;
-    expect(isUuid(newBankId)).toBe(true);
-    expect(isUuid(newGlId)).toBe(true);
-    // กลุ่มจับคู่ต้องอ้างอิง id ใหม่ที่ถูกรีแมปแล้ว ไม่ใช่ "bank-1"/"gl-1" เดิม
-    expect(result.remappedMatchGroups[0].bank_transaction_ids).toEqual([newBankId]);
-    expect(result.remappedMatchGroups[0].gl_transaction_ids).toEqual([newGlId]);
-  });
-
-  it('กำหนด source_row_number ตามตำแหน่งใน array (1-based) เสมอ', () => {
-    const rows: ReconcileRow[] = [
-      makeRow({ bank: makeBankRow({ bank_row_id: SAMPLE_UUID }) }),
-      makeRow({ bank: makeBankRow({ bank_row_id: SAMPLE_UUID_2, bank_description: 'แถวที่สอง' }) }),
-    ];
-    const result = buildSessionSavePayload({ reconcileRows: rows, matchGLRows: [], matchGroups: [] });
-    expect(result.bankTransactionsPayload.map((p) => p.source_row_number)).toEqual([1, 2]);
-  });
-
-  it('is_used ของ GL คำนวณจาก gl_transaction_ids ที่ถูกใช้ในกลุ่มจับคู่ใดๆ ก็ตาม', () => {
-    const glRows: MatchGLRow[] = [makeGLRow({ gl_row_id: SAMPLE_UUID, gl_document_no: 'JV-USED' }), makeGLRow({ gl_row_id: SAMPLE_UUID_2, gl_document_no: 'JV-UNUSED' })];
-    const groups: MatchGroup[] = [makeGroup({ bank_transaction_ids: [SAMPLE_UUID], gl_transaction_ids: [SAMPLE_UUID] })];
-    const result = buildSessionSavePayload({
-      reconcileRows: [makeRow({ bank: makeBankRow({ bank_row_id: SAMPLE_UUID }) })],
-      matchGLRows: glRows,
-      matchGroups: groups,
+describe('buildBankTransactionPayload', () => {
+  it('แปลง BankRow + ธงตรวจสอบ เป็น payload ครบทุกฟิลด์ตรงชื่อคอลัมน์ฐานข้อมูล', () => {
+    const row = buildBankRow();
+    const flags: BankReviewFlags = { needsGlEntry: true, reviewed: true, reviewNote: 'ตรวจสอบแล้ว' };
+    const payload = buildBankTransactionPayload(row, flags);
+    expect(payload).toEqual({
+      row_number: 2,
+      transaction_date: '2026-07-15',
+      description: 'รับโอนจากลูกค้า A',
+      money_in: 1000,
+      money_out: 0,
+      direction: 'income',
+      amount: 1000,
+      balance: 5000,
+      account_no: '123-4-56789-0',
+      raw_row: row.rawRow,
+      excluded: false,
+      row_errors: [],
+      needs_gl_entry: true,
+      reviewed: true,
+      review_note: 'ตรวจสอบแล้ว',
     });
-    const usedRow = result.glTransactionsPayload.find((p) => p.id === SAMPLE_UUID);
-    const unusedRow = result.glTransactionsPayload.find((p) => p.id === SAMPLE_UUID_2);
-    expect(usedRow?.is_used).toBe(true);
-    expect(unusedRow?.is_used).toBe(false);
   });
 
-  it('แยก raw_data/normalized_data ออกจากกันเสมอ และไม่รวม bank_row_id/gl_row_id ปนใน normalized_data', () => {
-    const bank = makeBankRow({ bank_row_id: SAMPLE_UUID });
-    const result = buildSessionSavePayload({ reconcileRows: [makeRow({ bank })], matchGLRows: [], matchGroups: [] });
-    const payload = result.bankTransactionsPayload[0];
-    expect(payload.raw_data).toEqual(bank.raw_bank_row);
-    const normalized = payload.normalized_data as Record<string, unknown>;
-    expect(normalized.bank_row_id).toBeUndefined();
-    expect(normalized.raw_bank_row).toBeUndefined();
-    expect(normalized.bank_description).toBe(bank.bank_description);
+  it('ไม่มีธงตรวจสอบส่งมา (undefined) — ใช้ค่าเริ่มต้น DEFAULT_BANK_REVIEW_FLAGS แทน ไม่ throw', () => {
+    const payload = buildBankTransactionPayload(buildBankRow(), undefined);
+    expect(payload.needs_gl_entry).toBe(DEFAULT_BANK_REVIEW_FLAGS.needsGlEntry);
+    expect(payload.reviewed).toBe(DEFAULT_BANK_REVIEW_FLAGS.reviewed);
+    expect(payload.review_note).toBe(DEFAULT_BANK_REVIEW_FLAGS.reviewNote);
   });
 
-  it('คืน bankIdMap ที่ใช้รีแมป reviewFlags/notes ต่อได้ทันทีหลังบันทึกครั้งแรก (กันบั๊ก "หมายเหตุหายเงียบๆ")', () => {
-    const rows: ReconcileRow[] = [makeRow({ bank: makeBankRow({ bank_row_id: 'bank-1' }) })];
-    const result = buildSessionSavePayload({ reconcileRows: rows, matchGLRows: [], matchGroups: [] });
-    const newBankId = result.remappedMatchBankRows[0].bank_row_id;
-    expect(result.bankIdMap.get('bank-1')).toBe(newBankId);
-
-    const reviewFlags = { 'bank-1': { review_required: true as const, reviewed_by: 'x', reviewed_at: '' } };
-    const remapped = remapRecordKeys(reviewFlags, result.bankIdMap);
-    expect(remapped[newBankId]).toEqual(reviewFlags['bank-1']);
+  it('ไม่มี "id" ปนอยู่ใน payload เลย — ฐานข้อมูลสร้าง uuid ใหม่ให้ทุกแถวเสมอผ่าน full-snapshot replace', () => {
+    const payload = buildBankTransactionPayload(buildBankRow(), undefined);
+    expect(payload).not.toHaveProperty('id');
   });
 
-  it('bankIdMap ว่างเปล่าเมื่อทุกแถวมี uuid ถาวรอยู่แล้ว (idsChanged: false)', () => {
-    const rows: ReconcileRow[] = [makeRow({ bank: makeBankRow({ bank_row_id: SAMPLE_UUID }) })];
-    const result = buildSessionSavePayload({ reconcileRows: rows, matchGLRows: [], matchGroups: [] });
-    expect(result.bankIdMap.size).toBe(0);
+  it('ยอดคงเหลือเป็น null เมื่อไม่ได้จับคู่คอลัมน์ไว้ — ส่งผ่านตรงๆ ไม่แปลงเป็น 0', () => {
+    const payload = buildBankTransactionPayload(buildBankRow({ balance: null }), undefined);
+    expect(payload.balance).toBeNull();
   });
+});
 
-  it('สร้าง matchGroupItemsPayload ครบทั้งฝั่ง bank และ gl ของทุกกลุ่ม', () => {
-    const groups: MatchGroup[] = [
-      makeGroup({ match_group_id: 'mg-a', bank_transaction_ids: [SAMPLE_UUID], gl_transaction_ids: [SAMPLE_UUID_2] }),
-    ];
-    const result = buildSessionSavePayload({
-      reconcileRows: [makeRow({ bank: makeBankRow({ bank_row_id: SAMPLE_UUID }) })],
-      matchGLRows: [makeGLRow({ gl_row_id: SAMPLE_UUID_2 })],
-      matchGroups: groups,
+describe('buildGLTransactionPayload', () => {
+  it('แปลง GLRow + ธงตรวจสอบ เป็น payload ครบทุกฟิลด์ตรงชื่อคอลัมน์ฐานข้อมูล', () => {
+    const row = buildGLRow();
+    const flags: GLReviewFlags = { needsGlReview: true, reviewed: false, reviewNote: 'รอเอกสาร' };
+    const payload = buildGLTransactionPayload(row, flags);
+    expect(payload).toEqual({
+      row_number: 2,
+      transaction_date: '2026-07-15',
+      description: 'รับชำระจากลูกค้า A',
+      money_in: 1000,
+      money_out: 0,
+      direction: 'income',
+      amount: 1000,
+      doc_no: 'JV-001',
+      account_code: '1100',
+      raw_row: row.rawRow,
+      excluded: false,
+      row_errors: [],
+      needs_gl_review: true,
+      reviewed: false,
+      review_note: 'รอเอกสาร',
     });
-    expect(result.matchGroupItemsPayload).toEqual([
-      { match_group_id: 'mg-a', transaction_type: 'bank', bank_transaction_id: SAMPLE_UUID, gl_transaction_id: null },
-      { match_group_id: 'mg-a', transaction_type: 'gl', bank_transaction_id: null, gl_transaction_id: SAMPLE_UUID_2 },
-    ]);
+  });
+
+  it('ไม่มีธงตรวจสอบส่งมา (undefined) — ใช้ค่าเริ่มต้น DEFAULT_GL_REVIEW_FLAGS แทน', () => {
+    const payload = buildGLTransactionPayload(buildGLRow(), undefined);
+    expect(payload.needs_gl_review).toBe(DEFAULT_GL_REVIEW_FLAGS.needsGlReview);
+    expect(payload.reviewed).toBe(DEFAULT_GL_REVIEW_FLAGS.reviewed);
+    expect(payload.review_note).toBe(DEFAULT_GL_REVIEW_FLAGS.reviewNote);
+  });
+});
+
+describe('mapDbRowToBankRow / mapDbRowToGLRow', () => {
+  it('แปลงแถวฐานข้อมูล Bank กลับเป็น BankRow ครบทุกฟิลด์ — id ใช้ uuid ถาวรจากฐานข้อมูลตรงๆ (ไม่ใช่ "bank-N" อีกต่อไป)', () => {
+    const dbRow = buildBankDbRow({ id: 'uuid-real-1' });
+    const row = mapDbRowToBankRow(dbRow);
+    expect(row).toEqual({
+      id: 'uuid-real-1',
+      rowNumber: 2,
+      date: '2026-07-15',
+      description: 'รับโอนจากลูกค้า A',
+      moneyInRaw: 1000,
+      moneyOutRaw: 0,
+      direction: 'income',
+      amount: 1000,
+      balance: 5000,
+      accountNo: '123-4-56789-0',
+      rawRow: dbRow.raw_row,
+      excluded: false,
+      errors: [],
+    });
+  });
+
+  it('แปลงแถวฐานข้อมูล GL กลับเป็น GLRow ครบทุกฟิลด์', () => {
+    const dbRow = buildGLDbRow({ id: 'uuid-real-2' });
+    const row = mapDbRowToGLRow(dbRow);
+    expect(row).toEqual({
+      id: 'uuid-real-2',
+      rowNumber: 2,
+      date: '2026-07-15',
+      description: 'รับชำระจากลูกค้า A',
+      moneyInRaw: 1000,
+      moneyOutRaw: 0,
+      direction: 'income',
+      amount: 1000,
+      docNo: 'JV-001',
+      accountCode: '1100',
+      rawRow: dbRow.raw_row,
+      excluded: false,
+      errors: [],
+    });
+  });
+
+  it('excluded=true และ row_errors ไม่ว่างเปล่า ก็แปลงกลับมาถูกต้องครบ (แถวที่เคยมีปัญหา/ถูกยกเว้นตอนบันทึกไว้)', () => {
+    const dbRow = buildBankDbRow({ excluded: true, row_errors: ['พบทั้งเงินเข้าและเงินออกในแถวเดียวกัน กรุณาตรวจสอบ'], direction: null });
+    const row = mapDbRowToBankRow(dbRow);
+    expect(row.excluded).toBe(true);
+    expect(row.errors).toEqual(['พบทั้งเงินเข้าและเงินออกในแถวเดียวกัน กรุณาตรวจสอบ']);
+    expect(row.direction).toBeNull();
+  });
+});
+
+describe('extractBankReviewFlags / extractGLReviewFlags', () => {
+  it('ดึงธงตรวจสอบ Bank จากคอลัมน์ตรงบนแถวเดียวกันเลย (ไม่ใช่ join จากตารางแยก)', () => {
+    const dbRow = buildBankDbRow({ needs_gl_entry: true, reviewed: true, review_note: 'บันทึกเพิ่มแล้ว' });
+    expect(extractBankReviewFlags(dbRow)).toEqual({ needsGlEntry: true, reviewed: true, reviewNote: 'บันทึกเพิ่มแล้ว' });
+  });
+
+  it('ดึงธงตรวจสอบ GL จากคอลัมน์ตรงบนแถวเดียวกัน', () => {
+    const dbRow = buildGLDbRow({ needs_gl_review: true, reviewed: false, review_note: 'รอตรวจสอบ' });
+    expect(extractGLReviewFlags(dbRow)).toEqual({ needsGlReview: true, reviewed: false, reviewNote: 'รอตรวจสอบ' });
+  });
+
+  it('ค่าเริ่มต้น (ไม่เคยตั้งธงเลย) คืนค่า false/ว่างเปล่าตรงไปตรงมา', () => {
+    expect(extractBankReviewFlags(buildBankDbRow())).toEqual({ needsGlEntry: false, reviewed: false, reviewNote: '' });
+    expect(extractGLReviewFlags(buildGLDbRow())).toEqual({ needsGlReview: false, reviewed: false, reviewNote: '' });
   });
 });
 
 describe('mapDbRowsToSessionCore', () => {
-  function makeBankDbRow(overrides: Partial<BankTransactionDbRow> = {}): BankTransactionDbRow {
-    return {
-      id: SAMPLE_UUID,
-      session_id: 'session-1',
-      source_row_number: 1,
-      bank_transaction_date: '2026-07-15',
-      bank_description: 'รับโอนจากลูกค้า A',
-      bank_money_in: 1000,
-      bank_money_out: 0,
-      bank_amount: 1000,
-      bank_balance: 5000,
-      raw_data: ['15/07/2026', 'รับโอนจากลูกค้า A', '1000', '', '5000'],
-      normalized_data: {
-        bank_date: '2026-07-15',
-        bank_description: 'รับโอนจากลูกค้า A',
-        bank_money_in: 1000,
-        bank_money_out: 0,
-        bank_amount: 1000,
-        bank_balance: 5000,
-      },
-      reconcile_status: 'confirmed_manual',
-      review_required: false,
-      review_note: null,
-      note_updated_by: null,
-      note_updated_at: null,
-      reviewed_by: null,
-      reviewed_at: null,
-      created_at: '2026-07-16T00:00:00.000Z',
-      ...overrides,
-    };
-  }
+  it('สร้าง bankRows/glRows/bankReviewFlags/glReviewFlags ครบทั้งสี่ค่าจากแถวฐานข้อมูลชุดเดียวกันในรอบเดียว', () => {
+    const bankDbRows = [buildBankDbRow({ id: 'b-1' })];
+    const glDbRows = [buildGLDbRow({ id: 'g-1' })];
 
-  function makeGLDbRow(overrides: Partial<GLTransactionDbRow> = {}): GLTransactionDbRow {
-    return {
-      id: SAMPLE_UUID_2,
-      session_id: 'session-1',
-      source_row_number: 1,
-      gl_date: '2026-07-15',
-      gl_document_no: 'JV-001',
-      gl_description: 'รับชำระจากลูกค้า A',
-      gl_debit: 1000,
-      gl_credit: 0,
-      gl_amount: 1000,
-      raw_data: ['15/07/2026', 'JV-001', 'รับชำระจากลูกค้า A', '1000', ''],
-      normalized_data: {
-        gl_date: '2026-07-15',
-        gl_document_no: 'JV-001',
-        gl_description: 'รับชำระจากลูกค้า A',
-        gl_debit: 1000,
-        gl_credit: 0,
-        gl_amount: 1000,
-      },
-      is_used: true,
-      created_at: '2026-07-16T00:00:00.000Z',
-      ...overrides,
-    };
-  }
+    const result = mapDbRowsToSessionCore(bankDbRows, glDbRows);
 
-  it('เรียงลำดับแถว Bank/GL ตาม source_row_number เสมอ (ไม่พึ่งลำดับ SELECT จากฐานข้อมูล)', () => {
-    const bankRows = [makeBankDbRow({ id: 'b-2', source_row_number: 2 }), makeBankDbRow({ id: 'b-1', source_row_number: 1 })];
-    const result = mapDbRowsToSessionCore(bankRows, [], [], []);
-    expect(result.matchBankRows.map((r) => r.bank_row_id)).toEqual(['b-1', 'b-2']);
+    expect(result.bankRows).toHaveLength(1);
+    expect(result.bankRows[0].id).toBe('b-1');
+    expect(result.glRows).toHaveLength(1);
+    expect(result.glRows[0].id).toBe('g-1');
+    expect(result.bankReviewFlags['b-1']).toBeDefined();
+    expect(result.glReviewFlags['g-1']).toBeDefined();
   });
 
-  it('ประกอบ MatchBankRow กลับจาก raw_data + normalized_data + id ได้ครบทุกฟิลด์', () => {
-    const result = mapDbRowsToSessionCore([makeBankDbRow()], [], [], []);
-    expect(result.matchBankRows[0]).toEqual({
-      bank_row_id: SAMPLE_UUID,
-      raw_bank_row: makeBankDbRow().raw_data,
-      bank_date: '2026-07-15',
-      bank_description: 'รับโอนจากลูกค้า A',
-      bank_money_in: 1000,
-      bank_money_out: 0,
-      bank_amount: 1000,
-      bank_balance: 5000,
-    });
+  it('BankRow.id ที่ได้ตรงกับ key ของ bankReviewFlags เสมอโดยธรรมชาติ — ไม่มีขั้นตอน remap แยกต่างหากเหมือนโมเดลเดิม', () => {
+    const bankDbRows = [buildBankDbRow({ id: 'uuid-A', needs_gl_entry: true, review_note: 'note-A' })];
+    const result = mapDbRowsToSessionCore(bankDbRows, []);
+    const rowId = result.bankRows[0].id;
+    expect(result.bankReviewFlags[rowId]).toEqual({ needsGlEntry: true, reviewed: false, reviewNote: 'note-A' });
   });
 
-  it('ประกอบ MatchGroup กลับพร้อม bank_transaction_ids/gl_transaction_ids จากแถว match_group_items', () => {
-    const groupRow: MatchGroupDbRow = {
-      id: 'mg-1',
-      session_id: 'session-1',
-      match_type: 'one_to_one',
-      bank_total: 1000,
-      gl_total: 1000,
-      amount_difference: 0,
-      match_score: 100,
-      match_reason: 'ยอดตรงกัน',
-      manual_match: true,
-      status: 'confirmed_manual',
-      note: 'ตรวจสอบแล้ว',
-      matched_by: 'user@example.com',
-      matched_at: '2026-07-16T10:00:00.000Z',
-      created_at: '2026-07-16T10:00:00.000Z',
-      updated_at: '2026-07-16T10:00:00.000Z',
-    };
-    const itemRows: MatchGroupItemDbRow[] = [
-      { id: 'item-1', session_id: 'session-1', match_group_id: 'mg-1', transaction_type: 'bank', bank_transaction_id: SAMPLE_UUID, gl_transaction_id: null, created_at: '' },
-      { id: 'item-2', session_id: 'session-1', match_group_id: 'mg-1', transaction_type: 'gl', bank_transaction_id: null, gl_transaction_id: SAMPLE_UUID_2, created_at: '' },
-    ];
-    const result = mapDbRowsToSessionCore([makeBankDbRow()], [makeGLDbRow()], [groupRow], itemRows);
-    expect(result.matchGroups).toHaveLength(1);
-    expect(result.matchGroups[0].bank_transaction_ids).toEqual([SAMPLE_UUID]);
-    expect(result.matchGroups[0].gl_transaction_ids).toEqual([SAMPLE_UUID_2]);
-    // date_difference_days คำนวณใหม่จากวันที่ของแถว Bank/GL จริง (ไม่ได้ persist ไว้ในฐานข้อมูล) — ทั้งสองแถว
-    // วันที่เดียวกัน (2026-07-15) จึงต้องได้ 0
-    expect(result.matchGroups[0].date_difference_days).toBe(0);
+  it('GLRow.id ตรงกับ key ของ glReviewFlags เช่นเดียวกัน', () => {
+    const glDbRows = [buildGLDbRow({ id: 'uuid-B', needs_gl_review: true, review_note: 'note-B' })];
+    const result = mapDbRowsToSessionCore([], glDbRows);
+    const rowId = result.glRows[0].id;
+    expect(result.glReviewFlags[rowId]).toEqual({ needsGlReview: true, reviewed: false, reviewNote: 'note-B' });
   });
 
-  it('date_difference_days เป็น null เสมอเมื่อกลุ่มไม่ใช่ 1:1 (มากกว่า 1 แถวฝั่งใดฝั่งหนึ่ง)', () => {
-    const groupRow: MatchGroupDbRow = {
-      id: 'mg-1',
-      session_id: 'session-1',
-      match_type: 'one_to_many',
-      bank_total: 1000,
-      gl_total: 1000,
-      amount_difference: 0,
-      match_score: null,
-      match_reason: null,
-      manual_match: true,
-      status: 'confirmed_manual',
-      note: '',
-      matched_by: 'user@example.com',
-      matched_at: '2026-07-16T10:00:00.000Z',
-      created_at: '2026-07-16T10:00:00.000Z',
-      updated_at: '2026-07-16T10:00:00.000Z',
-    };
-    const itemRows: MatchGroupItemDbRow[] = [
-      { id: 'item-1', session_id: 'session-1', match_group_id: 'mg-1', transaction_type: 'bank', bank_transaction_id: SAMPLE_UUID, gl_transaction_id: null, created_at: '' },
-      { id: 'item-2', session_id: 'session-1', match_group_id: 'mg-1', transaction_type: 'gl', bank_transaction_id: null, gl_transaction_id: SAMPLE_UUID_2, created_at: '' },
-      { id: 'item-3', session_id: 'session-1', match_group_id: 'mg-1', transaction_type: 'gl', bank_transaction_id: null, gl_transaction_id: 'gl-extra', created_at: '' },
-    ];
-    const result = mapDbRowsToSessionCore(
-      [makeBankDbRow()],
-      [makeGLDbRow(), makeGLDbRow({ id: 'gl-extra', gl_document_no: 'JV-002' })],
-      [groupRow],
-      itemRows
-    );
-    expect(result.matchGroups[0].date_difference_days).toBeNull();
+  it('เรียงลำดับแถว Bank ตาม rowNumber เสมอ (ไม่พึ่งลำดับ SELECT จากฐานข้อมูล)', () => {
+    const bankDbRows = [buildBankDbRow({ id: 'b-2', row_number: 4 }), buildBankDbRow({ id: 'b-1', row_number: 2 })];
+    const result = mapDbRowsToSessionCore(bankDbRows, []);
+    expect(result.bankRows.map((r) => r.id)).toEqual(['b-1', 'b-2']);
   });
 
-  it('ประกอบ reviewFlags/notes กลับจากฟิลด์ review_required/review_note ของแถว Bank', () => {
-    const bankRow = makeBankDbRow({
-      review_required: true,
-      reviewed_by: 'reviewer@example.com',
-      reviewed_at: '2026-07-16T09:00:00.000Z',
-      review_note: 'ต้องตรวจสอบยอดซ้ำ',
-      note_updated_by: 'reviewer@example.com',
-      note_updated_at: '2026-07-16T09:00:00.000Z',
-    });
-    const result = mapDbRowsToSessionCore([bankRow], [], [], []);
-    expect(result.reviewFlags[SAMPLE_UUID]).toEqual({
-      review_required: true,
-      reviewed_by: 'reviewer@example.com',
-      reviewed_at: '2026-07-16T09:00:00.000Z',
-    });
-    expect(result.notes[SAMPLE_UUID]).toEqual({
-      note: 'ต้องตรวจสอบยอดซ้ำ',
-      updated_by: 'reviewer@example.com',
-      updated_at: '2026-07-16T09:00:00.000Z',
-    });
+  it('เรียงลำดับแถว GL ตาม rowNumber เช่นเดียวกัน', () => {
+    const glDbRows = [buildGLDbRow({ id: 'g-2', row_number: 5 }), buildGLDbRow({ id: 'g-1', row_number: 3 })];
+    const result = mapDbRowsToSessionCore([], glDbRows);
+    expect(result.glRows.map((r) => r.id)).toEqual(['g-1', 'g-2']);
   });
 
-  it('ไม่สร้าง reviewFlags/notes ให้แถวที่ไม่มีการตรวจสอบ/หมายเหตุ', () => {
-    const result = mapDbRowsToSessionCore([makeBankDbRow()], [], [], []);
-    expect(result.reviewFlags[SAMPLE_UUID]).toBeUndefined();
-    expect(result.notes[SAMPLE_UUID]).toBeUndefined();
-  });
-});
-
-describe('regenerateAllIds', () => {
-  it('สร้าง id ใหม่ทั้งหมดแบบไม่มีเงื่อนไข (ต่างจาก ensureStableId) แม้ id เดิมจะเป็น uuid ที่ถูกต้องอยู่แล้ว', () => {
-    const matchBankRows = [makeBankRow({ bank_row_id: SAMPLE_UUID })];
-    const matchGLRows = [makeGLRow({ gl_row_id: SAMPLE_UUID_2 })];
-    const matchGroups = [makeGroup({ match_group_id: 'mg-old', bank_transaction_ids: [SAMPLE_UUID], gl_transaction_ids: [SAMPLE_UUID_2] })];
-
-    const result = regenerateAllIds(matchBankRows, matchGLRows, matchGroups);
-
-    expect(result.matchBankRows[0].bank_row_id).not.toBe(SAMPLE_UUID);
-    expect(isUuid(result.matchBankRows[0].bank_row_id)).toBe(true);
-    expect(result.matchGLRows[0].gl_row_id).not.toBe(SAMPLE_UUID_2);
-    expect(result.matchGroups[0].match_group_id).not.toBe('mg-old');
-    expect(result.matchGroups[0].match_group_id.startsWith('mg-')).toBe(true);
-    // กลุ่มจับคู่ต้องอ้างอิง id ใหม่ที่รีแมปแล้ว ไม่ใช่ id เดิม
-    expect(result.matchGroups[0].bank_transaction_ids).toEqual([result.matchBankRows[0].bank_row_id]);
-    expect(result.matchGroups[0].gl_transaction_ids).toEqual([result.matchGLRows[0].gl_row_id]);
-  });
-
-  it('คืน bankIdMap/glIdMap ที่ใช้รีแมป key อื่น (เช่น reviewFlags/notes) ต่อได้', () => {
-    const matchBankRows = [makeBankRow({ bank_row_id: 'bank-1' })];
-    const result = regenerateAllIds(matchBankRows, [], []);
-    expect(result.bankIdMap.get('bank-1')).toBe(result.matchBankRows[0].bank_row_id);
-  });
-});
-
-describe('remapRecordKeys', () => {
-  it('รีแมป key ตาม idMap ที่ให้มา', () => {
-    const idMap = new Map([['old-1', 'new-1']]);
-    const record = { 'old-1': { note: 'หมายเหตุ', updated_by: 'x', updated_at: '2026-07-16T00:00:00.000Z' } };
-    const result = remapRecordKeys(record, idMap);
-    expect(result).toEqual({ 'new-1': record['old-1'] });
-  });
-
-  it('คง key เดิมไว้เมื่อไม่มีใน idMap (กันไว้เพื่อความปลอดภัย)', () => {
-    const record = { 'unmapped-1': { note: 'x', updated_by: 'x', updated_at: '' } };
-    const result = remapRecordKeys(record, new Map());
-    expect(result).toEqual(record);
+  it('ไม่มีแถวเลยทั้งสองฝั่ง — คืนค่าว่างเปล่าทั้งสี่ค่าโดยไม่ error', () => {
+    const result = mapDbRowsToSessionCore([], []);
+    expect(result.bankRows).toEqual([]);
+    expect(result.glRows).toEqual([]);
+    expect(result.bankReviewFlags).toEqual({});
+    expect(result.glReviewFlags).toEqual({});
   });
 });

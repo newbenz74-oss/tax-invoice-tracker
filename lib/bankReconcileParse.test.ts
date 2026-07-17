@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as XLSX from 'xlsx';
-import { getFileExtension, isAcceptedBankReconcileFileType, parseFileToRawTable } from './bankReconcileParse';
+import { detectSourceFileType, getFileExtension, parseFileToRawTable } from './bankReconcileParse';
+import { isAcceptedBankReconcileFileType } from './bankReconcileValidation';
 import { parseDateCell } from './bankReconcileNormalize';
 
 function buildXlsxFile(rows: unknown[][], fileName = 'test.xlsx'): File {
@@ -33,17 +34,37 @@ describe('getFileExtension', () => {
   });
 });
 
+describe('detectSourceFileType', () => {
+  it('แยกประเภทไฟล์จากนามสกุลได้ถูกต้องครบทั้ง 3 ประเภท (excel/csv/pdf) — ใช้ตัดสินใจว่าจะเรียก parser ตัวไหน', () => {
+    expect(detectSourceFileType('statement.xlsx')).toBe('excel');
+    expect(detectSourceFileType('statement.xls')).toBe('excel');
+    expect(detectSourceFileType('statement.csv')).toBe('csv');
+    expect(detectSourceFileType('statement.pdf')).toBe('pdf');
+  });
+
+  it('ไม่สนตัวพิมพ์เล็ก/ใหญ่ของนามสกุล', () => {
+    expect(detectSourceFileType('STATEMENT.XLSX')).toBe('excel');
+    expect(detectSourceFileType('STATEMENT.PDF')).toBe('pdf');
+  });
+
+  it('นามสกุลที่ไม่รองรับ = null (ให้ชั้นตรวจสอบไฟล์ตัดสินใจแจ้งเตือนเอง)', () => {
+    expect(detectSourceFileType('statement.docx')).toBeNull();
+    expect(detectSourceFileType('statement')).toBeNull();
+  });
+});
+
 describe('isAcceptedBankReconcileFileType', () => {
-  it('ยอมรับ .xlsx / .xls / .csv (ไม่สนตัวพิมพ์เล็ก/ใหญ่)', () => {
+  it('ยอมรับ .xlsx / .xls / .csv / .pdf (ไม่สนตัวพิมพ์เล็ก/ใหญ่) — .pdf เพิ่มเข้ามาตามสเปก rebuild ส่วน "9. SUPPORTED FILES"', () => {
     expect(isAcceptedBankReconcileFileType('a.xlsx')).toBe(true);
     expect(isAcceptedBankReconcileFileType('a.xls')).toBe(true);
     expect(isAcceptedBankReconcileFileType('a.csv')).toBe(true);
     expect(isAcceptedBankReconcileFileType('A.CSV')).toBe(true);
+    expect(isAcceptedBankReconcileFileType('a.pdf')).toBe(true);
+    expect(isAcceptedBankReconcileFileType('A.PDF')).toBe(true);
   });
 
   it('ปฏิเสธนามสกุลอื่นๆ ทั้งหมด', () => {
     expect(isAcceptedBankReconcileFileType('a.txt')).toBe(false);
-    expect(isAcceptedBankReconcileFileType('a.pdf')).toBe(false);
     expect(isAcceptedBankReconcileFileType('a.docx')).toBe(false);
     expect(isAcceptedBankReconcileFileType('a')).toBe(false);
   });
