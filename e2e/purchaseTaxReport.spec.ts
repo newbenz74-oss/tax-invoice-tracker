@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 import * as XLSX from 'xlsx';
-import { attachConsoleErrorCollector, setupMockSupabase } from './helpers';
+import { attachConsoleErrorCollector, gotoHiddenNavItem, setupMockSupabase } from './helpers';
 
 const OWNER = 'user@example.com';
 
@@ -9,26 +9,36 @@ function buddhistYear(gregorianYear: number): number {
   return gregorianYear + 543;
 }
 
-test.describe('รายงานภาษีซื้อ (VAT Reconcile > Purchase Tax Report)', () => {
-  test('ขยายเมนู VAT Reconcile เห็นเมนูย่อยรายงานภาษีซื้อ/รายงานภาษีขาย', async ({ page }) => {
+// เปลี่ยนชื่อ describe block จาก "VAT Reconcile > Purchase Tax Report" เป็น "บัญชี > Purchase VAT
+// Report" ตามโครงสร้าง Sidebar ใหม่ (รอบปรับโครงสร้าง Sidebar 2026-07-17) — หมวด "VAT Reconcile"
+// (vat-reconcile) ถูกยุบเลิกไปทั้งหมดแล้ว เมนู "รายงานภาษีซื้อ" ย้ายไปอยู่ใต้หมวดใหม่ "บัญชี" (accounting)
+// แทน (id/component/business logic ของหน้ารายงานเองไม่ถูกแก้ไขเลยแม้แต่บรรทัดเดียว)
+test.describe('รายงานภาษีซื้อ (บัญชี > Purchase VAT Report)', () => {
+  test('ขยายเมนู "บัญชี" เห็นเมนูย่อยรายงานภาษีซื้อ (รายงานภาษีขายถูกซ่อนจาก Sidebar แล้ว ไม่แสดงที่นี่)', async ({
+    page,
+  }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
     await page.goto('/dashboard');
 
-    // ทุกหมวด (รวมหมวดย่อยที่ซ้อนอยู่ข้างใน อย่าง VAT Reconcile) ขยายอยู่แล้วโดยค่าเริ่มต้น
-    await expect(page.getByTestId('nav-section-vat-reconcile')).toHaveAttribute('aria-expanded', 'true');
+    // ทุกหมวดขยายอยู่แล้วโดยค่าเริ่มต้น รวมหมวดใหม่ "บัญชี" ด้วย
+    await expect(page.getByTestId('nav-section-accounting')).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByTestId('nav-item-purchase-tax-report')).toBeVisible();
-    await expect(page.getByTestId('nav-item-sales-tax-report')).toBeVisible();
+    // "รายงานภาษีขาย" (sales-tax-report) ถูกเอาออกจาก Sidebar แล้วตามคำขอผู้ใช้ (หน้ายังอยู่ในโปรเจกต์
+    // เข้าถึงได้ผ่าน Quick Action ในหน้า Dashboard ตามเดิม — ดู dashboardOverview.spec.ts) จึงต้องไม่มี
+    // nav-item นี้ปรากฏใน Sidebar อีกต่อไป
+    await expect(page.getByTestId('nav-item-sales-tax-report')).toHaveCount(0);
 
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
 
+  // เมนูนี้ถูกเอาออกจาก Sidebar แล้ว (รอบปรับโครงสร้าง Sidebar 2026-07-17 — "Sales VAT Report" อยู่ใน
+  // ลิสต์ REMOVE FROM SIDEBAR) หน้า/component เดิมไม่ถูกแก้ไขเลย นำทางตรงผ่าน gotoHiddenNavItem แทนการ
+  // คลิก Sidebar ที่ไม่มี nav-item นี้ให้คลิกอีกต่อไป
   test('เมนูรายงานภาษีขายยังไม่เปิดใช้งาน แสดงหน้า "เร็วๆ นี้" (ยังไม่ทำรอบนี้ตามที่ตกลงกัน)', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
-    await page.goto('/dashboard');
-
-    await page.getByTestId('nav-item-sales-tax-report').click();
+    await gotoHiddenNavItem(page, 'sales-tax-report');
 
     await expect(page.getByTestId('coming-soon')).toBeVisible();
     await expect(page.getByRole('heading', { level: 1, name: 'รายงานภาษีขาย' })).toBeVisible();

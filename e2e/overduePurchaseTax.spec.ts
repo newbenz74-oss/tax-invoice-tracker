@@ -1,20 +1,25 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 import * as XLSX from 'xlsx';
-import { attachConsoleErrorCollector, gotoOverduePurchaseTax, isoDaysFromNow, setupMockSupabase } from './helpers';
+import {
+  attachConsoleErrorCollector,
+  gotoHiddenNavItem,
+  gotoOverduePurchaseTax,
+  isoDaysFromNow,
+  setupMockSupabase,
+} from './helpers';
 
 const OWNER = 'user@example.com';
 
 test.describe('ภาษีซื้อที่ยังไม่ได้รับ (Overdue Purchase Tax Report)', () => {
-  test('เมนู Sidebar แสดงชื่อใหม่ เปิดหน้าได้จริง (ไม่ใช่ "เร็วๆ นี้" อีกต่อไป) และ Empty State ตรงตามสเปก', async ({
-    page,
-  }) => {
+  // อัปเดต 2026-07-17 (รอบปรับโครงสร้าง Sidebar): เมนูนี้ถูกเอาออกจาก Sidebar แล้ว ("Outstanding
+  // Purchase VAT" อยู่ในลิสต์ REMOVE FROM SIDEBAR) จึงไม่มี nav-item ให้ตรวจ/คลิกใน Sidebar อีกต่อไป —
+  // นำทางตรงผ่าน gotoHiddenNavItem แทน หน้า/component/business logic เดิมไม่ถูกแก้ไขเลยแม้แต่บรรทัดเดียว
+  // (ตัดส่วน "เมนู Sidebar แสดงชื่อใหม่" ออกจากชื่อเทสต์เพราะไม่มีเมนูใน Sidebar ให้ตรวจแล้ว)
+  test('เปิดหน้าได้จริง (ไม่ใช่ "เร็วๆ นี้" อีกต่อไป) และ Empty State ตรงตามสเปก', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
-    await page.goto('/dashboard');
-
-    await expect(page.getByTestId('nav-item-overdue-purchase-tax')).toContainText('ภาษีซื้อที่ยังไม่ได้รับ');
-    await page.getByTestId('nav-item-overdue-purchase-tax').click();
+    await gotoHiddenNavItem(page, 'overdue-purchase-tax');
 
     await expect(page.getByTestId('coming-soon')).toHaveCount(0);
     await expect(page.getByRole('heading', { level: 1, name: 'ภาษีซื้อที่ยังไม่ได้รับ' })).toBeVisible();

@@ -146,6 +146,15 @@ function NavItem({
   expanded: Record<string, boolean>;
   onToggleSection: (id: string) => void;
 }) {
+  // อัปเดต 2026-07-17 (รอบปรับโครงสร้าง Sidebar): เมนูที่ตั้ง hidden: true ไว้ใน lib/navigation.ts
+  // (sales-tax-report/overdue-purchase-tax/data-check) ไม่ต้อง render เลย — คืน null ตั้งแต่ต้นฟังก์ชัน
+  // ก่อนถึง branch NavSection/NavLeaf ด้านล่าง หน้า/route/component ของเมนูเหล่านี้ยังทำงานได้ปกติทุก
+  // ประการ (ยังอยู่ใน NAV_STRUCTURE ให้ findNavLeaf หาเจอ) แค่ไม่มี entry ให้คลิกใน Sidebar อีกต่อไป —
+  // เช็คแค่ NavLeaf เท่านั้น (NavSection ไม่มี field นี้ ไม่มีหมวดไหนถูกซ่อนทั้งหมวดในรอบนี้)
+  if (!isNavSection(entry) && entry.hidden) {
+    return null;
+  }
+
   if (isNavSection(entry)) {
     const isExpanded = expanded[entry.id] ?? true;
     const Icon = entry.icon;

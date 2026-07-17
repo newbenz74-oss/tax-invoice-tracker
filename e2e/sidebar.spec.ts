@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { attachConsoleErrorCollector, gotoAddressBook, setupMockSupabase } from './helpers';
+import { attachConsoleErrorCollector, gotoAddressBook, gotoHiddenNavItem, setupMockSupabase } from './helpers';
 
 const OWNER = 'user@example.com';
 
@@ -19,21 +19,18 @@ test.describe('Sidebar navigation', () => {
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
 
-  test('คลิกเมนูที่ยังไม่มีฟีเจอร์จริงแสดงหน้า "เร็วๆ นี้" โดยไม่มี error', async ({ page }) => {
+  // อัปเดต 2026-07-17 (รอบปรับโครงสร้าง Sidebar): "ตรวจสอบข้อมูล" (data-check) ถูกเอาออกจาก Sidebar แล้ว
+  // (อยู่ในลิสต์ REMOVE FROM SIDEBAR ของผู้ใช้ — "Data Validation") จึงไม่มี nav-item ให้คลิกอีกต่อไป —
+  // นำทางตรงผ่าน gotoHiddenNavItem แทน หน้า/พฤติกรรม ComingSoon ที่ต้องการทดสอบยังเหมือนเดิมทุกประการ
+  // (component เดิมไม่ถูกแก้ไขเลย แค่วิธีไปถึงหน้านี้เปลี่ยนจาก "คลิก Sidebar" เป็น "นำทางตรง")
+  test('เมนูที่ยังไม่มีฟีเจอร์จริงแสดงหน้า "เร็วๆ นี้" โดยไม่มี error', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
-    await page.goto('/dashboard');
-
-    // เดิมใช้ nav-item-payment-report ("รายงานจ่ายเงิน") — เมนูนี้ถูกลบออกจาก Sidebar ไปแล้วในรอบ
-    // ปรับลดหมวด "บันทึกการจ่ายเงิน" ให้เหลือเมนูเดียว (2026-07-17) เปลี่ยนมาใช้ "ตรวจสอบข้อมูล"
-    // (data-check) แทน ซึ่งยังเป็น implemented: false อยู่เหมือนเดิม เพื่อคงการทดสอบพฤติกรรม ComingSoon
-    // ไว้ครบ
-    await page.getByTestId('nav-item-data-check').click();
+    await gotoHiddenNavItem(page, 'data-check');
 
     await expect(page.getByTestId('coming-soon')).toBeVisible();
     await expect(page.getByRole('heading', { level: 1, name: 'ตรวจสอบข้อมูล' })).toBeVisible();
     await expect(page.getByTestId('open-add-form')).toHaveCount(0);
-    await expect(page.getByTestId('nav-item-data-check')).toHaveAttribute('aria-current', 'page');
     // Header (อีเมล/ปุ่มออกจากระบบ) ต้องยังอยู่ครบแม้ไม่ได้อยู่หน้า Dashboard
     await expect(page.getByRole('button', { name: 'ออกจากระบบ' })).toBeVisible();
 
@@ -43,7 +40,8 @@ test.describe('Sidebar navigation', () => {
   // เพิ่มเข้ามาพร้อมรอบปรับลดหมวด "บันทึกการจ่ายเงิน" ให้เหลือเมนูเดียว (2026-07-17) — ยืนยันตรงๆ ตามที่
   // ผู้ใช้ระบุว่า (1) ไม่มีปุ่มขยาย/ยุบสำหรับเมนูนี้อีกต่อไป (ไม่มี testid nav-section-payments/nav-section
   // ใดๆ ผูกกับ record-expense เลย) (2) คลิกแล้วเข้าหน้าบันทึกค่าใช้จ่ายทันทีในคลิกเดียว (3) สถานะ active
-  // ทำงานถูกต้อง (4) ไอคอนยังแสดงอยู่ (5) เมนูอื่นที่ยังมี accordion (เช่น "กระทบยอด") ไม่ได้รับผลกระทบ
+  // ทำงานถูกต้อง (4) ไอคอนยังแสดงอยู่ (5) เมนูอื่นที่ยังมี accordion (เช่นหมวด "บัญชี" ที่เมนูนี้ซ้อนอยู่
+  // ข้างในเองตั้งแต่รอบปรับโครงสร้าง Sidebar อีกรอบถัดมา 2026-07-17) ไม่ได้รับผลกระทบ
   test('เมนู "บันทึกการจ่ายเงิน" ไม่มีปุ่มขยาย/ยุบอีกต่อไป คลิกครั้งเดียวเข้าหน้าบันทึกค่าใช้จ่ายทันที', async ({ page }) => {
     const errors = attachConsoleErrorCollector(page);
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
@@ -65,8 +63,10 @@ test.describe('Sidebar navigation', () => {
     await expect(page.getByTestId('coming-soon')).toHaveCount(0);
     await expect(navItem).toHaveAttribute('aria-current', 'page');
 
-    // เมนูอื่นที่ยังมี accordion จริง (เช่น "กระทบยอด") ไม่ได้รับผลกระทบจากการเปลี่ยนนี้เลย
-    await expect(page.getByTestId('nav-section-reconcile')).toHaveAttribute('aria-expanded', 'true');
+    // เมนูอื่นที่ยังมี accordion จริง (เช่นหมวด "บัญชี" ที่เมนูนี้ซ้อนอยู่ข้างในเอง ตั้งแต่รอบปรับ
+    // โครงสร้าง Sidebar 2026-07-17) ไม่ได้รับผลกระทบจากการเปลี่ยนนี้เลย — เดิมเช็คหมวด "กระทบยอด" ซึ่ง
+    // ถูกยุบเลิกไปแล้ว
+    await expect(page.getByTestId('nav-section-accounting')).toHaveAttribute('aria-expanded', 'true');
 
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
@@ -76,18 +76,19 @@ test.describe('Sidebar navigation', () => {
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
     await page.goto('/dashboard');
 
-    // เดิมทดสอบกับหมวด "บันทึกการจ่ายเงิน" (nav-section-payments) — หมวดนั้นถูกยุบเหลือเมนูเดียวไม่มี
-    // accordion แล้ว (2026-07-17) เปลี่ยนมาทดสอบกับหมวด "กระทบยอด" แทนซึ่งยังมี accordion ตามปกติ
-    await expect(page.getByTestId('nav-item-bank-reconcile')).toBeVisible();
-    await expect(page.getByTestId('nav-section-reconcile')).toHaveAttribute('aria-expanded', 'true');
+    // เดิมทดสอบกับหมวด "กระทบยอด" (nav-section-reconcile / nav-item-bank-reconcile) — หมวดนั้นถูกยุบ
+    // เลิกไปแล้วในรอบปรับโครงสร้าง Sidebar (2026-07-17, "Bank Reconcile" ย้ายขึ้นเป็นเมนูเดี่ยวระดับบนสุด
+    // ไม่มีหมวดครอบอีกต่อไป) เปลี่ยนมาทดสอบกับหมวดใหม่ "บัญชี" (accounting) แทนซึ่งยังมี accordion ปกติ
+    await expect(page.getByTestId('nav-item-record-expense')).toBeVisible();
+    await expect(page.getByTestId('nav-section-accounting')).toHaveAttribute('aria-expanded', 'true');
 
-    await page.getByTestId('nav-section-reconcile').click();
+    await page.getByTestId('nav-section-accounting').click();
 
-    await expect(page.getByTestId('nav-section-reconcile')).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.getByTestId('nav-item-bank-reconcile')).not.toBeVisible();
+    await expect(page.getByTestId('nav-section-accounting')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('nav-item-record-expense')).not.toBeVisible();
 
-    await page.getByTestId('nav-section-reconcile').click();
-    await expect(page.getByTestId('nav-item-bank-reconcile')).toBeVisible();
+    await page.getByTestId('nav-section-accounting').click();
+    await expect(page.getByTestId('nav-item-record-expense')).toBeVisible();
 
     expect(errors).toEqual([]);
   });
@@ -97,11 +98,12 @@ test.describe('Sidebar navigation', () => {
     await setupMockSupabase(page, { loggedInAs: OWNER, users: [{ email: OWNER, password: 'x' }] });
     await page.goto('/dashboard');
 
-    // เดิมยุบหมวด "บันทึกการจ่ายเงิน" (nav-section-payments) — หมวดนั้นไม่มี accordion ให้ยุบแล้ว
-    // (2026-07-17) เปลี่ยนมายุบหมวด "ข้อมูลหลัก (Master Data)" แทน (ไม่เกี่ยวกับเมนูที่กำลังจะเลือก
-    // ต่อไป เพื่อพิสูจน์ว่าสถานะยุบ/ขยายเป็นอิสระจากเมนูที่เลือกไว้เหมือนเดิมทุกประการ)
+    // ยุบหมวด "ข้อมูลหลัก (Master Data)" ไว้ก่อน (ไม่เกี่ยวกับเมนูที่กำลังจะเลือกต่อไป เพื่อพิสูจน์ว่า
+    // สถานะยุบ/ขยายเป็นอิสระจากเมนูที่เลือกไว้เหมือนเดิมทุกประการ) — "Bank Reconcile" เป็นเมนูเดี่ยว
+    // ระดับบนสุดแล้วตั้งแต่รอบปรับโครงสร้าง Sidebar (2026-07-17, เดิมซ้อนอยู่ใต้หมวด "กระทบยอด") จึงคลิก
+    // ได้ทันทีไม่ขึ้นกับสถานะ accordion ของหมวดใดเลย
     await page.getByTestId('nav-section-master-data').click(); // ยุบหมวด "ข้อมูลหลัก (Master Data)"
-    await page.getByTestId('nav-item-bank-reconcile').click(); // เลือกเมนู "Bank Reconcile" ในหมวด "กระทบยอด"
+    await page.getByTestId('nav-item-bank-reconcile').click(); // เลือกเมนู "Bank Reconcile" (เมนูเดี่ยว)
 
     await expect(page.getByRole('heading', { level: 1, name: 'Bank Reconcile' })).toBeVisible();
 
@@ -153,12 +155,15 @@ test.describe('Sidebar navigation', () => {
     await page.getByTestId('mobile-menu-button').click();
     await expect(page.getByTestId('sidebar-overlay')).toBeVisible();
 
-    // เดิมใช้ nav-item-payment-report — เมนูนั้นถูกลบออกไปแล้ว (2026-07-17) เปลี่ยนมาใช้
-    // "ตรวจสอบข้อมูล" (data-check) แทน ยัง implemented: false เหมือนเดิม
-    await page.getByTestId('nav-item-data-check').click();
+    // เดิมใช้ nav-item-data-check (ตรวจ ComingSoon ไปด้วย) — เมนูนั้นถูกเอาออกจาก Sidebar แล้วในรอบ
+    // ปรับโครงสร้าง Sidebar (2026-07-17) เปลี่ยนมาใช้ nav-item-address-book แทน (ยัง implemented: true
+    // มองเห็นในหมวด "ข้อมูลหลัก" ตามปกติ) — จุดโฟกัสของเทสต์นี้คือพฤติกรรม "ปิด sidebar อัตโนมัติบน
+    // มือถือหลังคลิกเมนูใดๆ" ไม่ใช่หน้า ComingSoon (มีเทสต์ตรวจ ComingSoon แยกอยู่แล้วที่อื่น — ดูเทสต์
+    // "เมนูที่ยังไม่มีฟีเจอร์จริง..." ด้านบนในไฟล์นี้ และ purchaseTaxReport.spec.ts)
+    await page.getByTestId('nav-item-address-book').click();
 
     await expect(page.getByTestId('sidebar-overlay')).toHaveCount(0);
-    await expect(page.getByTestId('coming-soon')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'สมุดรายชื่อ' })).toBeVisible();
 
     expect(errors).toEqual([]);
   });
