@@ -372,24 +372,27 @@ body {
 /* ----- Login card: ย่อขนาด+จางหายตอนเข้าสู่ระบบสำเร็จ -----
    ใช้ transition ธรรมดา (ไม่ใช่ keyframes) เพราะเป็นแค่ 2 สถานะ (ปกติ ↔ exiting) สลับด้วย className เดียว
    จาก React state — scale(0.96) ตามสเปก ไม่ scale ลงเยอะเพราะยังต้องดูเป็นการ์ดเดิมที่ค่อยๆหายไป ไม่ใช่
-   หดหายทั้งหมด */
+   หดหายทั้งหมด (2026-07-18 ปรับ 500ms→380ms: ผู้ใช้ทดลองใช้จริงแล้วรู้สึกหน่วงนิดหน่อย — ช่วงก่อนนำทาง
+   เป็น "dead time" ที่ผู้ใช้เห็นแค่หน้าเดิมค่อยๆจาง ยังไม่เห็นอะไรใหม่ จึงรู้สึกช้ากว่าช่วง Dashboard
+   fade-in ที่เห็นเนื้อหาใหม่ทันที แม้จะยังเล่น animation อยู่ก็ตาม เร่งจังหวะนี้ให้ไวขึ้นเพื่อลด dead time) */
 .login-card-normal {
-  transition: transform 500ms ease-out, opacity 500ms ease-out;
+  transition: transform 380ms ease-out, opacity 380ms ease-out;
 }
 .login-card-exiting {
   transform: scale(0.96);
   opacity: 0;
-  transition: transform 500ms ease-out, opacity 500ms ease-out;
+  transition: transform 380ms ease-out, opacity 380ms ease-out;
 }
 
 /* ----- พื้นหลังวิดีโอ: เบลอเล็กน้อยตอนเข้าสู่ระบบสำเร็จ (ประกบคู่กับ login-card-exiting ด้านบน) -----
-   ระดับเบลอตั้งใจให้ "เล็กน้อย" ตามสเปก (6px) ไม่แรงจนพื้นหลังเละ — ใช้ transition ธรรมดาเหมือนการ์ด */
+   ระดับเบลอตั้งใจให้ "เล็กน้อย" ตามสเปก (6px) ไม่แรงจนพื้นหลังเละ — ใช้ transition ธรรมดาเหมือนการ์ด
+   (2026-07-18: ปรับ 500ms→380ms พร้อมกับการ์ด ดูเหตุผลด้านบน) */
 .login-bg-normal {
-  transition: filter 500ms ease-out;
+  transition: filter 380ms ease-out;
 }
 .login-bg-exiting {
   filter: blur(6px) brightness(0.85);
-  transition: filter 500ms ease-out;
+  transition: filter 380ms ease-out;
 }
 
 /* ----- Light Sweep: แถบแสงสีฟ้าพาดผ่านจอครั้งเดียวตอนเข้าสู่ระบบสำเร็จ -----
@@ -400,7 +403,9 @@ body {
    container พอดีจาก inset-0 ธรรมดา ไม่ตั้ง width เอง) แล้วเลื่อน background-position จาก 200% ไป -100%
    ครั้งเดียว (ไม่ loop) ให้แถบสว่างตรงกลาง gradient กวาดผ่านจากขวานอกจอไปซ้ายนอกจอ — mount เฉพาะตอน
    exiting=true เท่านั้น (ดู app/login/page.tsx) จึงเล่นอัตโนมัติทันทีที่ถูก mount ไม่ต้องมี JS สั่งเล่นเพิ่ม
-   สีฟ้าอ่อนโทนเดียวกับธีม --brand/--primary ของระบบ ไม่ใช้สีขาวล้วนเพื่อไม่ให้ดูเหมือนจอกระพริบขาว */
+   สีฟ้าอ่อนโทนเดียวกับธีม --brand/--primary ของระบบ ไม่ใช้สีขาวล้วนเพื่อไม่ให้ดูเหมือนจอกระพริบขาว
+   (2026-07-18: ปรับ 600ms→450ms — ผู้ใช้ทดลองใช้จริงแล้วรู้สึกหน่วงนิดหน่อย ดูเหตุผลเต็มที่คอมเมนต์
+   .login-card-normal ด้านบน sweep ที่เร็วขึ้นยังอ่านออกว่าเป็น "แถบแสงกวาดผ่าน" ชัดเจน ไม่เร็วจนมองไม่ทัน) */
 @keyframes loginLightSweep {
   0% {
     background-position: 200% 0;
@@ -426,7 +431,7 @@ body {
   );
   background-size: 300% 100%;
   background-repeat: no-repeat;
-  animation: loginLightSweep 600ms ease-in-out forwards;
+  animation: loginLightSweep 450ms ease-in-out forwards;
   pointer-events: none;
 }
 

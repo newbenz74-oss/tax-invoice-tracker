@@ -12,10 +12,13 @@ type Mode = 'signin' | 'signup';
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 // ระยะเวลาเอฟเฟกต์ตอนเข้าสู่ระบบสำเร็จ (การ์ดย่อ+จาง / พื้นหลังเบลอ / light sweep) ก่อนนำทางไป /dashboard
-// จริง (2026-07-18) — ยาวกว่า duration ที่ประกาศไว้ใน .login-card-exiting/.login-bg-normal/
-// .login-light-sweep ใน globals.css (500-600ms) เล็กน้อยโดยตั้งใจ เผื่อเวลาให้ทุกเอฟเฟกต์เล่นจบสนิทก่อน
-// เปลี่ยนหน้าจริง ไม่ตัดกลางอนิเมชัน (ไม่จำเป็นต้องเท่ากันเป๊ะ แค่ต้อง >= อันที่นานที่สุด)
-const EXIT_TRANSITION_MS = 700;
+// จริง (2026-07-18, ปรับอีกรอบ 700ms→450ms: ผู้ใช้ทดลองใช้จริงบน production แล้วให้ feedback ว่า "หน่วงๆ
+// นิดหน่อย" — ตัดสินใจว่าช่วงนี้ (ก่อนนำทาง ยังอยู่หน้า login เดิม) คือ dead time ที่รู้สึกช้าที่สุด เพราะ
+// ยังไม่เห็นอะไรใหม่เลย ต่างจากช่วง Dashboard fade-in ที่เห็นเนื้อหาใหม่ทันทีแม้ animation ยังไม่จบ จึงเร่ง
+// เฉพาะช่วงนี้ ไม่แตะ dashboard-content-entrance (850ms ยังอยู่ในกรอบ 700-1000ms ตามสเปกเดิม) — ต้องตรง
+// กับ duration ที่นานที่สุดใน .login-card-exiting/.login-bg-exiting/.login-light-sweep ใน globals.css
+// (380/380/450ms — เผื่อเวลาให้ทุกเอฟเฟกต์เล่นจบสนิทก่อนเปลี่ยนหน้าจริง ไม่ตัดกลางอนิเมชัน)
+const EXIT_TRANSITION_MS = 450;
 
 /** subscribe/getSnapshot สำหรับ useSyncExternalStore — วิธีมาตรฐานของ React สำหรับ subscribe ค่าจาก
  * external API อย่าง matchMedia โดยไม่ชน react-hooks/set-state-in-effect (ห้าม setState ตรงๆ ใน
