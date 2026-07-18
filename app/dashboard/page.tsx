@@ -115,7 +115,11 @@ function DashboardShell() {
 
   return (
     <>
-      <div className="flex min-h-screen bg-page-bg">
+      {/* พื้นหลังภาพทุกหน้า (2026-07-18) — div เปล่า fixed เต็มจอ อยู่หลังทุกอย่างด้วย z-index ต่ำสุด
+          (ดูคอมเมนต์เต็มที่ .app-background ใน globals.css ว่าทำไมแยกเป็น div ต่างหากแทนใส่ตรงๆ ที่ wrapper
+          ด้านล่าง) เอา bg-page-bg เดิมออกจาก wrapper ด้านล่างด้วย เพราะสีทึบเดิมจะบังภาพนี้ไว้หมดถ้ายังอยู่ */}
+      <div className="app-background" aria-hidden="true" />
+      <div className="flex min-h-screen">
         <Sidebar
           activeId={activeId}
           onSelect={(id) => handleSelect(id)}
