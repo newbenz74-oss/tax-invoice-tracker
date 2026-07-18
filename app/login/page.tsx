@@ -150,7 +150,12 @@ export default function LoginPage() {
   const busyLabel = mode === 'signin' || exiting ? 'กำลังเข้าสู่ระบบ...' : 'กำลังดำเนินการ...';
 
   return (
-    <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-[#1a5f85] px-4 py-10 sm:py-12">
+    // การ์ด login บังพื้นหลังวิดีโอเยอะเกินไป (2026-07-18 ต่อ) — ผู้ใช้ขอ 3 อย่างพร้อมกัน: (1) ย่อการ์ด
+    // ให้เล็กลง (2) ทำการ์ดโปร่งแสง+เบลอด้านหลัง (3) ย้ายการ์ดไปด้านขวา ให้เห็นพื้นหลังฝั่งซ้ายเต็มๆ — ข้อ
+    // (3) ทำผ่าน justify-end บน md ขึ้นไปเท่านั้น (จอมือถือยังคง justify-center เหมือนเดิม เพราะจอแคบเกินกว่า
+    // จะ "เห็นพื้นหลังฝั่งซ้าย" ได้จริง การย้ายไปขวาบนจอเล็กจะดูเหมือนการ์ดหลุดขอบมากกว่า) เพิ่ม padding-right
+    // ให้การ์ดไม่ชิดขอบจอเกินไปบนจอกว้าง
+    <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-[#1a5f85] px-4 py-10 sm:py-12 md:justify-end md:pr-16 lg:pr-24">
       {/* พื้นหลังวิดีโอหน้า login แบบสลับ 4 คลิปวนลูป (อัปเดตชุดวิดีโอ 2026-07-18 — เปลี่ยนจากชุดเดิม
           5 คลิปธีมทะเล/ฉลาม/โลมา เป็นชุดใหม่ที่ผู้ใช้ระบุเอง 4 คลิป วนลูปคลิป 1→2→3→4 แล้วกลับไปคลิปแรก
           เล่นแบบ crossfade ไม่กระพริบระหว่างเปลี่ยนคลิป — ดู logic เต็มที่
@@ -195,9 +200,21 @@ export default function LoginPage() {
       )}
 
       <div
-        className={`relative z-10 w-full max-w-[640px] ${exiting ? 'login-card-exiting' : 'login-card-normal'}`}
+        // ย่อจาก max-w-[640px] เดิมเหลือ 420px (2026-07-18 ต่อ) — การ์ดกว้างสุดของฟอร์ม login ทั่วไปมักอยู่
+        // แถว 380-480px อยู่แล้ว 640px เดิมกว้างเกินความจำเป็นของฟอร์มแค่ 2 ช่อง จึงบังพื้นหลังมากเกินไปโดย
+        // ไม่ได้ประโยชน์ด้าน UX เพิ่มขึ้นเลย
+        className={`relative z-10 w-full max-w-[420px] ${exiting ? 'login-card-exiting' : 'login-card-normal'}`}
       >
-        <div className="rounded-2xl bg-white p-6 shadow-[0_20px_50px_-12px_rgba(15,64,105,0.35)] sm:p-10 md:p-12">
+        {/* การ์ดกระจกโปร่งแสง (2026-07-18 ต่อ) — เดิม bg-white ทึบล้วน เปลี่ยนเป็น bg-white/85 +
+            backdrop-blur-xl ให้เห็นวิดีโอ/ภาพพื้นหลังเลือนๆ ผ่านการ์ด แทนที่จะบังไว้ทึบๆ ทั้งแผ่น — เลือก 85%
+            ไม่ใช่ค่าต่ำกว่านี้ เพราะต้องคง contrast ของตัวหนังสือ text-gray-800/700/500 เดิมในฟอร์มให้ยังอ่าน
+            ง่ายชัดเจนแม้พื้นหลังจะเป็นวิดีโอสีสันจัดจ้านแค่ไหนก็ตาม (คำนวณแล้ว: เบลอ 85% ขาวทับพื้นหลังโทน
+            กลางๆ ให้ผลลัพธ์ยังใกล้ขาวมาก contrast ratio ยังเกิน 12:1 อยู่) เพิ่ม border สีขาวโปร่งแสงบางๆ
+            (border-white/40) ช่วยขีดขอบการ์ดให้ชัดขึ้น เพราะไม่มีขอบทึบตัดกับพื้นหลังแบบการ์ดขาวล้วนเดิมแล้ว
+            — ไม่แตะ globals.css เลยจุดนี้ (ใช้ Tailwind utility ล้วนๆ ในไฟล์นี้) เพราะ globals.css ตอนนี้มี
+            งานธีมมืดที่ยังพักไว้ (ไม่ได้ apply เข้าเครื่องผู้ใช้) ปะปนอยู่ ไม่อยากให้งานสองชิ้นที่ไม่เกี่ยวกัน
+            ไปปนกันในไฟล์เดียว */}
+        <div className="rounded-2xl border border-white/40 bg-white/85 p-6 shadow-[0_20px_50px_-12px_rgba(15,64,105,0.35)] backdrop-blur-xl sm:p-8 md:p-10">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--login-primary-light)]">
               <Receipt className="h-6 w-6 text-[var(--login-primary)]" strokeWidth={2} />
