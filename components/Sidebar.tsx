@@ -87,7 +87,12 @@ export default function Sidebar({ activeId, onSelect, isOpen, onClose }: Sidebar
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[250px] flex-col overflow-hidden bg-linear-to-b from-sidebar-start to-sidebar-end text-gray-50 shadow-xl transition-transform duration-[250ms] ease-in-out min-[992px]:!translate-x-0 ${
+        // dashboard-sidebar-entrance (2026-07-18): fade-in เฉพาะ opacity ตอน mount — ใส่คู่กับ
+        // dashboard-content-entrance ใน app/dashboard/page.tsx เพื่อให้ทั้งแผงเมนูและเนื้อหาปรากฏพร้อม
+        // กันอย่างนุ่มนวล ตั้งใจไม่แตะ transform เลย (ดูเหตุผลเต็มที่คอมเมนต์ .dashboard-content-entrance
+        // ใน globals.css) จึงไม่ชนกับ transition-transform ที่ควบคุมเปิด/ปิดบนมือถือด้านล่างนี้เลย
+        // (animation คนละ property กัน อยู่ร่วมกันได้ปกติ)
+        className={`dashboard-sidebar-entrance fixed inset-y-0 left-0 z-50 flex w-[250px] flex-col overflow-hidden bg-linear-to-b from-sidebar-start to-sidebar-end text-gray-50 shadow-xl transition-transform duration-[250ms] ease-in-out min-[992px]:!translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         onTouchStart={handleTouchStart}

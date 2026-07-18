@@ -11,6 +11,11 @@ import LoginBackgroundVideoCarousel from '@/components/LoginBackgroundVideoCarou
 type Mode = 'signin' | 'signup';
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+// ระยะเวลาเอฟเฟกต์ตอนเข้าสู่ระบบสำเร็จ (การ์ดย่อ+จาง / พื้นหลังเบลอ / light sweep) ก่อนนำทางไป /dashboard
+// จริง (2026-07-18) — ยาวกว่า duration ที่ประกาศไว้ใน .login-card-exiting/.login-bg-normal/
+// .login-light-sweep ใน globals.css (500-600ms) เล็กน้อยโดยตั้งใจ เผื่อเวลาให้ทุกเอฟเฟกต์เล่นจบสนิทก่อน
+// เปลี่ยนหน้าจริง ไม่ตัดกลางอนิเมชัน (ไม่จำเป็นต้องเท่ากันเป๊ะ แค่ต้อง >= อันที่นานที่สุด)
+const EXIT_TRANSITION_MS = 700;
 
 /** subscribe/getSnapshot สำหรับ useSyncExternalStore — วิธีมาตรฐานของ React สำหรับ subscribe ค่าจาก
  * external API อย่าง matchMedia โดยไม่ชน react-hooks/set-state-in-effect (ห้าม setState ตรงๆ ใน
@@ -39,6 +44,11 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // ใหม่ (2026-07-18): true ตั้งแต่วินาทีที่เข้าสู่ระบบสำเร็จ จนกว่าจะนำทางไปหน้า Dashboard จริง — คุม
+  // เอฟเฟกต์การ์ดย่อ+จาง/พื้นหลังเบลอ/light sweep (ดู enterDashboard ด้านล่าง) ตั้งใจไม่ reset กลับ false
+  // เพราะหน้านี้จะถูกแทนที่ด้วยหน้า Dashboard ไปเลยหลัง router.replace — ไม่มีจังหวะไหนที่ต้องใช้ค่า false
+  // อีกหลังจากนี้ในอายุของ component instance นี้
+  const [exiting, setExiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   // ใหม่: toggle แสดง/ซ่อนรหัสผ่าน — เป็น UI state ล้วนๆ ไม่ถูกใช้ใน handleSubmit หรือ logic
@@ -61,8 +71,11 @@ export default function LoginPage() {
     }
   }, [loading, session, router]);
 
-  // ฟังก์ชันเดิมทั้งหมด — ไม่มีการแก้ไข logic แม้แต่บรรทัดเดียว (คง signInWithPassword,
-  // signUp, การ validate, การ redirect, และ error handling ไว้ตามเดิมทุกประการ)
+  // ฟังก์ชันเดิมเกือบทั้งหมด — ไม่มีการแก้ไข logic การยืนยันตัวตนแม้แต่บรรทัดเดียว (คง
+  // signInWithPassword, signUp, การ validate, และ error handling ไว้ตามเดิมทุกประการ) จุดเดียวที่เปลี่ยน
+  // (2026-07-18) คือตอนสำเร็จ: เดิมเรียก router.replace('/dashboard') ตรงๆ ตอนนี้เรียก enterDashboard()
+  // แทน (ดูด้านล่าง) เพื่อเล่นเอฟเฟกต์ก่อนค่อยนำทางจริง — เส้นทาง error ทั้งหมดยังคง return ทันทีเหมือนเดิม
+  // ไม่แตะ exiting เลย จึงไม่มีทางเข้าเอฟเฟกต์นี้ได้ถ้าเข้าสู่ระบบไม่สำเร็จ
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -90,7 +103,7 @@ export default function LoginPage() {
           setError(translateAuthError(signInError.message));
           return;
         }
-        router.replace('/dashboard');
+        enterDashboard();
       } else {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
@@ -101,7 +114,7 @@ export default function LoginPage() {
           return;
         }
         if (data.session) {
-          router.replace('/dashboard');
+          enterDashboard();
         } else {
           setInfoMessage('สมัครสมาชิกสำเร็จ กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ (ถ้าทีมเปิดใช้ยืนยันอีเมลไว้)');
           setMode('signin');
@@ -111,6 +124,30 @@ export default function LoginPage() {
       setSubmitting(false);
     }
   }
+
+  // ใหม่ (2026-07-18): เริ่มลำดับเอฟเฟกต์ "เข้าสู่ระบบสำเร็จ" (การ์ดย่อ+จาง, พื้นหลังเบลอเล็กน้อย, light
+  // sweep สีฟ้าพาดจอ 1 ครั้ง — ดู JSX + globals.css) แล้วค่อยนำทางไป /dashboard จริงหลังเล่นจบ ตั้ง
+  // exiting=true ไว้ก่อนเสมอ (ควบคุมสถานะปุ่ม disabled/ข้อความ "กำลังเข้าสู่ระบบ..." ให้ยังติดอยู่แม้
+  // finally ของ handleSubmit จะ setSubmitting(false) ไปแล้วก็ตาม) ถ้าผู้ใช้เปิด prefers-reduced-motion
+  // ไว้ ข้าม setTimeout แล้วนำทางทันที (ลด/ปิด animation ตามสเปก ไม่ใช่แค่ทำให้สั้นลง)
+  function enterDashboard() {
+    setExiting(true);
+    if (prefersReducedMotion) {
+      router.replace('/dashboard');
+      return;
+    }
+    window.setTimeout(() => {
+      router.replace('/dashboard');
+    }, EXIT_TRANSITION_MS);
+  }
+
+  // ปุ่ม submit "ยุ่ง" (disabled + แสดง spinner/ข้อความกำลังโหลด) ตลอดตั้งแต่กด submit จนกว่าจะนำทางไป
+  // Dashboard จริง ไม่ใช่แค่ระหว่าง await signInWithPassword/signUp เท่านั้น — ป้องกันผู้ใช้กดซ้ำระหว่าง
+  // เล่นเอฟเฟกต์เข้าสู่ระบบสำเร็จด้วย (2026-07-18) ข้อความระหว่างนี้ให้เป็น "กำลังเข้าสู่ระบบ..." เสมอไม่ว่า
+  // จะมาจากโหมด signin หรือกำลัง exiting อยู่ (นับเป็นการเข้าสู่ระบบสำเร็จแล้วทั้งคู่) ส่วนโหมด signup ที่
+  // ยัง submitting อยู่ (ยังไม่ทราบผล) คงข้อความเดิม "กำลังดำเนินการ..." ไว้ตามเดิมทุกประการ
+  const busy = submitting || exiting;
+  const busyLabel = mode === 'signin' || exiting ? 'กำลังเข้าสู่ระบบ...' : 'กำลังดำเนินการ...';
 
   return (
     <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-[#1a5f85] px-4 py-10 sm:py-12">
@@ -124,7 +161,11 @@ export default function LoginPage() {
           (ปกติ ไม่ติดลบ) แล้วให้การ์ด login ด้านล่างเป็น `relative z-10` แทน — อาศัยลำดับ z-index บวกตามปกติ
           ให้การ์ดวาดทับพื้นหลังแทนการใช้ z-index ติดลบกับพื้นหลัง ผลลัพธ์การจัดวางเหมือนเดิมทุกประการ แต่
           หลีกเลี่ยงบั๊กนี้ได้ */}
-      <div className="absolute inset-0 z-0">
+      {/* เบลอเล็กน้อย (2026-07-18) ตอนเข้าสู่ระบบสำเร็จ — ครอบทั้งวิดีโอ/ภาพ poster และ overlay ไล่สีด้วย
+          ใช้ transition ธรรมดา (.login-bg-normal/.login-bg-exiting ใน globals.css) สลับด้วย state
+          `exiting` จาก enterDashboard() ด้านบน ไม่กระทบ logic การเล่นวิดีโอใดๆ ใน
+          LoginBackgroundVideoCarousel เลย (component นั้นไม่รู้จัก state นี้ด้วยซ้ำ) */}
+      <div className={`absolute inset-0 z-0 ${exiting ? 'login-bg-exiting' : 'login-bg-normal'}`}>
         {prefersReducedMotion ? (
           <Image
             src="/videos/login-background-poster.jpg"
@@ -143,7 +184,18 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-[#0a3a5c]/50 via-[#0a3a5c]/25 to-[#031f33]/65" />
       </div>
 
-      <div className="relative z-10 w-full max-w-[640px]">
+      {/* Light Sweep (2026-07-18): แถบแสงฟ้าพาดจอครั้งเดียวตอนเข้าสู่ระบบสำเร็จ — mount เฉพาะตอน
+          exiting=true และไม่เปิด reduced-motion ไว้เท่านั้น (ปิดเอฟเฟกต์นี้ไปเลยแทนที่จะพึ่ง CSS override
+          อย่างเดียว เพราะข้าม setTimeout ไปนำทางทันทีอยู่แล้วใน enterDashboard เมื่อ reduced-motion เปิด
+          จึงไม่มีเวลาให้เอฟเฟกต์นี้เล่นจบพอดี ไม่ mount เลยสะอาดกว่า) data-testid ไว้ให้เทสต์ตรวจสอบว่า
+          ไม่ปรากฏเมื่อ reduced-motion เปิดได้ */}
+      {exiting && !prefersReducedMotion && (
+        <div className="login-light-sweep" aria-hidden="true" data-testid="login-light-sweep" />
+      )}
+
+      <div
+        className={`relative z-10 w-full max-w-[640px] ${exiting ? 'login-card-exiting' : 'login-card-normal'}`}
+      >
         <div className="rounded-2xl bg-white p-6 shadow-[0_20px_50px_-12px_rgba(15,64,105,0.35)] sm:p-10 md:p-12">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--login-primary-light)]">
@@ -249,11 +301,11 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={busy}
               className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-[var(--login-primary)] text-base font-semibold text-white transition-colors hover:bg-[var(--login-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {submitting && <Loader2 className="h-5 w-5 animate-spin" />}
-              {submitting ? 'กำลังดำเนินการ...' : mode === 'signin' ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก'}
+              {busy && <Loader2 className="h-5 w-5 animate-spin" />}
+              {busy ? busyLabel : mode === 'signin' ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก'}
             </button>
           </form>
 

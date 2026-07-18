@@ -122,7 +122,15 @@ function DashboardShell() {
           isOpen={mobileNavOpen}
           onClose={() => setMobileNavOpen(false)}
         />
-        <div className="flex min-h-screen flex-1 flex-col min-[992px]:ml-[250px]">
+        {/* เอฟเฟกต์ fade-in + เลื่อนขึ้นเล็กน้อยตอน DashboardShell mount ทุกครั้ง (2026-07-18) — ทั้งตอนมา
+            จากการเข้าสู่ระบบสำเร็จที่หน้า login (ดู app/login/page.tsx enterDashboard) และตอน mount ตรงๆ
+            (เช่น refresh หน้า /dashboard ตอน login ค้างอยู่แล้ว) ใช้ CSS animation ล้วนๆ ไม่ต้องมี JS/
+            useEffect ควบคุมเพิ่ม (เล่นอัตโนมัติทุกครั้งที่ element มีคลาสนี้ถูก mount) รองรับ
+            prefers-reduced-motion ผ่าน media query กลางที่มีอยู่แล้วใน globals.css (บังคับ
+            animation-duration แทบเป็น 0 ให้ทุก animation ในระบบรวมถึงอันนี้ด้วย) ตั้งใจใส่ที่ "คอลัมน์
+            เนื้อหา" นี้เท่านั้น ไม่ใส่ที่ wrapper ที่ครอบ Sidebar เพราะ Sidebar เป็น position:fixed — ดู
+            คอมเมนต์เต็มที่ .dashboard-content-entrance ใน globals.css ว่าทำไม */}
+        <div className="dashboard-content-entrance flex min-h-screen flex-1 flex-col min-[992px]:ml-[250px]">
           <Header title={title} onMenuClick={() => setMobileNavOpen(true)} />
           {renderActiveContent(activeId, Boolean(activeEntry?.implemented), title, handleSelect, navIntent)}
         </div>
