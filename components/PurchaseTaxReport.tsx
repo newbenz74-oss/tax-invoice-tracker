@@ -59,8 +59,13 @@ export default function PurchaseTaxReport() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
+      {/* entrance-animate ทั้งหน้า (2026-07-18) — ผู้ใช้ขอให้กดเข้าหน้านี้แล้ว smooth เหมือนหน้า "สมุดรายชื่อ"
+          (ContactsPage.tsx) โครงสร้างแถวบนของหน้านี้ (ตัวกรองเดือน/ปีฝั่งซ้าย + ปุ่ม Export ฝั่งขวา) เหมือน
+          กับแถว Segmented Control + Toolbar Actions ของ ContactsPage เกือบทุกประการ จึงใช้คลาส
+          entrance-animate/entrance-delay-1/2/3 ชุดเดิมจาก globals.css ไล่ตำแหน่งเดียวกันตรงๆ ได้เลย (ไม่เพิ่ม
+          คลาส/tier ใหม่): ตัวกรอง (delay-1) → ปุ่ม Export (delay-2) → ตาราง/empty state (delay-3) */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="entrance-animate entrance-delay-1 flex flex-wrap items-center gap-2">
           <select
             value={month}
             onChange={(e) => setMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
@@ -88,7 +93,7 @@ export default function PurchaseTaxReport() {
           </select>
         </div>
 
-        <div className="flex gap-2">
+        <div className="entrance-animate entrance-delay-2 flex gap-2">
           <button
             type="button"
             onClick={handleExportExcel}
@@ -122,13 +127,13 @@ export default function PurchaseTaxReport() {
         <p className="py-12 text-center text-sm text-text-sub">กำลังโหลดข้อมูล...</p>
       ) : rows.length === 0 ? (
         <div
-          className="rounded-2xl border border-dashed border-border bg-card-bg p-12 text-center text-sm text-text-sub"
+          className="entrance-animate entrance-delay-3 rounded-2xl border border-dashed border-border bg-card-bg p-12 text-center text-sm text-text-sub"
           data-testid="report-empty"
         >
           ไม่พบรายการในช่วงเวลาที่เลือก
         </div>
       ) : (
-        <div className="card-surface overflow-x-auto rounded-2xl">
+        <div className="card-surface entrance-animate entrance-delay-3 overflow-x-auto rounded-2xl">
           <table className="min-w-full divide-y divide-border text-sm">
             <thead className="bg-table-header">
               <tr>

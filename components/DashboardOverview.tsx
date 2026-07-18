@@ -111,17 +111,27 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
               filter=รอรับ (รายการเกินกำหนดยังคงเป็นสับเซตของรอรับ เห็น badge เกินกำหนดในตารางอยู่แล้ว
               จึงไม่เพิ่ม filter สถานะใหม่ที่ต้องแก้ lib/invoiceLogic.ts), "VAT ที่รอรับ" พาไปรายงาน
               ภาษีซื้อตรงตามตัวอย่างในสเปก, "ได้รับแล้ว" พาไปบันทึกค่าใช้จ่าย filter=ได้รับแล้ว */}
-          <StatsCards
-            stats={stats}
-            onCardClick={(id) => {
-              if (id === 'pending-vat') onNavigate?.('purchase-tax-report');
-              else if (id === 'received') goToRecordExpense({ type: 'filter', status: 'received' });
-              else goToRecordExpense({ type: 'filter', status: 'pending' });
-            }}
-          />
+          {/* entrance-animate ทั้งหน้า (2026-07-18) — ผู้ใช้ขอให้กดเข้าหน้านี้แล้ว smooth เหมือนหน้า
+              "สมุดรายชื่อ" (ContactsPage.tsx) ใช้คลาส entrance-animate/entrance-delay-1/2/3 ชุดเดิมจาก
+              globals.css ซ้ำตรงๆ (ไม่เพิ่มคลาส/tier ใหม่) ไล่ลำดับความสำคัญจากบนลงล่าง: KPI Cards (delay-1)
+              → ทางลัด (delay-2) → รายการล่าสุด/เกินกำหนด+สรุป VAT รายเดือน (delay-3 — ใส่ตรงๆ ที่ grid กับ
+              ห่อ MonthlyVatSummary แยกกันคนละจุดด้านล่าง เพราะมีแค่ 3 tier delay ให้ใช้ ไม่จำเป็นต้องมี
+              wrapper div ร่วมกัน ก็เล่นพร้อมกันได้อยู่แล้วเพราะ animation-delay เท่ากัน) — ครอบด้วย div เปล่า
+              เฉพาะจุดที่ component ลูก (StatsCards/MonthlyVatSummary) ไม่มี className prop ให้ส่งเข้าไปตรงๆ
+              เท่านั้น (ไม่แก้ไฟล์ component ลูกเลย เพื่อจำกัดขอบเขตการแก้ไขรอบนี้) */}
+          <div className="entrance-animate entrance-delay-1">
+            <StatsCards
+              stats={stats}
+              onCardClick={(id) => {
+                if (id === 'pending-vat') onNavigate?.('purchase-tax-report');
+                else if (id === 'received') goToRecordExpense({ type: 'filter', status: 'received' });
+                else goToRecordExpense({ type: 'filter', status: 'pending' });
+              }}
+            />
+          </div>
 
           {/* Quick Actions */}
-          <div className="card-surface rounded-2xl p-6" data-testid="quick-actions">
+          <div className="card-surface entrance-animate entrance-delay-2 rounded-2xl p-6" data-testid="quick-actions">
             <h2 className="mb-4 text-sm font-bold text-text">ทางลัด</h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <button
@@ -163,7 +173,7 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="entrance-animate entrance-delay-3 grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* ตารางรายการรอรับใบกำกับภาษีล่าสุด */}
             <div className="card-surface overflow-hidden rounded-2xl">
               <div className="flex items-center justify-between gap-3 border-b border-border px-6 py-4">
@@ -246,10 +256,12 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
             </div>
           </div>
 
-          <MonthlyVatSummary
-            rows={monthlyVat}
-            onViewAllReport={onNavigate ? () => onNavigate('purchase-tax-report') : undefined}
-          />
+          <div className="entrance-animate entrance-delay-3">
+            <MonthlyVatSummary
+              rows={monthlyVat}
+              onViewAllReport={onNavigate ? () => onNavigate('purchase-tax-report') : undefined}
+            />
+          </div>
         </div>
       )}
     </main>

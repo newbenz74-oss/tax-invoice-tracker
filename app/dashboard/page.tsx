@@ -355,7 +355,13 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-8">
       <div className="mb-8 flex flex-col gap-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-2">
+          {/* entrance-animate ทั้งหน้า (2026-07-18) — ผู้ใช้ขอให้กดเข้าหน้านี้แล้ว smooth เหมือนหน้า
+              "สมุดรายชื่อ" (ContactsPage.tsx) โครงสร้างแถวบนของหน้านี้ (ปุ่มกรองสถานะฝั่งซ้าย + ค้นหา/นำเข้า/
+              เพิ่มรายการฝั่งขวา) เหมือนกับแถว Segmented Control + Toolbar Actions ของ ContactsPage เกือบทุก
+              ประการ จึงใช้คลาส entrance-animate/entrance-delay-1/2/3 ชุดเดิมจาก globals.css ไล่ตำแหน่งเดียวกัน
+              ตรงๆ ได้เลย (ไม่เพิ่มคลาส/tier ใหม่): ปุ่มกรองสถานะ (delay-1) → ค้นหา/นำเข้า/เพิ่มรายการ
+              (delay-2) → ตาราง+pagination (delay-3) */}
+          <div className="entrance-animate entrance-delay-1 flex flex-wrap gap-2">
             {(['all', 'pending', 'received', 'cancelled'] as const).map((s) => (
               <button
                 key={s}
@@ -372,7 +378,7 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
             ))}
           </div>
 
-          <div className="flex gap-2">
+          <div className="entrance-animate entrance-delay-2 flex gap-2">
             <div className="relative">
               <Search
                 size={18}
@@ -449,7 +455,11 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
       {loading ? (
         <p className="py-12 text-center text-sm text-text-sub">กำลังโหลดข้อมูล...</p>
       ) : (
-        <>
+        // ครอบด้วย div (เดิมเป็น Fragment เปล่า) เพื่อให้มี element จริงสำหรับใส่ entrance-animate/
+        // entrance-delay-3 (2026-07-18 — ให้ตรงกับหน้า "สมุดรายชื่อ" ที่ผู้ใช้ขอ) ไม่กระทบ layout เดิมเลย
+        // เพราะ <main> ไม่มี flex/grid/space-y ควบคุมระยะห่างระหว่าง element ลูกโดยตรงอยู่แล้ว (InvoiceTable
+        // กับ pagination จัดการ margin ของตัวเองด้วย mt-4 ที่ pagination อยู่แล้ว)
+        <div className="entrance-animate entrance-delay-3">
           <InvoiceTable
             invoices={paginatedInvoices}
             today={today}
@@ -500,7 +510,7 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </main>
   );

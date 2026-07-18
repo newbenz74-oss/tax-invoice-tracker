@@ -108,7 +108,11 @@ export default function BankReconcilePage() {
         ฝั่งหนึ่ง หน้านี้เป็นรายงานสำหรับตรวจสอบเท่านั้น ไม่มีการแก้ไข ยืนยัน หรือบันทึกข้อมูลบัญชีใดๆ
       </p>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* entrance-animate ทั้งหน้า (2026-07-18) — ผู้ใช้ขอให้กดเข้าหน้านี้แล้ว smooth เหมือนหน้า "สมุดรายชื่อ"
+          (ContactsPage.tsx) ใช้คลาส entrance-animate/entrance-delay-1/2/3 ชุดเดิมจาก globals.css ซ้ำตรงๆ
+          (ไม่เพิ่มคลาส/tier ใหม่) ไล่ลำดับตามขั้นตอนการใช้งานจากบนลงล่าง: อัปโหลดไฟล์ (delay-1) → ช่วงวันที่
+          ที่ยอมรับได้+ปุ่มตรวจสอบ (delay-2) → ผลลัพธ์หรือ empty state (delay-3) */}
+      <div className="entrance-animate entrance-delay-1 mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BankReconcileUploadPanel
           title="Bank Statement"
           description="รายการเดินบัญชีธนาคาร (ข้อมูลหลักที่ใช้อ้างอิงเสมอ)"
@@ -129,7 +133,7 @@ export default function BankReconcilePage() {
         />
       </div>
 
-      <div className="card-surface mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-4">
+      <div className="card-surface entrance-animate entrance-delay-2 mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-4">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm font-medium text-text">ช่วงวันที่ที่ยอมรับได้</span>
           <div className="flex rounded-[10px] border border-border bg-white p-1" role="group" aria-label="เลือกช่วงวันที่ที่ยอมรับได้">
@@ -172,7 +176,7 @@ export default function BankReconcilePage() {
 
       {!result && (
         <div
-          className="card-surface rounded-2xl border border-dashed border-border p-12 text-center text-sm text-text-sub"
+          className="card-surface entrance-animate entrance-delay-3 rounded-2xl border border-dashed border-border p-12 text-center text-sm text-text-sub"
           data-testid="bank-reconcile-empty"
         >
           อัปโหลดไฟล์ Bank Statement และ GL ให้ครบทั้งสองไฟล์ แล้วกด &quot;ตรวจสอบข้อมูล&quot; เพื่อเริ่มกระทบยอด
@@ -180,7 +184,10 @@ export default function BankReconcilePage() {
       )}
 
       {result && (
-        <>
+        // ครอบด้วย div (เดิมเป็น Fragment เปล่า) เพราะ entrance-animate ต้องมี element จริงให้ใส่ class ไม่ใช่
+        // แค่กลุ่ม children เฉยๆ — ไม่กระทบ layout เดิมเลย เพราะ <main> ไม่มี flex/grid/space-y ควบคุมระยะห่าง
+        // ระหว่าง element ลูกโดยตรงอยู่แล้ว (แต่ละ component ลูกจัดการ margin ของตัวเองอยู่แล้วเหมือนเดิม)
+        <div className="entrance-animate entrance-delay-3">
           <BankReconcileSummaryCards summary={result.summary} />
           <BankReconcileMatchedTable pairs={result.matched} />
           <BankReconcileUnmatchedTable
@@ -198,7 +205,7 @@ export default function BankReconcilePage() {
             rows={result.glUnmatched}
             showDocumentNo
           />
-        </>
+        </div>
       )}
     </main>
   );
