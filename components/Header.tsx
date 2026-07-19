@@ -111,10 +111,16 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
           {session?.user?.email && (
             <span className="hidden text-sm text-text-sub sm:inline">{session.user.email}</span>
           )}
+          {/* ปุ่ม "ออกจากระบบ" (2026-07-19) — ผู้ใช้เจอบน production จริงหลัง deploy ธีมเข้มรอบนี้ว่าอ่านปุ่มนี้
+              แทบไม่ออกเลย (เดิม bg-white/8 + text-text คือขาวใสจางมากบนพื้น bg-card-bg/90 ที่เข้มอยู่แล้ว
+              คอนทราสต์ต่ำเกินไป) — โค้ดปุ่มนี้เป็นของเดิมจากรอบสร้างธีมเข้มครั้งก่อน ไม่ได้อยู่ใน 6 ไฟล์ที่ส่งมอบ
+              รอบนี้ จึงเพิ่งถูกมองเห็นจริงครั้งแรกตอนนี้ที่ธีมเข้มขึ้น production แล้ว แก้ตามที่ผู้ใช้ขอตรงๆ:
+              bg-black (ดำสนิท) + text-white (ขาวสนิท) แทน — คอนทราสต์ชัดเจนแน่นอน ไม่แตะ hover state เดิม
+              เพราะยังไม่มีปัญหา */}
           <button
             type="button"
             onClick={handleSignOut}
-            className="btn-press rounded-[10px] border border-border bg-white px-3.5 py-2 text-sm font-medium text-text hover:border-primary/50 hover:bg-primary-light"
+            className="btn-press rounded-[10px] border border-border bg-black px-3.5 py-2 text-sm font-medium text-white hover:border-primary/50 hover:bg-primary-light"
           >
             ออกจากระบบ
           </button>
