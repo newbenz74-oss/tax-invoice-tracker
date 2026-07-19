@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/lib/AuthContext";
+import AssistantRoot from "@/components/AssistantRoot";
 import "./globals.css";
 
 // หมายเหตุ: ตั้งใจไม่ใช้ next/font/google (Geist) เพราะต้อง fetch จาก Google Fonts
@@ -19,7 +20,16 @@ export default function RootLayout({
   return (
     <html lang="th" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-page-bg">
-        <AuthProvider>{children}</AuthProvider>
+        {/* ACC Reconcile AI Copilot (2026-07-19) — mount ครั้งเดียวตรงนี้เป็น sibling ของ {children} ภายใน
+            AuthProvider เดียวกัน เพื่อให้ปรากฏตั้งแต่หน้า /login เป็นต้นไปตามแผนงาน (ProtectedRoute ห่อแค่
+            หน้า /dashboard เท่านั้น ถ้า mount ไว้ในนั้นแทนจะไม่โผล่บนหน้า /login เลยและจะกระพริบหายไปช่วง
+            auth กำลังตรวจสอบสถานะด้วย — ดู app/dashboard/page.tsx ProtectedRoute) เป็น Client Component
+            (ดู 'use client' บนสุดของ components/AssistantRoot.tsx) แต่ import ตรงๆ เข้ามาใน Server
+            Component นี้ได้ปกติตามธรรมชาติของ Next.js App Router ไม่ต้องทำอะไรพิเศษเพิ่ม */}
+        <AuthProvider>
+          {children}
+          <AssistantRoot />
+        </AuthProvider>
       </body>
     </html>
   );

@@ -570,3 +570,61 @@ body {
      กระพริบเห็นสีหลุดธีม */
   background-color: var(--page-bg);
 }
+
+/* ============================================================
+   ACC Reconcile AI Copilot — ผู้ช่วย AI ลอยทุกหน้า (2026-07-19)
+   เพิ่มเฉพาะ CSS ล้วนๆ (keyframes/transition) ไม่กระทบ Logic/Database/Route ใดๆ ของระบบเดิม — ดู
+   components/AssistantPanel.tsx, components/AssistantRoot.tsx, lib/assistantHighlight.ts ประกอบ
+   ============================================================ */
+
+/* ----- Assistant Panel: สไลด์เข้า/ออกตอนเปิด/ปิดผู้ช่วย -----
+   ใช้เทคนิคเดียวกับ .login-card-normal/.login-card-exiting ทุกประการ (2 สถานะสลับด้วย className จาก React
+   state, transition ธรรมดาไม่ใช้ keyframes) เพราะแผงต้อง mount ค้างไว้เสมอระหว่างเล่น animation ปิด (ปิดด้วย
+   opacity:0+transform ไม่ unmount DOM — ไม่มีทาง animate การ unmount ได้จริง) ดู
+   components/AssistantPanel.tsx — isOpen + attribute inert เป็นตัวคุมการเข้าถึงจริง (ตัด Tab order/
+   accessibility tree) แต่ inert เพียงอย่างเดียวไม่รับประกันว่า pointer event จะ "ทะลุผ่าน" ไปยัง element
+   ข้างหลังเสมอในทุกเบราว์เซอร์ (พฤติกรรม hit-testing ของ inert ไม่ได้ระบุชัดในสเปกขนาดนั้น) จึงเพิ่ม
+   pointer-events: none ไว้ที่นี่อย่างชัดเจนด้วย (กันเคสจริงที่สำคัญมาก — แผงนี้ mount ค้างไว้ครอบพื้นที่กว้าง
+   มากตอนปิดบนมือถือ (inset-x-3 top-20 bottom-3 คือเกือบเต็มจอ) ถ้าไม่กัน pointer-events ไว้ จะบังคลิกไปยัง
+   Sidebar/ตาราง/ปุ่มอื่นๆ ที่อยู่ข้างหลังทั้งที่มองไม่เห็นแผงเลยเพราะ opacity: 0 — เป็นบั๊กที่มองด้วยตาไม่เจอ
+   เด็ดขาดเพราะแผงโปร่งใสสนิทอยู่แล้ว ต้องทดสอบด้วยการคลิกจริงเท่านั้นถึงจะพบ) translateY(16px) แทน scale
+   ตามธรรมชาติของ "แผงเลื่อนขึ้นจากขอบล่างจอ" ต่างจาก login card ที่ใช้ scale เพราะเป็นการ์ดกลางจอ ครอบคลุม
+   อัตโนมัติแล้วโดย @media (prefers-reduced-motion: reduce) ด้านบน (บังคับ transition-duration แทบเป็น 0) */
+.assistant-panel-open {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+  transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms ease-out;
+}
+.assistant-panel-closed {
+  transform: translateY(16px) scale(0.98);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 220ms ease-in, opacity 180ms ease-in;
+}
+
+/* ----- Assistant highlight glow -----
+   ใช้ outline แทน border ตามที่ตัดสินใจไว้ในแผนงาน เพื่อไม่ให้กระทบ layout ของ element เป้าหมาย (outline ไม่
+   กินพื้นที่ document flow / ไม่ดัน element ข้างเคียง ต่างจาก border) — ดู lib/assistantHighlight.ts
+   (highlightElement/clearHighlight toggle คลาสนี้ผ่าน classList ตรงๆ ไม่ใช่ React state) ซ้อน box-shadow
+   เป็นเงาเรืองแสงฟ้ารอบนอก outline อีกชั้นให้เห็นเด่นชัดกว่า outline เพียวๆ กะพริบ (pulse) 2 รอบเพื่อดึง
+   สายตาตอนเพิ่งไฮไลต์ แล้วค้างที่สถานะสว่างสุดจนกว่า clearHighlight() จะลบคลาสออก (2.4 วินาทีตาม
+   HIGHLIGHT_DURATION_MS) — ครอบคลุมอัตโนมัติแล้วโดย @media (prefers-reduced-motion: reduce) ด้านบน (บังคับ
+   animation-duration แทบเป็น 0 ให้ animation นี้ด้วยเช่นกัน ไม่ต้องแยกสาขาเพิ่มเลย) */
+@keyframes assistantHighlightPulse {
+  0%,
+  100% {
+    outline-color: rgba(47, 167, 226, 0.9);
+    box-shadow: 0 0 0 4px rgba(47, 167, 226, 0.35);
+  }
+  50% {
+    outline-color: rgba(47, 167, 226, 0.5);
+    box-shadow: 0 0 0 8px rgba(47, 167, 226, 0.18);
+  }
+}
+.assistant-highlight-glow {
+  outline: 3px solid rgba(47, 167, 226, 0.9);
+  outline-offset: 3px;
+  border-radius: 8px;
+  animation: assistantHighlightPulse 1200ms ease-in-out 2;
+}

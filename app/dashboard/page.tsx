@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { Search } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -17,6 +17,7 @@ import ContactsPage from '@/components/ContactsPage';
 import BankReconcilePage from '@/components/BankReconcilePage';
 import BankReconcileHistoryPage from '@/components/BankReconcileHistoryPage';
 import { useAuth } from '@/lib/AuthContext';
+import { registerAssistantNavBridge } from '@/lib/assistantNavBridge';
 import {
   bulkCreateInvoices,
   cancelInvoice as apiCancelInvoice,
@@ -104,15 +105,40 @@ function DashboardShell() {
   const activeEntry = findNavLeaf(activeId);
   const title = activeEntry?.label ?? '';
 
-  function commitNav(id: string, intent: NavIntent | null) {
+  // เปลี่ยนจาก function declaration ธรรมดาเป็น useCallback (2026-07-19 พร้อมฟีเจอร์ ACC Reconcile AI
+  // Copilot) — เดิมเป็น plain function ไม่มีปัญหาอะไรตอนที่มีแค่ Sidebar/renderActiveContent ใช้งานตรงๆ
+  // เท่านั้น (ไม่สนใจ identity ระหว่าง render) แต่ตอนนี้ useEffect ลงทะเบียน nav bridge ด้านล่างต้องใช้ค่านี้
+  // เป็น dependency ด้วย ถ้ายังเป็น plain function (identity เปลี่ยนใหม่ทุก render) จะทำให้ effect นั้นรัน
+  // ใหม่ทุกครั้งที่ DashboardShell re-render โดยไม่จำเป็นเลย (ไม่ผิดแต่สิ้นเปลือง — ทุกครั้งที่ re-register
+  // จะสั่ง AssistantRoot.tsx re-render ตามไปด้วยผ่าน useSyncExternalStore) — เลียนแบบ pattern เดียวกับ
+  // closeModal/attemptClose ใน ContactsPage.tsx ทุกประการ ไม่กระทบ behavior หรือ signature ภายนอกของทั้งสอง
+  // ฟังก์ชันนี้แม้แต่นิดเดียว (ยังรับ/คืนค่าแบบเดิมทุกประการ ที่เรียกใช้อยู่เดิมทั้งหมดยังทำงานถูกต้องเหมือน
+  // เดิม) เพราะ setActiveId/setNavIntent/setMobileNavOpen เป็น setState ที่ identity คงที่อยู่แล้วโดยธรรมชาติ
+  const commitNav = useCallback((id: string, intent: NavIntent | null) => {
     setActiveId(id);
     setNavIntent(intent);
     setMobileNavOpen(false);
-  }
+  }, []);
 
-  function handleSelect(id: string, intent: NavIntent | null = null) {
-    commitNav(id, intent);
-  }
+  const handleSelect = useCallback(
+    (id: string, intent: NavIntent | null = null) => {
+      commitNav(id, intent);
+    },
+    [commitNav]
+  );
+
+  // ลงทะเบียนความสามารถนำทางจริงของหน้านี้เข้ากับผู้ช่วย AI ที่ mount แยกอยู่ที่ root layout (2026-07-19) —
+  // ดู lib/assistantNavBridge.ts ทั้งไฟล์สำหรับเหตุผลที่ใช้ external store + useSyncExternalStore แทน React
+  // Context เลิกลงทะเบียน (null) ตอน unmount เสมอ (DashboardShell unmount ทุกครั้งที่ล็อกเอาต์ หรือตอน
+  // ProtectedRoute เปลี่ยนกลับไปแสดง null ระหว่างตรวจสอบ auth — ผู้ช่วยจะกลับไปไม่เสนอคำสั่ง "นำทางไปหน้า X"
+  // เองอัตโนมัติทันทีที่ไม่มี DashboardShell mount อยู่จริง ถูกต้องตามที่ออกแบบไว้) handleSelect ที่ส่งเข้าไป
+  // เป็น navigate ตรงๆ (ไม่ใส่ intent ใดๆ) เพราะ Smart Action ของผู้ช่วยมีแค่ "พาไปหน้า X เฉยๆ" เท่านั้น ไม่มี
+  // แนวคิดเปิดฟอร์ม/ตั้ง filter ล่วงหน้าแทนผู้ใช้ (สอดคล้องกับกฎห้าม save/delete/approve/submit แทนผู้ใช้ในสเปก
+  // เดิม — ดู types/assistant.ts AssistantNavBridge.navigate ที่รับแค่ id อย่างเดียว ไม่มีช่องให้ส่ง intent)
+  useEffect(() => {
+    registerAssistantNavBridge({ activeId, pageTitle: title, navigate: handleSelect });
+    return () => registerAssistantNavBridge(null);
+  }, [activeId, title, handleSelect]);
 
   return (
     <>
@@ -135,7 +161,18 @@ function DashboardShell() {
             animation-duration แทบเป็น 0 ให้ทุก animation ในระบบรวมถึงอันนี้ด้วย) ตั้งใจใส่ที่ "คอลัมน์
             เนื้อหา" นี้เท่านั้น ไม่ใส่ที่ wrapper ที่ครอบ Sidebar เพราะ Sidebar เป็น position:fixed — ดู
             คอมเมนต์เต็มที่ .dashboard-content-entrance ใน globals.css ว่าทำไม */}
-        <div className="dashboard-content-entrance flex min-h-screen flex-1 flex-col min-[992px]:ml-[250px]">
+        {/* pb-32 กันชนล่าง (2026-07-19) — ปุ่มลอยผู้ช่วย AI (AssistantBubble, mount จาก root layout, position:
+            fixed มุมขวาล่างทุกหน้า) จับจองพื้นที่ตายตัวประมาณ 96px จากมุมขวาล่างของ viewport เสมอ ไม่เลื่อนหนี
+            ตาม scroll เพราะไม่ผูกกับตำแหน่งใน document แต่ยึดกับ viewport ตรงๆ หน้าที่เนื้อหายาวพอจะเลื่อนพ้น
+            มุมนี้เองเมื่อ scroll ลงสุด แต่หน้าที่มีข้อมูลน้อย (เช่นตารางเหลือแค่ 1-2 แถว) แถวสุดท้ายของตาราง — ซึ่ง
+            คอลัมน์ "การจัดการ" มักอยู่ขวาสุดพอดี — อาจตกอยู่ในมุมที่ปุ่มลอยจับจองไว้แม้ scroll ไปสุดหน้าแล้วก็ตาม
+            (เพราะปุ่มลอย fixed ไม่ขยับ) ทำให้ผู้ใช้จริงคลิกปุ่มที่ถูกบังไม่ได้เลย — เจอบั๊กนี้จริงจาก
+            e2e/overduePurchaseTax.spec.ts ตอนตารางเหลือแถวเดียว ปุ่ม "ได้รับใบกำกับภาษีแล้ว" โดนปุ่มลอยบังสนิท
+            (ยืนยันด้วย boundingBox() จริง ไม่ใช่เดา) แก้ที่จุดเดียวตรงนี้ — wrapper กลางที่ครอบทุกหน้าใน
+            DashboardShell (ดู renderActiveContent ด้านล่าง) — แทนที่จะไล่แก้ padding ทีละไฟล์หน้าย่อยที่มี
+            <main> ของตัวเอง (มีอยู่ ~8-9 ไฟล์) เผื่อระยะไว้ 128px มากกว่าพื้นที่ที่ปุ่มลอยกินจริง (~96px)
+            พอสมควรเพื่อความชัวร์ */}
+        <div className="dashboard-content-entrance flex min-h-screen flex-1 flex-col pb-32 min-[992px]:ml-[250px]">
           <Header title={title} onMenuClick={() => setMobileNavOpen(true)} />
           {renderActiveContent(activeId, Boolean(activeEntry?.implemented), title, handleSelect, navIntent)}
         </div>
