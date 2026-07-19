@@ -361,6 +361,9 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
               ประการ จึงใช้คลาส entrance-animate/entrance-delay-1/2/3 ชุดเดิมจาก globals.css ไล่ตำแหน่งเดียวกัน
               ตรงๆ ได้เลย (ไม่เพิ่มคลาส/tier ใหม่): ปุ่มกรองสถานะ (delay-1) → ค้นหา/นำเข้า/เพิ่มรายการ
               (delay-2) → ตาราง+pagination (delay-3) */}
+          {/* bg-white/8 + hover:bg-white/15 (แทน bg-white/hover:bg-page-bg ทึบเดิม) ตามธีมกระจกเข้ม
+              (dark glassmorphism, 2026-07-18 รอบ 3) — ฟังก์ชันนี้เพิ่งถูกตั้งฐานใหม่จาก GitHub ตอนทำฟีเจอร์
+              entrance-animate เมื่อครู่ ทำให้หลุดจากธีมเข้มไปชั่วคราว ใส่กลับให้ตรงกับไฟล์อื่นๆ ในระบบ */}
           <div className="entrance-animate entrance-delay-1 flex flex-wrap gap-2">
             {(['all', 'pending', 'received', 'cancelled'] as const).map((s) => (
               <button
@@ -369,7 +372,7 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
                 className={`btn-press rounded-full px-4 py-2 text-sm font-medium transition-colors duration-[250ms] ${
                   statusFilter === s
                     ? 'bg-primary text-white shadow-sm'
-                    : 'border border-border bg-white text-text-sub hover:bg-page-bg'
+                    : 'border border-border bg-white/8 text-text-sub hover:bg-white/15'
                 }`}
                 data-testid={`filter-${s}`}
               >
@@ -389,7 +392,7 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
                 value={search}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="ค้นหาผู้ขาย / เลขที่อ้างอิง / เลขใบกำกับภาษี"
-                className="focus-ring-primary h-12 w-64 rounded-xl border border-border bg-white pr-4 pl-10 text-sm text-text placeholder:text-text-sub"
+                className="focus-ring-primary h-12 w-64 rounded-xl border border-border bg-white/5 pr-4 pl-10 text-sm text-text placeholder:text-text-sub"
                 data-testid="search-input"
               />
             </div>
@@ -398,7 +401,7 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
                 setShowImportPanel(true);
                 setShowForm(false);
               }}
-              className="btn-press h-12 rounded-[10px] border border-border bg-white px-4 text-sm font-medium text-text hover:bg-page-bg"
+              className="btn-press h-12 rounded-[10px] border border-border bg-white/8 px-4 text-sm font-medium text-text hover:bg-white/15"
               data-testid="open-import-panel"
             >
               นำเข้าจาก Excel
@@ -490,7 +493,7 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
                   type="button"
                   disabled={safePage <= 1}
                   onClick={() => setPage(safePage - 1)}
-                  className="btn-press rounded-[10px] border border-border bg-white px-3.5 py-2 text-sm font-medium text-text hover:bg-page-bg disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-press rounded-[10px] border border-border bg-white/8 px-3.5 py-2 text-sm font-medium text-text hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
                   data-testid="pagination-prev"
                 >
                   ก่อนหน้า
@@ -502,7 +505,7 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
                   type="button"
                   disabled={safePage >= totalPages}
                   onClick={() => setPage(safePage + 1)}
-                  className="btn-press rounded-[10px] border border-border bg-white px-3.5 py-2 text-sm font-medium text-text hover:bg-page-bg disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-press rounded-[10px] border border-border bg-white/8 px-3.5 py-2 text-sm font-medium text-text hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
                   data-testid="pagination-next"
                 >
                   ถัดไป

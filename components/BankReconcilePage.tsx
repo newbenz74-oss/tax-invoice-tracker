@@ -136,7 +136,10 @@ export default function BankReconcilePage() {
       <div className="card-surface entrance-animate entrance-delay-2 mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-4">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm font-medium text-text">ช่วงวันที่ที่ยอมรับได้</span>
-          <div className="flex rounded-[10px] border border-border bg-white p-1" role="group" aria-label="เลือกช่วงวันที่ที่ยอมรับได้">
+          {/* bg-white/8 (แทน bg-white ทึบเดิม) ตามธีมกระจกเข้ม (dark glassmorphism, 2026-07-18 รอบ 3) —
+              ไฟล์นี้เพิ่งถูกตั้งฐานใหม่จาก GitHub ตอนทำฟีเจอร์ entrance-animate เมื่อครู่ ทำให้หลุดจากธีมเข้ม
+              ไปชั่วคราว ใส่กลับให้ตรงกับไฟล์อื่นๆ ในระบบ (เทียบ pattern เดียวกับ BankReconcilePagination.tsx) */}
+          <div className="flex rounded-[10px] border border-border bg-white/8 p-1" role="group" aria-label="เลือกช่วงวันที่ที่ยอมรับได้">
             <button
               type="button"
               onClick={() => setTolerance(1)}

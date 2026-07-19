@@ -64,12 +64,15 @@ export default function PurchaseTaxReport() {
           กับแถว Segmented Control + Toolbar Actions ของ ContactsPage เกือบทุกประการ จึงใช้คลาส
           entrance-animate/entrance-delay-1/2/3 ชุดเดิมจาก globals.css ไล่ตำแหน่งเดียวกันตรงๆ ได้เลย (ไม่เพิ่ม
           คลาส/tier ใหม่): ตัวกรอง (delay-1) → ปุ่ม Export (delay-2) → ตาราง/empty state (delay-3) */}
+      {/* bg-white/8 + hover:bg-white/15 (แทน bg-white/hover:bg-page-bg ทึบเดิม) ตามธีมกระจกเข้ม
+          (dark glassmorphism, 2026-07-18 รอบ 3) — ไฟล์นี้เพิ่งถูกตั้งฐานใหม่จาก GitHub ตอนทำฟีเจอร์
+          entrance-animate เมื่อครู่ ทำให้หลุดจากธีมเข้มไปชั่วคราว ใส่กลับให้ตรงกับไฟล์อื่นๆ ในระบบ */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="entrance-animate entrance-delay-1 flex flex-wrap items-center gap-2">
           <select
             value={month}
             onChange={(e) => setMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-            className="focus-ring-primary rounded-[10px] border border-border bg-white px-3.5 py-2.5 text-sm text-text"
+            className="focus-ring-primary rounded-[10px] border border-border bg-white/8 px-3.5 py-2.5 text-sm text-text"
             data-testid="report-month-filter"
           >
             <option value="all">ทั้งปี</option>
@@ -82,7 +85,7 @@ export default function PurchaseTaxReport() {
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="focus-ring-primary rounded-[10px] border border-border bg-white px-3.5 py-2.5 text-sm text-text"
+            className="focus-ring-primary rounded-[10px] border border-border bg-white/8 px-3.5 py-2.5 text-sm text-text"
             data-testid="report-year-filter"
           >
             {buddhistYearOptions().map((y) => (
@@ -98,7 +101,7 @@ export default function PurchaseTaxReport() {
             type="button"
             onClick={handleExportExcel}
             disabled={rows.length === 0}
-            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-text hover:bg-page-bg disabled:opacity-50"
+            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white/8 px-4 py-2.5 text-sm font-medium text-text hover:bg-white/15 disabled:opacity-50"
             data-testid="export-excel"
           >
             <FileSpreadsheet size={16} aria-hidden="true" />
@@ -108,7 +111,7 @@ export default function PurchaseTaxReport() {
             type="button"
             onClick={handleExportPdf}
             disabled={rows.length === 0}
-            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-text hover:bg-page-bg disabled:opacity-50"
+            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white/8 px-4 py-2.5 text-sm font-medium text-text hover:bg-white/15 disabled:opacity-50"
             data-testid="export-pdf"
           >
             <FileText size={16} aria-hidden="true" />

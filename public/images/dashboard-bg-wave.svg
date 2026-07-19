@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <!-- Layered diagonal wave bands: crisp bezier curves, no blur (round 5). No stroke/highlight line
+       on the seams (round 6 — user's reference has no white edge line between bands, just a clean
+       color-to-color boundary) — each band's edge is only as crisp as the vector fill itself. -->
+  <g transform="rotate(-35 960 540)">
+    <rect x="-1500" y="-1500" width="5000" height="5000" fill="#4a9bf7" />
+    <path d="M -1500,-860 C -700,-1020 200,-720 1000,-880 C 1800,-1030 2600,-700 3500,-860 L 3500,3500 L -1500,3500 Z" fill="#3583ee" />
+    <path d="M -1500,-520 C -700,-360 200,-680 1000,-500 C 1800,-340 2600,-660 3500,-510 L 3500,3500 L -1500,3500 Z" fill="#2673e6" />
+    <path d="M -1500,-180 C -700,-330 200,-30 1000,-190 C 1800,-350 2600,-20 3500,-170 L 3500,3500 L -1500,3500 Z" fill="#1a5cd6" />
+    <path d="M -1500,150 C -700,10 200,300 1000,145 C 1800,0 2600,320 3500,160 L 3500,3500 L -1500,3500 Z" fill="#1349bd" />
+    <path d="M -1500,490 C -700,640 200,340 1000,495 C 1800,660 2600,320 3500,485 L 3500,3500 L -1500,3500 Z" fill="#0d3a9d" />
+    <path d="M -1500,830 C -700,680 200,980 1000,825 C 1800,660 2600,1000 3500,835 L 3500,3500 L -1500,3500 Z" fill="#0a2d7c" />
+    <path d="M -1500,1170 C -700,1330 200,1010 1000,1175 C 1800,1350 2600,990 3500,1160 L 3500,3500 L -1500,3500 Z" fill="#08215d" />
+    <path d="M -1500,1520 C -700,1370 200,1670 1000,1515 C 1800,1350 2600,1690 3500,1525 L 3500,3500 L -1500,3500 Z" fill="#050f38" />
+  </g>
+</svg>
