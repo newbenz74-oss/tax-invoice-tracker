@@ -62,6 +62,53 @@ export interface MockSeedContact {
   created_by?: string | null;
 }
 
+// เพิ่มสำหรับฟีเจอร์ "บันทึกประวัติการกระทบยอด" (จับคู่เอง + save/history) — ดู
+// supabase/migration_006_bank_reconcile_history.sql รูปร่าง seed ตั้งใจให้ใกล้เคียงกับแถวในฐานข้อมูลจริง
+// (snake_case field ตรงกับคอลัมน์) เพื่อให้ทดสอบ "มีรายการประวัติอยู่แล้ว" ได้โดยไม่ต้องเดินผ่าน UI
+// อัปโหลด+จับคู่+บันทึกทุกครั้ง — matchGroupId บนแถว Bank/GL ต้องตรงกับ id ที่ระบุไว้ใน matchGroups (id
+// ของ MockSeedReconcileMatchGroup เป็นค่าที่ต้องระบุเอง ไม่ auto-generate เหมือน id อื่นๆ เพราะแถว Bank/GL
+// ต้องอ้างอิงกลับมาได้)
+export interface MockSeedReconcileBankRow {
+  id?: string;
+  matchGroupId?: string | null;
+  rowOrder?: number;
+  date: string;
+  type: 'receive' | 'payment';
+  amount: number;
+}
+
+export interface MockSeedReconcileGlRow {
+  id?: string;
+  matchGroupId?: string | null;
+  rowOrder?: number;
+  documentNo?: string;
+  date: string;
+  type: 'receive' | 'payment';
+  amount: number;
+}
+
+export interface MockSeedReconcileMatchGroup {
+  id: string;
+  matchType: 'auto' | 'manual';
+  type: 'receive' | 'payment';
+}
+
+export interface MockSeedReconcileReport {
+  id?: string;
+  reportName: string;
+  periodMonth: number;
+  periodYear: number;
+  status?: 'draft' | 'complete';
+  bankFileName?: string | null;
+  glFileName?: string | null;
+  toleranceDays?: 1 | 3;
+  matchGroups?: MockSeedReconcileMatchGroup[];
+  bankRows?: MockSeedReconcileBankRow[];
+  glRows?: MockSeedReconcileGlRow[];
+  createdBy?: string | null;
+  createdByEmail?: string | null;
+}
+
 export interface MockSeed {
   users?: MockSeedUser[];
   /** ถ้าใส่ email นี้ จะเริ่มต้นด้วย session ที่ login ไว้แล้ว (ข้ามหน้า login ได้เลย) */
@@ -69,6 +116,9 @@ export interface MockSeed {
   invoices?: MockSeedInvoice[];
   /** ข้อมูลสมุดรายชื่อเริ่มต้น (ตาราง business_partners) — ไม่ระบุ = เริ่มต้นด้วยรายการว่างเปล่า */
   contacts?: MockSeedContact[];
+  /** รายการประวัติกระทบยอดที่มีอยู่ก่อนแล้ว (4 ตารางใหม่ของฟีเจอร์ save/history) — ไม่ระบุ = เริ่มต้นด้วย
+   * รายการว่างเปล่า (พฤติกรรมเดิมของทุก seed ก่อนหน้านี้) */
+  reconcileReports?: MockSeedReconcileReport[];
 }
 
 export function installMockSupabase(seed: MockSeed = {}) {
@@ -88,9 +138,86 @@ export function installMockSupabase(seed: MockSeed = {}) {
     password: u.password,
   }));
 
+  // ประกอบ 4 ตารางของฟีเจอร์ "บันทึกประวัติการกระทบยอด" แยกไว้ก่อนสร้าง tables ด้านล่าง (ต่างจาก
+  // pending_tax_invoices/business_partners ที่ map() ได้ในบรรทัดเดียวเพราะ report_id ของแถวลูก (match
+  // groups/bank rows/gl rows) ต้องอ้างอิง id ที่สร้างให้ report แม่ตัวเดียวกัน จึงต้องวนแบบ forEach เก็บ id
+  // ไว้ใช้ซ้ำ ไม่ใช่ map() แยกอิสระต่อกัน)
+  const reconcileReportRows: Record<string, unknown>[] = [];
+  const reconcileMatchGroupRows: Record<string, unknown>[] = [];
+  const reconcileBankRowRows: Record<string, unknown>[] = [];
+  const reconcileGlRowRows: Record<string, unknown>[] = [];
+
+  (seed.reconcileReports ?? []).forEach((r) => {
+    const reportId = r.id ?? genId();
+    const bankRows = r.bankRows ?? [];
+    const glRows = r.glRows ?? [];
+    const matchGroups = r.matchGroups ?? [];
+
+    reconcileReportRows.push({
+      id: reportId,
+      report_name: r.reportName,
+      period_month: r.periodMonth,
+      period_year: r.periodYear,
+      status: r.status ?? 'draft',
+      bank_file_name: r.bankFileName ?? null,
+      gl_file_name: r.glFileName ?? null,
+      tolerance_days: r.toleranceDays ?? 1,
+      bank_row_count: bankRows.length,
+      gl_row_count: glRows.length,
+      matched_group_count: matchGroups.length,
+      bank_unmatched_count: bankRows.filter((row) => !row.matchGroupId).length,
+      gl_unmatched_count: glRows.filter((row) => !row.matchGroupId).length,
+      created_by: r.createdBy ?? null,
+      created_by_email: r.createdByEmail ?? null,
+      created_at: nowISO(),
+      updated_by: r.createdBy ?? null,
+      updated_by_email: r.createdByEmail ?? null,
+      updated_at: nowISO(),
+    });
+
+    matchGroups.forEach((g) => {
+      reconcileMatchGroupRows.push({
+        id: g.id,
+        report_id: reportId,
+        match_type: g.matchType,
+        type: g.type,
+        created_at: nowISO(),
+      });
+    });
+
+    bankRows.forEach((row, index) => {
+      reconcileBankRowRows.push({
+        id: row.id ?? genId(),
+        report_id: reportId,
+        match_group_id: row.matchGroupId ?? null,
+        row_order: row.rowOrder ?? index,
+        transaction_date: row.date,
+        type: row.type,
+        amount: row.amount,
+      });
+    });
+
+    glRows.forEach((row, index) => {
+      reconcileGlRowRows.push({
+        id: row.id ?? genId(),
+        report_id: reportId,
+        match_group_id: row.matchGroupId ?? null,
+        row_order: row.rowOrder ?? index,
+        document_no: row.documentNo ?? '',
+        transaction_date: row.date,
+        type: row.type,
+        amount: row.amount,
+      });
+    });
+  });
+
   const tables: {
     pending_tax_invoices: Record<string, unknown>[];
     business_partners: Record<string, unknown>[];
+    bank_reconcile_reports: Record<string, unknown>[];
+    bank_reconcile_match_groups: Record<string, unknown>[];
+    bank_reconcile_bank_rows: Record<string, unknown>[];
+    bank_reconcile_gl_rows: Record<string, unknown>[];
   } = {
     pending_tax_invoices: (seed.invoices ?? []).map((inv) => ({
       id: inv.id ?? genId(),
@@ -143,6 +270,12 @@ export function installMockSupabase(seed: MockSeed = {}) {
       created_at: nowISO(),
       updated_at: nowISO(),
     })),
+    // 4 ตารางของฟีเจอร์ "บันทึกประวัติการกระทบยอด" — ประกอบไว้แล้วด้านบน (ไม่ใช้ .map() ตรงนี้เพราะแถวลูก
+    // ต้องอ้างอิง report_id ที่ผูกกับ report แม่ตัวเดียวกัน ดูคอมเมนต์ที่นิยาม reconcileReportRows)
+    bank_reconcile_reports: reconcileReportRows,
+    bank_reconcile_match_groups: reconcileMatchGroupRows,
+    bank_reconcile_bank_rows: reconcileBankRowRows,
+    bank_reconcile_gl_rows: reconcileGlRowRows,
   };
 
   type Listener = (event: string, session: unknown) => void;
@@ -207,7 +340,10 @@ export function installMockSupabase(seed: MockSeed = {}) {
     private op: 'select' | 'insert' | 'update' | 'delete' = 'select';
     private payload: Record<string, unknown> | Record<string, unknown>[] | null = null;
     private filters: [string, unknown][] = [];
-    private orderBy: { field: string; ascending: boolean } | null = null;
+    // array แทนที่จะเป็นค่าเดียว เพื่อรองรับการเรียง .order() ต่อกันหลายครั้ง (multi-column sort) เช่น
+    // fetchReconcileReports() ที่เรียง period_year desc, period_month desc, updated_at desc พร้อมกัน — ค่า
+    // แรกที่ push เข้ามาคือคีย์เรียงหลัก ค่าถัดไปใช้ตัดสินเมื่อค่าคีย์ก่อนหน้าเท่ากันเท่านั้น (ดู execute())
+    private orderBy: { field: string; ascending: boolean }[] = [];
     private wantSingle = false;
 
     constructor(table: string) {
@@ -252,7 +388,7 @@ export function installMockSupabase(seed: MockSeed = {}) {
     }
 
     order(field: string, opts?: { ascending?: boolean }) {
-      this.orderBy = { field, ascending: opts?.ascending !== false };
+      this.orderBy.push({ field, ascending: opts?.ascending !== false });
       return this;
     }
 
@@ -316,13 +452,15 @@ export function installMockSupabase(seed: MockSeed = {}) {
 
       // select
       let result = rows.filter((r) => this.matches(r));
-      if (this.orderBy) {
-        const { field, ascending } = this.orderBy;
+      if (this.orderBy.length > 0) {
+        const orderBy = this.orderBy;
         result = [...result].sort((a, b) => {
-          const av = (a[field] ?? '') as string | number;
-          const bv = (b[field] ?? '') as string | number;
-          if (av < bv) return ascending ? -1 : 1;
-          if (av > bv) return ascending ? 1 : -1;
+          for (const { field, ascending } of orderBy) {
+            const av = (a[field] ?? '') as string | number;
+            const bv = (b[field] ?? '') as string | number;
+            if (av < bv) return ascending ? -1 : 1;
+            if (av > bv) return ascending ? 1 : -1;
+          }
           return 0;
         });
       }
@@ -348,15 +486,118 @@ export function installMockSupabase(seed: MockSeed = {}) {
     }
   }
 
+  // จำลอง Postgres function public.save_bank_reconcile_report(...) (supabase/migration_006_*.sql) — ต้อง
+  // ให้พฤติกรรมตรงกับฟังก์ชันจริงเป๊ะๆ: สร้างใหม่เมื่อไม่มี id ส่งมา, บันทึกทับ (ลบลูกทั้งหมดของ report นั้น
+  // แล้วแทรกชุดใหม่ทั้งหมด) เมื่อมี id ส่งมา, คำนวณคอลัมน์สรุป (bank_row_count ฯลฯ) จาก payload สดทุกครั้ง —
+  // ไม่ generate id ให้ match_groups เอง (ใช้ id ที่ฝั่ง client ส่งมาตรงๆ เหมือนฟังก์ชันจริง เพราะ bank/gl
+  // rows อ้างอิง match_group_id กลับมาที่ id นี้ภายใน payload เดียวกัน)
+  function saveBankReconcileReport(params: Record<string, unknown> | undefined) {
+    const p = (params ?? {}) as {
+      p_report?: Record<string, unknown>;
+      p_match_groups?: Record<string, unknown>[];
+      p_bank_rows?: Record<string, unknown>[];
+      p_gl_rows?: Record<string, unknown>[];
+    };
+    const report = p.p_report ?? {};
+    const matchGroups = p.p_match_groups ?? [];
+    const bankRows = p.p_bank_rows ?? [];
+    const glRows = p.p_gl_rows ?? [];
+
+    const bankUnmatchedCount = bankRows.filter((r) => !r.match_group_id).length;
+    const glUnmatchedCount = glRows.filter((r) => !r.match_group_id).length;
+    const summaryFields = {
+      report_name: report.report_name ?? null,
+      period_month: report.period_month ?? null,
+      period_year: report.period_year ?? null,
+      status: report.status ?? 'draft',
+      bank_file_name: report.bank_file_name ?? null,
+      gl_file_name: report.gl_file_name ?? null,
+      tolerance_days: report.tolerance_days ?? 1,
+      bank_row_count: bankRows.length,
+      gl_row_count: glRows.length,
+      matched_group_count: matchGroups.length,
+      bank_unmatched_count: bankUnmatchedCount,
+      gl_unmatched_count: glUnmatchedCount,
+    };
+
+    let reportId = (report.id as string | null | undefined) || null;
+
+    if (!reportId) {
+      reportId = genId();
+      tables.bank_reconcile_reports.push({
+        id: reportId,
+        ...summaryFields,
+        created_by: report.created_by ?? null,
+        created_by_email: report.created_by_email ?? null,
+        created_at: nowISO(),
+        updated_by: report.updated_by ?? null,
+        updated_by_email: report.updated_by_email ?? null,
+        updated_at: nowISO(),
+      });
+    } else {
+      const existing = tables.bank_reconcile_reports.find((r) => r.id === reportId);
+      if (!existing) {
+        return { data: null, error: { message: `ไม่พบรายการกระทบยอด id=${reportId}` } };
+      }
+      Object.assign(existing, summaryFields, {
+        updated_by: report.updated_by ?? null,
+        updated_by_email: report.updated_by_email ?? null,
+        updated_at: nowISO(),
+      });
+      tables.bank_reconcile_match_groups = tables.bank_reconcile_match_groups.filter((g) => g.report_id !== reportId);
+      tables.bank_reconcile_bank_rows = tables.bank_reconcile_bank_rows.filter((r) => r.report_id !== reportId);
+      tables.bank_reconcile_gl_rows = tables.bank_reconcile_gl_rows.filter((r) => r.report_id !== reportId);
+    }
+
+    matchGroups.forEach((g) => {
+      tables.bank_reconcile_match_groups.push({
+        id: g.id,
+        report_id: reportId,
+        match_type: g.match_type,
+        type: g.type,
+        created_at: nowISO(),
+      });
+    });
+    bankRows.forEach((r) => {
+      tables.bank_reconcile_bank_rows.push({
+        id: genId(),
+        report_id: reportId,
+        match_group_id: r.match_group_id ?? null,
+        row_order: r.row_order,
+        transaction_date: r.transaction_date,
+        type: r.type,
+        amount: r.amount,
+      });
+    });
+    glRows.forEach((r) => {
+      tables.bank_reconcile_gl_rows.push({
+        id: genId(),
+        report_id: reportId,
+        match_group_id: r.match_group_id ?? null,
+        row_order: r.row_order,
+        document_no: r.document_no ?? '',
+        transaction_date: r.transaction_date,
+        type: r.type,
+        amount: r.amount,
+      });
+    });
+
+    const finalReport = tables.bank_reconcile_reports.find((r) => r.id === reportId) ?? null;
+    return { data: finalReport, error: null };
+  }
+
   const mockClient = {
     auth,
     from(table: string) {
       return new QueryBuilder(table);
     },
-    // ไม่มีโค้ดแอปจริงที่เหลืออยู่เรียก supabase.rpc(...) แล้ว (ฟีเจอร์เดียวที่เคยใช้ — Bank Reconcile
-    // auto-save — ถูกลบออกทั้งหมดตามคำขอ 2026-07-17) คงเมธอดนี้ไว้เป็น stub ทั่วไปเผื่อฟีเจอร์ใหม่ในอนาคต
-    // ต้องใช้ Postgres function ผ่าน RPC — เพิ่ม case แยกตาม fnName ได้เลยถ้าต้องใช้งานจริง
-    async rpc(fnName: string) {
+    async rpc(fnName: string, params?: Record<string, unknown>) {
+      if (fnName === 'save_bank_reconcile_report') {
+        // deep-clone ผลลัพธ์ก่อนคืนออกไปเสมอ เหตุผลเดียวกับ QueryBuilder.then() ด้านบน (กัน SWR/state
+        // ฝั่ง client ถือ reference เดียวกับข้อมูลใน store แล้วเผลอ mutate ย้อนกลับมา)
+        const result = saveBankReconcileReport(params);
+        return { data: structuredClone(result.data), error: result.error };
+      }
       return { data: null, error: { message: `Unknown rpc function: ${fnName}` } };
     },
   };

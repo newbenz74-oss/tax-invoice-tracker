@@ -4,6 +4,7 @@ import {
   FileClock,
   FileInput,
   FileOutput,
+  History,
   Landmark,
   LayoutDashboard,
   Library,
@@ -65,7 +66,13 @@ export type NavIntent =
   // เพื่อพาไปหน้า "บันทึกค่าใช้จ่าย" พร้อมเปิดฟอร์มแก้ไขรายการที่ระบุ invoiceId ไว้ล่วงหน้าทันที (อ่านค่า
   // นี้แค่ตอน mount ครั้งแรกผ่าน useState lazy initializer เหมือน intent ชนิดอื่นๆ ทั้งหมดข้างต้น — ดู
   // ExpenseRecordContent ใน app/dashboard/page.tsx)
-  | { type: 'edit-invoice'; invoiceId: string };
+  | { type: 'edit-invoice'; invoiceId: string }
+  // เพิ่มพร้อมฟีเจอร์ "ประวัติการกระทบยอด" (2026-07-19) — ปุ่ม "เปิดดู/แก้ไข" ของหน้าประวัติ
+  // (BankReconcileHistoryPage.tsx) ส่ง intent นี้มาเพื่อพาไปหน้า "Bank Reconcile" พร้อมโหลดรายการที่
+  // บันทึกไว้แล้วมาแสดงทันที (ไม่ต้องอัปโหลดไฟล์ Bank Statement/GL ใหม่เลย) อ่านค่านี้แค่ตอน mount ครั้งแรก
+  // ผ่าน useState lazy initializer เหมือน intent ชนิดอื่นๆ ทั้งหมดข้างต้น — ดู BankReconcilePage.tsx
+  // (dispatcher เลือกระหว่างเปิดหน้าใหม่กับโหลดจากประวัติ) และ BankReconcileLoadedSession.tsx
+  | { type: 'open-reconcile-report'; reportId: string };
 
 // อัปเดต 2026-07-17 (รอบปรับโครงสร้าง Sidebar ตามคำขอผู้ใช้): จัดกลุ่มเมนูใหม่ทั้งหมด — id/label/icon/
 // implemented ของทุกเมนูเดิม "ไม่ถูกแก้ไขเลยแม้แต่ค่าเดียว" (ผู้ใช้ระบุชัดเจนว่าห้ามแตะ routing/business
@@ -92,6 +99,11 @@ export const NAV_STRUCTURE: NavEntry[] = [
   // be a standalone menu. No submenu.") id/label/icon/implemented เดิมทุกประการ ไม่แตะเลย เนื้อหาหน้านี้
   // ยังเป็น placeholder รอออกแบบใหม่เหมือนเดิม (ดู case 'bank-reconcile' ใน app/dashboard/page.tsx)
   { id: 'bank-reconcile', label: 'Bank Reconcile', icon: Landmark, implemented: true },
+  // เมนูใหม่ (2026-07-19) พร้อมฟีเจอร์ "จับคู่เอง + บันทึกประวัติ" — วางเป็นเมนูเดี่ยวระดับบนสุดต่อจาก
+  // 'bank-reconcile' โดยตรง (ไม่ซ้อนใต้เมนูใดๆ) ตามที่ผู้ใช้ระบุ ("ไปอยู่ในเมนูใหม่เลยเลย") สอดคล้องกับที่
+  // 'bank-reconcile' เองก็ถูกจงใจวางเป็นเมนูเดี่ยวไม่มี submenu อยู่แล้วเช่นกัน ไอคอน History ยังไม่เคยถูกใช้
+  // ที่ไหนใน NAV_STRUCTURE นี้มาก่อน เลือกเพราะสื่อความหมาย "บันทึกของกิจกรรมที่ผ่านมา" ตรงตัว
+  { id: 'reconcile-history', label: 'ประวัติการกระทบยอด', icon: History, implemented: true },
   {
     // หมวดใหม่ทั้งหมด (2026-07-17) — ไอคอน Calculator เลือกใหม่เพราะยังไม่เคยถูกใช้ที่ไหนในระบบ (ไอคอน
     // เดิมของหมวด "กระทบยอด"/RefreshCw และ "VAT Reconcile"/FileCheck2 เลิกใช้ไปพร้อมการยุบทั้งสองหมวดนี้)

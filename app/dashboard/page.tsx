@@ -15,6 +15,7 @@ import PurchaseTaxReport from '@/components/PurchaseTaxReport';
 import OverduePurchaseTaxReport from '@/components/OverduePurchaseTaxReport';
 import ContactsPage from '@/components/ContactsPage';
 import BankReconcilePage from '@/components/BankReconcilePage';
+import BankReconcileHistoryPage from '@/components/BankReconcileHistoryPage';
 import { useAuth } from '@/lib/AuthContext';
 import {
   bulkCreateInvoices,
@@ -167,12 +168,18 @@ function renderActiveContent(
       return <OverduePurchaseTaxReport onNavigate={onNavigate} />;
     case 'address-book':
       return <ContactsPage />;
-    // Bank Reconcile เวอร์ชันออกแบบใหม่ทั้งหมด (2026-07-17) — เป็นรายงานเปรียบเทียบ Bank Statement กับ GL
-    // ล้วนๆ (ไม่มีการแก้ไข/ยืนยัน/บันทึกข้อมูลบัญชีใดๆ) แทนที่ placeholder เดิมที่ค้างมาตั้งแต่รอบรื้อทิ้ง
-    // ของเก่า — component ทำงานฝั่ง client ทั้งหมด ไม่มี prop ใดๆ ที่ต้องส่งเข้าไป (ไม่ต้องพึ่ง onNavigate
-    // เพราะไม่มีปุ่มพาไปหน้าอื่นในหน้านี้)
+    // Bank Reconcile เวอร์ชันออกแบบใหม่ทั้งหมด (2026-07-17) — เดิมเป็นรายงานเปรียบเทียบ Bank Statement กับ
+    // GL ล้วนๆ ไม่มี prop ใดๆ ที่ต้องส่งเข้าไป — ตั้งแต่ฟีเจอร์ "จับคู่เอง + บันทึกประวัติ" (2026-07-19)
+    // ส่ง navIntent ต่อเข้าไปด้วยแล้ว (รูปแบบเดียวกับ record-expense ด้านบน) เพื่อรองรับปุ่ม "เปิดดู/แก้ไข"
+    // จากหน้าประวัติ (BankReconcileHistoryPage.tsx) ที่ต้องพากลับมาหน้านี้พร้อม intent ชนิด
+    // 'open-reconcile-report' — BankReconcilePage.tsx (dispatcher) เป็นผู้ตัดสินใจว่าจะแสดง Workspace ใหม่
+    // หรือโหลดจากประวัติจาก intent นี้
     case 'bank-reconcile':
-      return <BankReconcilePage />;
+      return <BankReconcilePage initialIntent={navIntent ?? null} />;
+    // หน้าประวัติของฟีเจอร์ "จับคู่เอง + บันทึกประวัติ" (2026-07-19) — ปุ่ม "เปิดดู/แก้ไข" แต่ละแถวในหน้านี้
+    // ส่ง onNavigate('bank-reconcile', {type:'open-reconcile-report', reportId}) กลับมาที่ case ด้านบน
+    case 'reconcile-history':
+      return <BankReconcileHistoryPage onNavigate={onNavigate} />;
     default:
       return <ComingSoon label={title} />;
   }

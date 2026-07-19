@@ -89,3 +89,11 @@ export async function gotoBankReconcile(page: Page) {
   await page.goto('/dashboard');
   await page.getByTestId('nav-item-bank-reconcile').click();
 }
+
+/** ไปหน้า "ประวัติการกระทบยอด" (เพิ่มเข้ามา 2026-07-19 พร้อมฟีเจอร์ "จับคู่เอง + บันทึกประวัติ") โดยตรง —
+ * เมนูนี้เป็นเมนูระดับบนสุดแบบ standalone เช่นเดียวกับ 'bank-reconcile' (วางต่อกันใน NAV_STRUCTURE) จึงคลิก
+ * nav-item ได้ทันทีเหมือน gotoBankReconcile ไม่ต้องขยายหมวดก่อน */
+export async function gotoBankReconcileHistory(page: Page) {
+  await page.goto('/dashboard');
+  await page.getByTestId('nav-item-reconcile-history').click();
+}

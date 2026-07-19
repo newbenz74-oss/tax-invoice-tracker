@@ -6,6 +6,7 @@ import {
   FileInput,
   FileOutput,
   FileText,
+  History,
   Landmark,
   LayoutDashboard,
   Menu,
@@ -51,6 +52,12 @@ const PAGE_META: Record<string, { icon: LucideIcon; description: string }> = {
   'Bank Reconcile': {
     icon: Landmark,
     description: 'กระทบยอดรายการธนาคารกับรายการบัญชี',
+  },
+  // เพิ่มพร้อมฟีเจอร์ "จับคู่เอง + บันทึกประวัติ" (2026-07-19) — ไอคอนตัวเดียวกับ NavLeaf ของเมนูนี้ใน
+  // lib/navigation.ts (id: 'reconcile-history') ตามกฎเดิมของไฟล์นี้
+  ประวัติการกระทบยอด: {
+    icon: History,
+    description: 'ดูและแก้ไขรายการกระทบยอดที่เคยบันทึกไว้',
   },
   รายงานภาษีซื้อ: {
     icon: FileInput,
