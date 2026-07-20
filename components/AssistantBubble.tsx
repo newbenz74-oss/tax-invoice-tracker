@@ -18,14 +18,29 @@ interface AssistantBubbleProps {
 /**
  * ปุ่มลอย (floating trigger) ของผู้ช่วย AI — แสดงทุกหน้าตั้งแต่ /login เป็นต้นไป (mount ครั้งเดียวจาก
  * components/AssistantRoot.tsx ที่ root layout) กดสลับเปิด/ปิด AssistantPanel เท่านั้น ไม่มี logic อื่นเลย
- * (state เปิด/ปิดจริงอยู่ที่ AssistantRoot) ขนาดปรับตาม breakpoint: 64px (มือถือ) → 72px (md, 768px) →
- * 88px (min-[992px], breakpoint จอใหญ่จริงของแอปนี้ — ดู Sidebar.tsx ใช้ค่าเดียวกัน) เงาเรืองแสงใช้ค่า
+ * (state เปิด/ปิดจริงอยู่ที่ AssistantRoot) ขนาดปรับตาม breakpoint: 128px (มือถือ) → 144px (md, 768px) →
+ * 176px (min-[992px], breakpoint จอใหญ่จริงของแอปนี้ — ดู Sidebar.tsx ใช้ค่าเดียวกัน) — ทั้ง 3 ค่าเป็น 2 เท่า
+ * ของขนาดเดิม (64/72/88px) ตามที่ผู้ใช้ขอ (2026-07-19) ตำแหน่ง (right/bottom margin) ไม่เปลี่ยน มีแค่ตัวกล่อง
+ * ปุ่มเองที่ใหญ่ขึ้น — ดูคอมเมนต์คู่กันใน AssistantPanel.tsx ที่ปรับ bottom offset ของแผงแชทตามไปด้วย เพราะ
+ * เดิมตั้งใจให้ขอบบนของปุ่มชนกับขอบล่างของแผงพอดี (ไม่ทับกัน ไม่เว้นช่องว่างเกินจำเป็น) เงาเรืองแสงใช้ค่า
  * shadow-[0_0_14px_1px_rgba(47,167,226,0.5)] เดิมเป๊ะ (เหมือนปุ่มเมนูที่ active ใน Sidebar.tsx ไม่ได้คิด
- * สูตรใหม่) z-[70] สูงกว่าทุกอย่างที่มีอยู่เดิมในระบบ (ค่าสูงสุดเดิมคือ z-[60] ใน ContactsPage.tsx)
+ * สูตรใหม่)
+ *
+ * z-[45] (2026-07-19 ปรับลดจาก z-[70] เดิมวันเดียวกัน ตอนขยายปุ่มเป็น 2 เท่า) — ตั้งใจให้อยู่ "ต่ำกว่า" ทุก
+ * modal/dialog จริงในระบบ (ทั้งหมดใช้ z-50 หรือ z-[60] — ดู ContactForm/InvoiceForm/BankReconcileSaveDialog/
+ * OverdueInvoiceDetailModal/ContactsPage ยืนยัน grep แล้ว) แต่ยังสูงกว่าเนื้อหาปกติของหน้า (ไม่มี z-index)
+ * และสูงกว่า overlay ของ Sidebar บนมือถือ (z-40) หลังขยายขนาดเป็น 2 เท่าแล้วพบว่าปุ่มลอย/แผงแชทเดิมที่ z-[70]
+ * (สูงกว่าทุกอย่างรวมถึง modal ด้วย) ไปทับปุ่ม "บันทึก" ของฟอร์ม "เพิ่มรายชื่อ" จริงบนความละเอียดจอ 1280×720
+ * (พิสูจน์ด้วย boundingBox() จริง — ปุ่มบันทึกอยู่ x:1082-1186,y:637-679 ปุ่มลอยอยู่ x:1112-1256,y:552-696
+ * ทับกันสนิทตรงกึ่งกลางปุ่มบันทึกพอดี ทำให้คลิกไม่โดนปุ่มบันทึกเลยแต่ไปโดนปุ่มลอยแทน) ลดจาก z-[70] เป็น z-[45]
+ * แก้ปัญหานี้ที่ต้นตอเดียว (แทนที่จะไล่แก้ทุก modal ที่อาจชนในอนาคต) เพราะตอนนี้ backdrop ทึบของ modal ใดๆ
+ * (bg-black/40 เต็มจอ) จะไปวาดทับปุ่มลอย/แผงแชทเองแทน (ซ่อนไปโดยอัตโนมัติตราบใดที่ modal เปิดอยู่ — ผู้ใช้ปิด
+ * modal ก่อนถึงจะกลับมาใช้ผู้ช่วยต่อได้ ซึ่งสมเหตุสมผลอยู่แล้วเพราะระหว่างกรอกฟอร์ม/ยืนยันอะไรสักอย่างไม่ควรมี
+ * อะไรมาบังหรือแย่งคลิกได้เลย)
  */
 export default function AssistantBubble({ isOpen, onToggle, ref }: AssistantBubbleProps) {
   return (
-    <div className="fixed right-4 bottom-4 z-[70] sm:right-6 sm:bottom-6">
+    <div className="fixed right-4 bottom-4 z-[45] sm:right-6 sm:bottom-6">
       <button
         ref={ref}
         type="button"
@@ -34,7 +49,7 @@ export default function AssistantBubble({ isOpen, onToggle, ref }: AssistantBubb
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         data-testid="assistant-bubble"
-        className="btn-press group relative flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-card-bg shadow-[0_0_14px_1px_rgba(47,167,226,0.5)] md:h-[72px] md:w-[72px] min-[992px]:h-[88px] min-[992px]:w-[88px]"
+        className="btn-press group relative flex h-32 w-32 items-center justify-center rounded-full border border-white/10 bg-card-bg shadow-[0_0_14px_1px_rgba(47,167,226,0.5)] md:h-[144px] md:w-[144px] min-[992px]:h-[176px] min-[992px]:w-[176px]"
       >
         <ChromaKeyAvatar className="h-full w-full rounded-full" />
 

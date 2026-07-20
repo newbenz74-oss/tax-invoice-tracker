@@ -474,7 +474,21 @@ body {
    (แม้จะจบที่ translateY(0) ก็ตาม ค่านี้ยังนับเป็น "มี transform" ไม่เท่ากับ none) จะทำให้ browser เปลี่ยน
    containing block ของ Sidebar จาก viewport กลายเป็น wrapper นี้แทนถาวร (ตาม spec CSS transform) ทำให้
    Sidebar หลุดตำแหน่ง fixed จริงไปตลอด ไม่ใช่แค่ระหว่าง animation — จึงต้องแยก Sidebar ออกไปมีคลาสของ
-   ตัวเอง (dashboard-sidebar-entrance ด้านล่าง ที่ animate แค่ opacity ไม่แตะ transform เลย) */
+   ตัวเอง (dashboard-sidebar-entrance ด้านล่าง ที่ animate แค่ opacity ไม่แตะ transform เลย)
+
+   แก้ไข 2026-07-19: เอา "both" ออกจาก fill-mode (เดิม "850ms ease-out both") — คอมเมนต์ข้างบนพูดถูกเรื่อง
+   Sidebar แล้ว แต่พลาดไปว่า "ใครก็ตามที่เป็น position:fixed อยู่ภายในคอลัมน์เนื้อหานี้" ก็โดนปัญหาเดียวกัน
+   ทุกประการ ไม่ใช่แค่ Sidebar — "both" ทำให้ transform: translateY(0) ของ keyframe "to" ค้างอยู่ถาวรหลัง
+   animation จบ (850ms หลัง mount) ไปตลอดชั่วอายุ component ทำให้ modal ใดๆ ที่ mount อยู่ภายในคอลัมน์นี้
+   (ContactForm/InvoiceForm/BankReconcileSaveDialog/OverdueInvoiceDetailModal ฯลฯ ซึ่งใช้ position:fixed
+   ทั้งหมดสำหรับ overlay เต็มจอ) ผูก containing block กับ wrapper นี้แทนที่จะเป็น viewport จริง — พบบั๊กจริง
+   ตอนขยายปุ่มลอยผู้ช่วย AI เป็น 2 เท่า (ดู AssistantBubble.tsx) แล้วปุ่ม "บันทึก" ของฟอร์ม "เพิ่มรายชื่อ" กด
+   ไม่ติด เพราะ modal ขยับเข้าใกล้มุมขวาล่างกว่าที่ควรจะเป็นจริง (ผูกกับคอลัมน์เนื้อหาที่แคบกว่า viewport จาก
+   ระยะ margin ของ Sidebar แทน) ไปชนกับปุ่มลอยพอดี — ตัดปัญหาที่ต้นตอ: เอา "both" ออก (ไม่ระบุ fill-mode เลย
+   จึงใช้ค่าเริ่มต้น "none") ทำให้หลัง animation จบแล้ว element กลับไปใช้ style ปกติของตัวเอง (ไม่มี transform)
+   เหมือนไม่เคยมี animation อยู่เลย ไม่กระทบภาพที่เห็นแม้แต่น้อย เพราะ keyframe "to" ก็คือ opacity:1
+   transform:translateY(0) อยู่แล้ว (เท่ากับสภาพปกติเป๊ะ) และไม่มี animation-delay ให้ fill-mode "backwards"
+   ต้องทำงานอยู่ก่อนแล้วด้วย — มีผลแค่ "เลิกค้าง transform ไว้ถาวรหลังพ้น 850ms แรกไปแล้ว" เท่านั้น */
 @keyframes dashboardContentEntrance {
   from {
     opacity: 0;
@@ -486,7 +500,7 @@ body {
   }
 }
 .dashboard-content-entrance {
-  animation: dashboardContentEntrance 850ms ease-out both;
+  animation: dashboardContentEntrance 850ms ease-out;
 }
 
 /* ----- Sidebar: fade-in เฉพาะ opacity (ไม่แตะ transform เลย) ประกบคู่กับ dashboard-content-entrance

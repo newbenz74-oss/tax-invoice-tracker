@@ -161,18 +161,21 @@ function DashboardShell() {
             animation-duration แทบเป็น 0 ให้ทุก animation ในระบบรวมถึงอันนี้ด้วย) ตั้งใจใส่ที่ "คอลัมน์
             เนื้อหา" นี้เท่านั้น ไม่ใส่ที่ wrapper ที่ครอบ Sidebar เพราะ Sidebar เป็น position:fixed — ดู
             คอมเมนต์เต็มที่ .dashboard-content-entrance ใน globals.css ว่าทำไม */}
-        {/* pb-32 กันชนล่าง (2026-07-19) — ปุ่มลอยผู้ช่วย AI (AssistantBubble, mount จาก root layout, position:
-            fixed มุมขวาล่างทุกหน้า) จับจองพื้นที่ตายตัวประมาณ 96px จากมุมขวาล่างของ viewport เสมอ ไม่เลื่อนหนี
-            ตาม scroll เพราะไม่ผูกกับตำแหน่งใน document แต่ยึดกับ viewport ตรงๆ หน้าที่เนื้อหายาวพอจะเลื่อนพ้น
-            มุมนี้เองเมื่อ scroll ลงสุด แต่หน้าที่มีข้อมูลน้อย (เช่นตารางเหลือแค่ 1-2 แถว) แถวสุดท้ายของตาราง — ซึ่ง
-            คอลัมน์ "การจัดการ" มักอยู่ขวาสุดพอดี — อาจตกอยู่ในมุมที่ปุ่มลอยจับจองไว้แม้ scroll ไปสุดหน้าแล้วก็ตาม
-            (เพราะปุ่มลอย fixed ไม่ขยับ) ทำให้ผู้ใช้จริงคลิกปุ่มที่ถูกบังไม่ได้เลย — เจอบั๊กนี้จริงจาก
-            e2e/overduePurchaseTax.spec.ts ตอนตารางเหลือแถวเดียว ปุ่ม "ได้รับใบกำกับภาษีแล้ว" โดนปุ่มลอยบังสนิท
-            (ยืนยันด้วย boundingBox() จริง ไม่ใช่เดา) แก้ที่จุดเดียวตรงนี้ — wrapper กลางที่ครอบทุกหน้าใน
-            DashboardShell (ดู renderActiveContent ด้านล่าง) — แทนที่จะไล่แก้ padding ทีละไฟล์หน้าย่อยที่มี
-            <main> ของตัวเอง (มีอยู่ ~8-9 ไฟล์) เผื่อระยะไว้ 128px มากกว่าพื้นที่ที่ปุ่มลอยกินจริง (~96px)
-            พอสมควรเพื่อความชัวร์ */}
-        <div className="dashboard-content-entrance flex min-h-screen flex-1 flex-col pb-32 min-[992px]:ml-[250px]">
+        {/* pb-64 กันชนล่าง (2026-07-19, ปรับจาก pb-32 เดิมในวันเดียวกันตอนขยายปุ่มลอยเป็น 2 เท่า) — ปุ่มลอย
+            ผู้ช่วย AI (AssistantBubble, mount จาก root layout, position: fixed มุมขวาล่างทุกหน้า) จับจองพื้นที่
+            ตายตัวจากมุมขวาล่างของ viewport เสมอ ไม่เลื่อนหนีตาม scroll เพราะไม่ผูกกับตำแหน่งใน document แต่ยึด
+            กับ viewport ตรงๆ หน้าที่เนื้อหายาวพอจะเลื่อนพ้นมุมนี้เองเมื่อ scroll ลงสุด แต่หน้าที่มีข้อมูลน้อย
+            (เช่นตารางเหลือแค่ 1-2 แถว) แถวสุดท้ายของตาราง — ซึ่งคอลัมน์ "การจัดการ" มักอยู่ขวาสุดพอดี — อาจตกอยู่
+            ในมุมที่ปุ่มลอยจับจองไว้แม้ scroll ไปสุดหน้าแล้วก็ตาม (เพราะปุ่มลอย fixed ไม่ขยับ) ทำให้ผู้ใช้จริงคลิก
+            ปุ่มที่ถูกบังไม่ได้เลย — เจอบั๊กนี้จริงจาก e2e/overduePurchaseTax.spec.ts ตอนตารางเหลือแถวเดียว ปุ่ม
+            "ได้รับใบกำกับภาษีแล้ว" โดนปุ่มลอยบังสนิท (ยืนยันด้วย boundingBox() จริง ไม่ใช่เดา) แก้ที่จุดเดียวตรงนี้
+            — wrapper กลางที่ครอบทุกหน้าใน DashboardShell (ดู renderActiveContent ด้านล่าง) — แทนที่จะไล่แก้
+            padding ทีละไฟล์หน้าย่อยที่มี <main> ของตัวเอง (มีอยู่ ~8-9 ไฟล์)
+            ตอนแรกปุ่มลอยสูงสุด 88px (min-[992px]) + margin 24px = 112px จึงเผื่อไว้ 128px (pb-32) พอสมควรเพื่อ
+            ความชัวร์ — พอปุ่มขยายเป็น 2 เท่า (176px + margin 24px = 200px ที่ breakpoint เดียวกัน — ดู
+            AssistantBubble.tsx/AssistantPanel.tsx) พื้นที่กันชนเดิมไม่พอแล้ว จึงขยายตามไปเป็น 2 เท่าเช่นกัน
+            (pb-32 → pb-64 = 256px) รักษาสัดส่วนกันชนส่วนเกินเท่าเดิมไว้ ไม่ใช่แค่ปะพอผ่านเฉยๆ */}
+        <div className="dashboard-content-entrance flex min-h-screen flex-1 flex-col pb-64 min-[992px]:ml-[250px]">
           <Header title={title} onMenuClick={() => setMobileNavOpen(true)} />
           {renderActiveContent(activeId, Boolean(activeEntry?.implemented), title, handleSelect, navIntent)}
         </div>

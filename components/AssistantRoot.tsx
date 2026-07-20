@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import AssistantBubble from './AssistantBubble';
 import AssistantPanel from './AssistantPanel';
 import { useAssistantNavBridge } from '@/lib/assistantNavBridge';
@@ -66,6 +66,13 @@ export default function AssistantRoot() {
   const [messages, setMessages] = useState<AssistantMessage[]>(() => [createGreetingMessage()]);
   const [inputValue, setInputValue] = useState('');
   const [pending, setPending] = useState(false);
+  // id ของข้อความผู้ช่วยที่ AssistantPanel.tsx กำลังพิมพ์ทีละตัวโชว์อยู่ตอนนี้ (2026-07-19 เพิ่ม effect "พิมพ์
+  // ทีละตัว" ตามที่ผู้ใช้ขอหลัง deploy จริง — เดิมข้อความโผล่มาเต็มประโยคทันทีเดียว) null = ไม่มีข้อความไหนกำลัง
+  // พิมพ์อยู่ ตั้งค่านี้ทุกครั้งที่มีข้อความผู้ช่วยใหม่ถูกเพิ่มเข้ามา (ทั้งจาก handleSend เมื่อได้คำตอบจริง และ
+  // จาก appendAssistantNotice เมื่อมีข้อความแจ้งเตือนสั้นๆ) — pending ยังคงเป็น true ต่อเนื่องไปจนกว่าจะพิมพ์ครบ
+  // (ดู handleTypingDone ด้านล่าง) ไม่ใช่ปลดทันทีตอนคำตอบมาถึงเหมือนเดิมอีกต่อไป เพื่อกันช่องพิมพ์/ปุ่มต่างๆ
+  // ระหว่างที่ยังพิมพ์ไม่จบ (ดูคอมเมนต์เต็มที่ AssistantPanel.tsx)
+  const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
   // override เฉพาะตอนผู้ใช้กดเปิด/ปิดเองใน session นี้เท่านั้น — null หมายถึง "ยังไม่เคยกดเลย ใช้ค่าที่
   // persist ไว้จาก localStorage แทน" (persistedOpen ด้านล่าง) ต้องแยกสอง state ออกจากกันเพื่อความปลอดภัยจาก
   // SSR hydration mismatch (persistedOpen เริ่มที่ false เสมอตอน render รอบแรกทั้งฝั่ง server/client แล้วค่อย
@@ -106,14 +113,37 @@ export default function AssistantRoot() {
     setUserToggledOpen(false);
   }
 
+  // ข้อความแจ้งเตือนสั้นๆ ของผู้ช่วย (มาจาก handleSuggestionClick ด้านล่างเท่านั้น — ไม่ใช่คำตอบจริงจาก
+  // getAssistantReply) ก็ให้พิมพ์ทีละตัวเหมือนกันเพื่อความสม่ำเสมอ (ผู้ใช้พูดถึง "ข้อความของผู้ช่วย" โดยรวม ไม่ได้
+  // จำกัดแค่คำตอบจากคำถามที่พิมพ์ส่งไปเท่านั้น) ปุ่มแนะนำที่ทำให้เกิดข้อความเหล่านี้ถูกปิดไว้ระหว่าง pending อยู่
+  // แล้วด้วย (ดู AssistantPanel.tsx) จึงมั่นใจได้ว่าฟังก์ชันนี้จะไม่ถูกเรียกซ้อนทับตอนที่ข้อความอื่นกำลังพิมพ์
+  // ทีละตัวค้างอยู่ (pending ต้อง false ก่อนเสมอถึงจะกดปุ่มแนะนำได้)
   function appendAssistantNotice(text: string) {
-    setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'assistant', text, createdAt: Date.now() }]);
+    const id = crypto.randomUUID();
+    setMessages((prev) => [...prev, { id, role: 'assistant', text, createdAt: Date.now() }]);
+    setTypingMessageId(id);
+    setPending(true);
   }
 
   function handleClear() {
     setMessages([createGreetingMessage()]);
+    // ปกติเรียก handleClear ไม่ได้อยู่แล้วระหว่าง pending (ปุ่ม "ล้างการสนทนา" ถูก disabled ไว้ตอนนั้น — ดู
+    // AssistantPanel.tsx) จึง typingMessageId ควรเป็น null อยู่แล้วเสมอตอนมาถึงจุดนี้ได้จริง — รีเซ็ตซ้ำไว้ตรงนี้
+    // อีกชั้นเผื่อไว้เฉยๆ ไม่ให้พังถ้าอนาคตมีทางเรียกฟังก์ชันนี้จากที่อื่นเพิ่มโดยไม่ผ่านเงื่อนไข disabled เดิม
+    setTypingMessageId(null);
     clearHighlight();
   }
+
+  // เรียกจาก AssistantPanel.tsx ตอนพิมพ์ข้อความ id นี้ครบทุกตัวอักษรแล้ว (หรือข้ามเพราะ prefers-reduced-motion)
+  // — ห่อด้วย useCallback เพราะฟังก์ชันนี้เป็น dependency ของ useEffect ฝั่ง AssistantPanel.tsx ด้วย (เลียนแบบ
+  // เหตุผลเดียวกับ commitNav/handleSelect ใน app/dashboard/page.tsx ที่ห่อ useCallback ไว้เพื่อไม่ให้ effect
+  // ที่พึ่งพา identity ของฟังก์ชันนี้ต้อง re-run ทุก render โดยไม่จำเป็น) เช็ค current === id ก่อนเคลียร์เผื่อไว้
+  // เป็นตาข่ายนิรภัย (ในทางปฏิบัติไม่ควรเกิด เพราะ interval ฝั่ง AssistantPanel.tsx ถูก clearInterval ไปแล้วเสมอ
+  // ก่อนที่ typingMessageId จะเปลี่ยนค่าไปเป็นอย่างอื่นได้)
+  const handleTypingDone = useCallback((id: string) => {
+    setTypingMessageId((current) => (current === id ? null : current));
+    setPending(false);
+  }, []);
 
   // จุดเดียวที่ Smart Action ของผู้ช่วยถูกสั่งทำงานจริง (นำทาง/ไฮไลต์) — จำกัดแค่ 2 อย่างนี้ตามสเปกเดิม
   // (ห้าม save/delete/approve/submit แทนผู้ใช้เด็ดขาด — ผู้ช่วยไม่มีปุ่ม suggestion ชนิดอื่นให้กดได้เลยตั้งแต่
@@ -168,21 +198,28 @@ export default function AssistantRoot() {
     const context: AssistantMatchContext = { activeId: navBridge?.activeId ?? null };
 
     try {
-      // getAssistantReply ออกแบบให้ไม่ throw ออกมาเด็ดขาด (ดู doc comment เต็มในไฟล์นั้น) แต่ยังครอบ try/
-      // finally ไว้เป็นตาข่ายนิรภัยชั้นที่สอง กัน pending ค้าง true ตลอดไปถ้าสัญญานั้นเปลี่ยนไปในอนาคตโดยไม่
-      // ตั้งใจ — ไม่ใช่การ swallow error เพิ่ม (ไม่มี catch เลย แค่ finally เพื่อ cleanup เท่านั้น)
+      // getAssistantReply ออกแบบให้ไม่ throw ออกมาเด็ดขาด (ดู doc comment เต็มในไฟล์นั้น) — เดิม finally ปลด
+      // pending ทันทีตรงนี้เลย แต่ตั้งแต่มี effect "พิมพ์ทีละตัว" (2026-07-19) ต้องปล่อยให้ pending ยังเป็น true
+      // ต่อไปจนกว่า AssistantPanel.tsx จะพิมพ์ข้อความนี้ครบแล้วเรียก handleTypingDone กลับมา (ไม่งั้นช่องพิมพ์/
+      // ปุ่มต่างๆ จะกลับมาใช้ได้ก่อนที่ข้อความจะพิมพ์จบ ดูขัดกับความรู้สึก "กำลังคุยกันอยู่" ที่ผู้ใช้ขอ)
       const reply = await getAssistantReply(query, context, history);
+      const replyId = crypto.randomUUID();
       setMessages((prev) => [
         ...prev,
         {
-          id: crypto.randomUUID(),
+          id: replyId,
           role: 'assistant',
           text: reply.text,
           suggestions: reply.suggestions,
           createdAt: Date.now(),
         },
       ]);
-    } finally {
+      setTypingMessageId(replyId);
+    } catch {
+      // ไม่ควรเกิดขึ้นจริงตามสัญญาของ getAssistantReply (ดูด้านบน) แต่ถ้าเกิดขึ้นจริงต้องปลด pending ทันทีตรงนี้
+      // เอง เพราะไม่มีข้อความใหม่ถูกเพิ่มเข้ามาให้ typingMessageId ชี้ถึง — ไม่มี handleTypingDone ใดๆ จะถูกเรียก
+      // มาปลดให้ในอนาคต ถ้าไม่ปลดตรงนี้ pending จะค้าง true ตลอดไป (ตาข่ายนิรภัยชั้นที่สอง เหมือน finally เดิม
+      // ไม่ใช่การ swallow error ตั้งใจ — ยังไม่เคยเจอ error จริงจากจุดนี้เลยตลอดการทดสอบ)
       setPending(false);
     }
   }
@@ -194,6 +231,8 @@ export default function AssistantRoot() {
         isOpen={isOpen}
         messages={messages}
         pending={pending}
+        typingMessageId={typingMessageId}
+        onTypingDone={handleTypingDone}
         inputValue={inputValue}
         onInputChange={setInputValue}
         onSend={handleSend}
