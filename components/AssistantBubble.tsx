@@ -22,9 +22,17 @@ interface AssistantBubbleProps {
  * 176px (min-[992px], breakpoint จอใหญ่จริงของแอปนี้ — ดู Sidebar.tsx ใช้ค่าเดียวกัน) — ทั้ง 3 ค่าเป็น 2 เท่า
  * ของขนาดเดิม (64/72/88px) ตามที่ผู้ใช้ขอ (2026-07-19) ตำแหน่ง (right/bottom margin) ไม่เปลี่ยน มีแค่ตัวกล่อง
  * ปุ่มเองที่ใหญ่ขึ้น — ดูคอมเมนต์คู่กันใน AssistantPanel.tsx ที่ปรับ bottom offset ของแผงแชทตามไปด้วย เพราะ
- * เดิมตั้งใจให้ขอบบนของปุ่มชนกับขอบล่างของแผงพอดี (ไม่ทับกัน ไม่เว้นช่องว่างเกินจำเป็น) เงาเรืองแสงใช้ค่า
- * shadow-[0_0_14px_1px_rgba(47,167,226,0.5)] เดิมเป๊ะ (เหมือนปุ่มเมนูที่ active ใน Sidebar.tsx ไม่ได้คิด
- * สูตรใหม่)
+ * เดิมตั้งใจให้ขอบบนของปุ่มชนกับขอบล่างของแผงพอดี (ไม่ทับกัน ไม่เว้นช่องว่างเกินจำเป็น)
+ *
+ * เดิมมีเงาเรืองแสงสีฟ้า shadow-[0_0_14px_1px_rgba(47,167,226,0.5)] (ค่าเดียวกับปุ่มเมนูที่ active ใน
+ * Sidebar.tsx) แต่ผู้ใช้ขอเอาออก (2026-07-19 หลังเห็นบน production จริงบนขนาด 2 เท่าแล้วรู้สึกว่าวงแหวนสีฟ้า
+ * รอบหน้าเด่นเกินไป อยากให้เห็นแค่หน้าอวตารเฉยๆ) — ตัดออกไปรอบแรกแล้วเหลือ border border-white/10 +
+ * bg-card-bg เป็นกรอบวงกลมเรียบๆ แทน แต่ผู้ใช้บอกต่อว่ายังไม่เอากรอบวงกลมเลย (ต้องการแค่ตัวอวตารลอยๆ ไม่มี
+ * พื้นหลัง/เส้นขอบใดๆ ล้อมรอบเลย) จึงตัด border + bg-card-bg ออกทั้งคู่ด้วย (2026-07-19 เช่นกัน) เหลือแค่
+ * `rounded-full` ไว้เฉยๆ (ไม่มีผลทางภาพแล้วเพราะไม่มี fill/border ให้ปัดมุม แต่ยังมีประโยชน์เป็น shape ของ
+ * focus outline เริ่มต้นตอน Tab โฟกัสมาที่ปุ่มนี้ — เบราว์เซอร์ส่วนใหญ่วาด outline ตาม border-radius ของ
+ * element) เนื้อหาที่เห็นจริงๆ คือวิดีโอ/ภาพที่ผ่าน chroma-key มาแล้วเท่านั้น (พื้นหลังโปร่งใสอยู่แล้วในตัว
+ * ไฟล์เอง ไม่ใช่การ clip ด้วย CSS) — ดู ChromaKeyAvatar.tsx
  *
  * z-[45] (2026-07-19 ปรับลดจาก z-[70] เดิมวันเดียวกัน ตอนขยายปุ่มเป็น 2 เท่า) — ตั้งใจให้อยู่ "ต่ำกว่า" ทุก
  * modal/dialog จริงในระบบ (ทั้งหมดใช้ z-50 หรือ z-[60] — ดู ContactForm/InvoiceForm/BankReconcileSaveDialog/
@@ -49,7 +57,7 @@ export default function AssistantBubble({ isOpen, onToggle, ref }: AssistantBubb
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         data-testid="assistant-bubble"
-        className="btn-press group relative flex h-32 w-32 items-center justify-center rounded-full border border-white/10 bg-card-bg shadow-[0_0_14px_1px_rgba(47,167,226,0.5)] md:h-[144px] md:w-[144px] min-[992px]:h-[176px] min-[992px]:w-[176px]"
+        className="btn-press group relative flex h-32 w-32 items-center justify-center rounded-full md:h-[144px] md:w-[144px] min-[992px]:h-[176px] min-[992px]:w-[176px]"
       >
         <ChromaKeyAvatar className="h-full w-full rounded-full" />
 
