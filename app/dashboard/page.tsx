@@ -216,8 +216,12 @@ function renderActiveContent(
     // หรือโหลดจากประวัติจาก intent นี้
     case 'bank-reconcile':
       return <BankReconcilePage initialIntent={navIntent ?? null} />;
-    // หน้าประวัติของฟีเจอร์ "จับคู่เอง + บันทึกประวัติ" (2026-07-19) — ปุ่ม "เปิดดู/แก้ไข" แต่ละแถวในหน้านี้
-    // ส่ง onNavigate('bank-reconcile', {type:'open-reconcile-report', reportId}) กลับมาที่ case ด้านบน
+    // หน้าประวัติของฟีเจอร์ "จับคู่เอง + บันทึกประวัติ" (2026-07-19) — ปุ่ม "ดูรายละเอียด" แต่ละแถว (เดิมชื่อ
+    // "เปิดดู/แก้ไข") ไม่เด้งออกไปหน้า "Bank Reconcile" ทันทีเหมือนเดิมอีกต่อไปแล้ว (2026-08-05 ตามคำขอผู้ใช้)
+    // — แสดงมุมมองรายละเอียดแบบอ่านอย่างเดียวอยู่ภายในหน้าประวัติเองเลยเป็นค่าเริ่มต้น ยังส่ง onNavigate ต่อ
+    // เข้าไปเหมือนเดิม เพราะ BankReconcileHistoryDetail มีปุ่มเสริม "แก้ไขในหน้า Bank Reconcile" ที่ยังใช้
+    // เส้นทาง NavIntent 'open-reconcile-report' เดิมอยู่ (ดู components/BankReconcileHistoryDetail.tsx และ
+    // components/BankReconcileHistoryPage.tsx สำหรับรายละเอียดเต็ม)
     case 'reconcile-history':
       return <BankReconcileHistoryPage onNavigate={onNavigate} />;
     default:

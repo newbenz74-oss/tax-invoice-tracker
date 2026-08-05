@@ -97,8 +97,22 @@ test.describe('ประวัติการกระทบยอด (บัน
     await expect(cells.nth(5)).toHaveText('1'); // Bank ไม่สำเร็จ
     await expect(cells.nth(6)).toHaveText('1'); // GL ไม่สำเร็จ
 
-    // 5) กด "เปิดดู/แก้ไข" — ต้องกลับไปหน้า Bank Reconcile พร้อมข้อมูลครบทันที ไม่ต้องอัปโหลดไฟล์ใหม่เลย
-    await row.getByRole('button', { name: 'เปิดดู/แก้ไข' }).click();
+    // 5) กด "ดูรายละเอียด" (เดิมชื่อ "เปิดดู/แก้ไข") — ต้องเห็นรายละเอียดอยู่ในหน้าประวัติเลย ไม่ออกไปหน้า
+    // Bank Reconcile ยึด Bank Statement เป็นหลัก (ครบทั้ง 2 แถว: B1 จับคู่กับ DOC-001, B2 ยังไม่จับคู่)
+    await row.getByRole('button', { name: 'ดูรายละเอียด' }).click();
+    await expect(page.getByTestId('reconcile-history-detail')).toBeVisible();
+    await expect(page.getByTestId('reconcile-history-detail-header')).toContainText('มิถุนายน');
+    await expect(page.getByTestId('reconcile-history-detail-header')).toContainText(selectedYear);
+    await expect(page.getByTestId('reconcile-history-detail-status')).toContainText('ทำค้างไว้');
+    const detailRows = page.locator('[data-testid^="reconcile-history-detail-row-"]');
+    await expect(detailRows).toHaveCount(2);
+    await expect(detailRows.filter({ hasText: '01/07/2026' })).toContainText('DOC-001');
+    await expect(detailRows.filter({ hasText: '01/07/2026' })).toContainText('จับคู่สำเร็จ');
+    await expect(detailRows.filter({ hasText: '10/07/2026' })).toContainText('ยังไม่จับคู่');
+
+    // 5b) กด "แก้ไขในหน้า Bank Reconcile" (ปุ่มเสริม ยังใช้เส้นทางเดิมได้ครบ) — ต้องกลับไปหน้า Bank
+    // Reconcile พร้อมข้อมูลครบทันที ไม่ต้องอัปโหลดไฟล์ใหม่เลย
+    await page.getByTestId('reconcile-history-detail-edit').click();
     await expect(page.getByTestId('bank-reconcile-loaded-banner')).toBeVisible();
     await expect(page.getByTestId('bank-reconcile-loaded-banner')).toContainText('มิถุนายน');
     await expect(page.getByTestId('bank-reconcile-loaded-banner')).toContainText('ทำค้างไว้');
@@ -183,8 +197,30 @@ test.describe('ประวัติการกระทบยอด (บัน
     await expect(cells.nth(5)).toHaveText('1');
     await expect(cells.nth(6)).toHaveText('1');
 
-    // 2) เปิดดู/แก้ไข — ต้อง hydrate ครบทุกอย่างจากสแนปช็อตที่บันทึกไว้ โดยไม่ต้องอัปโหลดไฟล์เลย
-    await row.getByRole('button', { name: 'เปิดดู/แก้ไข' }).click();
+    // 2) กด "ดูรายละเอียด" — ต้องเห็นรายละเอียดอยู่ในหน้าประวัติทันที ยึด Bank Statement เป็นหลัก (ครบทั้ง 4
+    // แถว) พร้อมบอกว่าแต่ละแถวจับคู่กับ GL เลขที่ใด — b1 คู่ DOC-J01 (auto), b2/b3 ทั้งคู่คู่กับ DOC-J02
+    // เดียวกัน (group แบบจับคู่เองที่มี GL แค่ 1 แถวแต่ Bank 2 แถว), b4 ยังไม่จับคู่
+    await row.getByRole('button', { name: 'ดูรายละเอียด' }).click();
+    await expect(page.getByTestId('reconcile-history-detail')).toBeVisible();
+    await expect(page.getByTestId('reconcile-history-detail-header')).toContainText('กระทบยอดเดือนมกราคม 2569');
+    await expect(page.getByTestId('reconcile-history-detail-status')).toContainText('เสร็จสมบูรณ์');
+    const detailRows = page.locator('[data-testid^="reconcile-history-detail-row-"]');
+    await expect(detailRows).toHaveCount(4);
+    const b1Row = detailRows.filter({ hasText: '01/01/2026' });
+    await expect(b1Row).toContainText('DOC-J01');
+    await expect(b1Row).toContainText('จับคู่สำเร็จ');
+    const b2Row = detailRows.filter({ hasText: '02/01/2026' });
+    await expect(b2Row).toContainText('DOC-J02');
+    await expect(b2Row).toContainText('จับคู่สำเร็จ');
+    const b3Row = detailRows.filter({ hasText: '03/01/2026' });
+    await expect(b3Row).toContainText('DOC-J02');
+    await expect(b3Row).toContainText('จับคู่สำเร็จ');
+    const b4Row = detailRows.filter({ hasText: '10/01/2026' });
+    await expect(b4Row).toContainText('ยังไม่จับคู่');
+
+    // 3) กด "แก้ไขในหน้า Bank Reconcile" — ต้อง hydrate ครบทุกอย่างจากสแนปช็อตที่บันทึกไว้ โดยไม่ต้อง
+    // อัปโหลดไฟล์เลย (เส้นทางเดิมก่อนเปลี่ยนพฤติกรรมของปุ่มหลัก)
+    await page.getByTestId('reconcile-history-detail-edit').click();
     await expect(page.getByTestId('bank-reconcile-loaded-banner')).toContainText('กระทบยอดเดือนมกราคม 2569');
     await expect(page.getByTestId('bank-reconcile-loaded-banner')).toContainText('เสร็จสมบูรณ์');
     await expect(page.getByTestId('bank-upload-success')).toContainText('bank-jan.xlsx');
@@ -199,7 +235,7 @@ test.describe('ประวัติการกระทบยอด (บัน
     await expect(page.getByTestId('bank-reconcile-summary-bank-unmatched-count')).toContainText('1');
     await expect(page.getByTestId('bank-reconcile-summary-gl-unmatched-count')).toContainText('1');
 
-    // 3) ตาราง "กระทบยอดสำเร็จ" ต้องมี 2 แถว: 1 auto (1:1 แสดงตรงๆ ไม่มีปุ่มขยาย) + 1 manual (2 bank + 1 gl
+    // 4) ตาราง "กระทบยอดสำเร็จ" ต้องมี 2 แถว: 1 auto (1:1 แสดงตรงๆ ไม่มีปุ่มขยาย) + 1 manual (2 bank + 1 gl
     // แสดงย่อ "2 รายการ" ฝั่ง Bank และเลขที่เอกสารตรงๆ ฝั่ง GL เพราะมีแค่ 1 แถว พร้อมปุ่มขยาย)
     const matchedSection = page.getByTestId('matched-section');
     await expect(matchedSection.locator('tbody tr').first()).toBeVisible();
@@ -219,7 +255,7 @@ test.describe('ประวัติการกระทบยอด (บัน
     await expect(detailRow).toContainText('200.00');
     await expect(detailRow).toContainText('500.00');
 
-    // 4) แถวที่ยังไม่จับคู่ทั้งสองฝั่งต้องอยู่ครบ
+    // 5) แถวที่ยังไม่จับคู่ทั้งสองฝั่งต้องอยู่ครบ
     await expect(page.getByTestId('bank-unmatched-section')).toContainText('777.00');
     await expect(page.getByTestId('gl-unmatched-section')).toContainText('DOC-J03');
 

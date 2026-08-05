@@ -10,13 +10,16 @@ import {
 } from '@/lib/bankReconcileReportApi';
 import { thaiMonthName } from '@/lib/thaiDate';
 import BankReconcilePagination from './BankReconcilePagination';
+import BankReconcileHistoryDetail from './BankReconcileHistoryDetail';
 import type { NavIntent } from '@/lib/navigation';
 
 const PAGE_SIZE = 10;
 
 interface BankReconcileHistoryPageProps {
-  // pattern เดียวกับ DashboardOverview/OverduePurchaseTaxReport — ไม่ส่งมาก็ยังใช้งานหน้านี้ได้ปกติ
-  // แค่ปุ่ม "เปิดดู/แก้ไข" จะไม่พาไปหน้า "Bank Reconcile" เท่านั้น
+  // ยังรับ onNavigate ไว้เหมือนเดิม (pattern เดียวกับ DashboardOverview/OverduePurchaseTaxReport) — ไม่ได้
+  // ใช้เปิดรายละเอียดอีกต่อไปแล้ว (ดูคอมเมนต์ด้านล่าง) แต่ส่งต่อให้ BankReconcileHistoryDetail ใช้กับปุ่ม
+  // "แก้ไขในหน้า Bank Reconcile" (ทางเลือกเสริม เผื่อผู้ใช้ต้องการแก้ไขจริงๆ ไม่ใช่แค่ดู) ไม่ส่งมาก็ยังใช้งาน
+  // หน้านี้ได้ปกติ แค่ปุ่มแก้ไขนั้นจะไม่ปรากฏเท่านั้น
   onNavigate?: (id: string, intent?: NavIntent) => void;
 }
 
@@ -25,12 +28,17 @@ interface BankReconcileHistoryPageProps {
  * NAV_STRUCTURE, id: 'reconcile-history') แสดงรายการกระทบยอดทั้งหมดที่เคยกด "บันทึกเป็นประวัติ" ไว้จากหน้า
  * Bank Reconcile (BankReconcileWorkspace.tsx) เรียงตามช่วงเวลาล่าสุดก่อนเสมอ (ดู fetchReconcileReports() —
  * order by period_year desc, period_month desc, updated_at desc) ใช้ ReconcileReportSummary เท่านั้น (ไม่ใช่
- * ReconcileReportDetail) เพราะหน้านี้แค่แสดงสรุป ไม่ต้องโหลดแถว Bank/GL/MatchGroup เต็มของทุกรายการมาเปล่าๆ
+ * ReconcileReportDetail) เพราะหน้ารายการนี้แค่แสดงสรุป ไม่ต้องโหลดแถว Bank/GL/MatchGroup เต็มของทุกรายการมา
+ * เปล่าๆ (โหลดเต็มเฉพาะรายการที่เปิดดูจริงผ่าน BankReconcileHistoryDetail.tsx ด้านล่าง)
  *
- * ปุ่ม "เปิดดู/แก้ไข" แต่ละแถวไม่เปิดหน้ารายละเอียดแยกต่างหาก — ส่ง NavIntent ชนิด 'open-reconcile-report'
- * กลับไปที่หน้า "Bank Reconcile" ให้ BankReconcilePage.tsx (dispatcher) สลับไปแสดง BankReconcileLoadedSession
- * แทนทันที (รูปแบบ onNavigate เดียวกับปุ่ม "แก้ไข" ใน OverduePurchaseTaxReport.tsx ที่ส่ง 'edit-invoice'
- * กลับไปหน้า "บันทึกค่าใช้จ่าย") ไม่ duplicate UI/logic การแสดงผลรายการที่โหลดมาเลยแม้แต่นิดเดียว
+ * ปุ่ม "ดูรายละเอียด" แต่ละแถว (เดิมชื่อ "เปิดดู/แก้ไข" — เปลี่ยนชื่อ 2026-08-05 ตามคำขอผู้ใช้ ดูด้านล่าง) ไม่
+ * ออกจากหน้าประวัติไปหน้า "Bank Reconcile" ทันทีเหมือนเดิมอีกต่อไปแล้ว — สลับไปแสดง BankReconcileHistoryDetail
+ * (มุมมองอ่านอย่างเดียว ยึด Bank Statement เป็นหลัก พร้อมบอกว่าแต่ละแถวจับคู่กับ GL เลขที่ใด) แทนที่ list นี้
+ * ทั้งหน้าโดยตรง (master-detail pattern เดียวกับ BankReconcilePage.tsx เดิม) ตามที่ผู้ใช้ระบุชัดเจนว่าไม่
+ * ต้องการให้เด้งออกจากหน้านี้อีกต่อไป แค่อยากดูยอดที่กระทบสำเร็จตรงนี้ได้เลย — เส้นทางเดิม (onNavigate ไปหน้า
+ * "Bank Reconcile" พร้อม NavIntent ชนิด 'open-reconcile-report') ยังคงอยู่ครบ ไม่ได้ลบทิ้ง แค่ย้ายไปอยู่หลัง
+ * ปุ่มเสริม "แก้ไขในหน้า Bank Reconcile" ภายใน BankReconcileHistoryDetail แทน (เผื่อผู้ใช้ต้องการแก้ไขจริงๆ
+ * เช่นอัปโหลดไฟล์ใหม่/จับคู่เองเพิ่ม ไม่ใช่แค่ดู — ความสามารถเดิมไม่หายไปไหน แค่ไม่ใช่ปุ่มเริ่มต้นอีกต่อไป)
  */
 export default function BankReconcileHistoryPage({ onNavigate }: BankReconcileHistoryPageProps) {
   const { session } = useAuth();
@@ -49,15 +57,25 @@ export default function BankReconcileHistoryPage({ onNavigate }: BankReconcileHi
     [reports, safePage]
   );
 
-  function handleOpen(report: ReconcileReportSummary) {
-    onNavigate?.('bank-reconcile', { type: 'open-reconcile-report', reportId: report.id });
+  // id ของรายการที่กำลังเปิดดูรายละเอียดอยู่ (ไม่ null = แสดง BankReconcileHistoryDetail แทน list ทั้งหมด)
+  const [viewingReportId, setViewingReportId] = useState<string | null>(null);
+
+  if (viewingReportId) {
+    return (
+      <BankReconcileHistoryDetail
+        reportId={viewingReportId}
+        onBack={() => setViewingReportId(null)}
+        onNavigate={onNavigate}
+      />
+    );
   }
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6" data-testid="reconcile-history-page">
       <p className="mb-6 text-sm text-text-sub">
-        รายการกระทบยอดที่เคยบันทึกไว้ทั้งหมด เรียงตามเดือน/ปีล่าสุดก่อน — กด &quot;เปิดดู/แก้ไข&quot; เพื่อกลับไปดู
-        หรือแก้ไขรายการโดยไม่ต้องอัปโหลดไฟล์ Bank Statement/GL ใหม่เลย
+        รายการกระทบยอดที่เคยบันทึกไว้ทั้งหมด เรียงตามเดือน/ปีล่าสุดก่อน — กด &quot;ดูรายละเอียด&quot; เพื่อดูยอดที่
+        กระทบสำเร็จของรายการนั้นได้ทันทีในหน้านี้ (ยึดข้อมูล Bank Statement เป็นหลัก พร้อมบอกว่าแต่ละแถวจับคู่กับ
+        GL เลขที่ใด) ไม่ต้องออกไปหน้าอื่นเลย
       </p>
 
       {loadError && (
@@ -138,11 +156,11 @@ export default function BankReconcileHistoryPage({ onNavigate }: BankReconcileHi
                     <td className="px-[18px] py-[18px] text-right">
                       <button
                         type="button"
-                        onClick={() => handleOpen(report)}
+                        onClick={() => setViewingReportId(report.id)}
                         className="btn-press rounded-[10px] border border-primary/50 bg-primary-light px-3.5 py-2 text-xs font-semibold text-primary hover:bg-primary/20"
                         data-testid={`reconcile-history-open-${report.id}`}
                       >
-                        เปิดดู/แก้ไข
+                        ดูรายละเอียด
                       </button>
                     </td>
                   </tr>
