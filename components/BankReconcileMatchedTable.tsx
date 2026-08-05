@@ -58,7 +58,7 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
         <>
           <div className="card-surface max-h-[32rem] overflow-auto rounded-2xl">
             <table className="min-w-full divide-y divide-border text-sm">
-              <thead className="sticky top-0 z-10 bg-table-header">
+              <thead className="sticky top-0 z-10 bg-card-bg/90 backdrop-blur-sm">
                 <tr>
                   <th rowSpan={2} className="w-10 px-3.5 py-2" aria-hidden="true" />
                   <th colSpan={3} className="px-3.5 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-sub">

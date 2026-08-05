@@ -129,7 +129,7 @@ export default function ContactImportPanel({ onImport, onClose, existingContacts
         <button
           type="button"
           onClick={handleDownloadTemplate}
-          className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-text hover:bg-page-bg"
+          className="btn-press rounded-[10px] border border-border bg-white/8 px-4 py-2.5 text-sm font-medium text-text hover:bg-white/15"
           data-testid="download-contact-template"
         >
           ดาวน์โหลดเทมเพลต Excel
@@ -174,7 +174,7 @@ export default function ContactImportPanel({ onImport, onClose, existingContacts
                 className={`btn-press rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors duration-[250ms] ${
                   reviewFilter === tab.key
                     ? 'bg-primary text-white'
-                    : 'border border-border bg-white text-text-sub hover:bg-page-bg'
+                    : 'border border-border bg-white/8 text-text-sub hover:bg-white/15'
                 }`}
                 data-testid={`contact-import-filter-${tab.key}`}
               >
@@ -183,7 +183,7 @@ export default function ContactImportPanel({ onImport, onClose, existingContacts
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-border bg-page-bg p-3 text-xs sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-border bg-white/5 p-3 text-xs sm:grid-cols-4">
             <div>
               <span className="text-text-sub">จะนำเข้า</span>{' '}
               <span className="font-numeric font-semibold text-text" data-testid="contact-import-summary-count">
@@ -208,7 +208,7 @@ export default function ContactImportPanel({ onImport, onClose, existingContacts
 
           <div className="card-surface max-h-[28rem] overflow-auto rounded-2xl">
             <table className="min-w-full divide-y divide-border text-sm">
-              <thead className="sticky top-0 bg-table-header">
+              <thead className="sticky top-0 z-10 bg-card-bg/90 backdrop-blur-sm">
                 <tr>
                   <th className="px-3.5 py-2.5 text-center font-medium text-text-sub">นำเข้า</th>
                   <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">ลำดับ</th>
@@ -280,7 +280,7 @@ export default function ContactImportPanel({ onImport, onClose, existingContacts
         <button
           type="button"
           onClick={onClose}
-          className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg"
+          className="btn-press rounded-[10px] border border-border bg-white/8 px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-white/15"
         >
           ปิด
         </button>
@@ -288,7 +288,7 @@ export default function ContactImportPanel({ onImport, onClose, existingContacts
           <button
             type="button"
             onClick={handlePickAnotherFile}
-            className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg"
+            className="btn-press rounded-[10px] border border-border bg-white/8 px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-white/15"
           >
             เลือกไฟล์ใหม่
           </button>

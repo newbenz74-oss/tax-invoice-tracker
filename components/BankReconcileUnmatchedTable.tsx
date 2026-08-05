@@ -82,7 +82,7 @@ export default function BankReconcileUnmatchedTable({
         <>
           <div className="card-surface max-h-[28rem] overflow-auto rounded-2xl">
             <table className="min-w-full divide-y divide-border text-sm">
-              <thead className="sticky top-0 bg-table-header">
+              <thead className="sticky top-0 z-10 bg-card-bg/90 backdrop-blur-sm">
                 <tr>
                   <th className="w-10 px-3.5 py-2.5">
                     <input
