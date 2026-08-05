@@ -110,6 +110,19 @@ test.describe('ประวัติการกระทบยอด (บัน
     await expect(detailRows.filter({ hasText: '01/07/2026' })).toContainText('จับคู่สำเร็จ');
     await expect(detailRows.filter({ hasText: '10/07/2026' })).toContainText('ยังไม่จับคู่');
 
+    // ตารางไม่มี pagination/กล่องเลื่อนซ้อนอีกชั้นแล้ว (รอบปรับปรุง 2) — ต้องเห็นแถวสรุปยอดรวม รับ/จ่าย
+    // ท้ายตาราง (1000+300=1,300 รับ, ไม่มีรายการจ่ายเลยในเทสต์นี้) และแผงตรวจสอบยอดด้วย
+    await expect(page.getByTestId('reconcile-history-detail-total-receive')).toHaveText('1,300.00');
+    await expect(page.getByTestId('reconcile-history-detail-total-payment')).toHaveText('0.00');
+    await expect(page.getByTestId('reconcile-history-detail-check-note')).toContainText(
+      'ตรงกับยอดรวม Bank Statement ทั้งหมด'
+    );
+
+    // ปุ่ม Export Excel/PDF/พิมพ์ ต้องกดได้ (ไม่ disabled) เมื่อมีข้อมูล
+    await expect(page.getByTestId('reconcile-history-detail-export-excel')).toBeEnabled();
+    await expect(page.getByTestId('reconcile-history-detail-export-pdf')).toBeEnabled();
+    await expect(page.getByTestId('reconcile-history-detail-print')).toBeEnabled();
+
     // 5b) กด "แก้ไขในหน้า Bank Reconcile" (ปุ่มเสริม ยังใช้เส้นทางเดิมได้ครบ) — ต้องกลับไปหน้า Bank
     // Reconcile พร้อมข้อมูลครบทันที ไม่ต้องอัปโหลดไฟล์ใหม่เลย
     await page.getByTestId('reconcile-history-detail-edit').click();

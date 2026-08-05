@@ -636,6 +636,36 @@ body {
     box-shadow: 0 0 0 8px rgba(47, 167, 226, 0.18);
   }
 }
+/* ----- Print utilities (เพิ่มเข้ามา 2026-08-05 พร้อมปุ่ม "พิมพ์" ของหน้ารายละเอียดประวัติกระทบยอด — ดู
+   components/BankReconcileHistoryDetail.tsx) — pattern ทั่วไปสำหรับ "พิมพ์เฉพาะบางส่วนของหน้า" โดยไม่ต้อง
+   รู้จัก class/โครงสร้างของ Sidebar/Header/ปุ่มลอยผู้ช่วย AI ฯลฯ เลย: ซ่อนทุกอย่างในหน้าก่อน (visibility:
+   hidden ไม่ใช่ display:none เพราะต้องคง layout เดิมไว้ให้ .printable-area คำนวณตำแหน่งได้ถูกต้อง) แล้ว
+   เปิดกลับเฉพาะ .printable-area กับลูกของมันเท่านั้น ย้ายมาวางที่มุมบนซ้ายของหน้ากระดาษเต็มความกว้างเสมอ —
+   ใส่ class="no-print" กับปุ่ม/องค์ประกอบใดๆ ภายใน .printable-area ที่ไม่ต้องการให้ปรากฏตอนพิมพ์ (เช่นปุ่ม
+   "กลับไปหน้ารายการ"/"แก้ไข"/Export) ใช้ซ้ำได้กับหน้าอื่นในอนาคตที่ต้องการฟีเจอร์พิมพ์เหมือนกัน ไม่ผูกกับ
+   component ใดเป็นการเฉพาะ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable-area,
+  .printable-area * {
+    visibility: visible;
+  }
+  .printable-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
 .assistant-highlight-glow {
   outline: 3px solid rgba(47, 167, 226, 0.9);
   outline-offset: 3px;
