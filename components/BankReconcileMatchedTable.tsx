@@ -206,7 +206,12 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
                   );
                 })}
               </tbody>
-              <tfoot className="sticky bottom-0 z-10 bg-primary-light">
+              {/* ตั้งใจ "ไม่" ใส่ sticky bottom-0 ที่ tfoot นี้ (ลองแล้วในรอบแรกที่เพิ่มแถวสรุปนี้เข้ามา) —
+                  ภายในกล่อง overflow-auto ที่มี sticky header อยู่แล้วด้านบน การ sticky ที่ท้ายตารางด้วยทำให้
+                  แถวข้อมูลจริงแถวสุดท้ายเลื่อนไปทับซ้อนกับแถวสรุปนี้ระหว่างเลื่อนดู (ผู้ใช้เจอปัญหานี้จริงตอน
+                  ใช้งาน) จึงปล่อยให้แถวสรุปอยู่ท้ายตารางตามปกติ (เลื่อนลงสุดถึงจะเห็น) เหมือนรูปแบบเดิมของ
+                  PurchaseTaxReport.tsx ที่ไม่เคย sticky เช่นกัน */}
+              <tfoot className="bg-primary-light">
                 <tr>
                   <td colSpan={2} className="px-3.5 py-2.5 text-sm font-bold text-text">
                     รวมทั้งสิ้น ({groups.length.toLocaleString('th-TH')} รายการ)

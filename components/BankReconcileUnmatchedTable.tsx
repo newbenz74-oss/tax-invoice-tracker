@@ -146,7 +146,10 @@ export default function BankReconcileUnmatchedTable({
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="sticky bottom-0 z-10 bg-primary-light">
+              {/* ไม่ใส่ sticky bottom-0 ที่ tfoot นี้ — เหตุผลเดียวกับ BankReconcileMatchedTable.tsx (ลองแล้ว
+                  ทำให้แถวข้อมูลจริงแถวสุดท้ายเลื่อนไปทับซ้อนกับแถวสรุปนี้ระหว่างเลื่อนดูภายในกล่อง overflow-auto
+                  ที่มี sticky header อยู่แล้ว) */}
+              <tfoot className="bg-primary-light">
                 <tr>
                   <td className="px-3.5 py-2.5" />
                   <td className="px-3.5 py-2.5 text-sm font-bold text-text">
