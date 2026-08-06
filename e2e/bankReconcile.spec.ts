@@ -89,6 +89,12 @@ test.describe('Bank Reconcile — หน้าใหม่ (รายงาน�
     await expect(matchedSection.locator('tbody tr')).toHaveCount(1);
     await expect(matchedSection).toContainText('DOC-001');
     await expect(matchedSection).toContainText('สำเร็จ');
+    // แถวสรุปยอดรวมท้ายตาราง (เพิ่มเข้ามา 2026-08-05 ตามคำขอผู้ใช้ — เอาไว้ชนยอดกับเอกสารจริง) — B1↔G1
+    // เป็นคู่เดียวที่จับคู่ได้ (รับ 1000 ทั้งสองฝั่ง ไม่มีรายการจ่ายเลยในคู่ที่จับคู่สำเร็จ)
+    await expect(matchedSection.getByTestId('matched-total-bank-receive')).toHaveText('1,000.00');
+    await expect(matchedSection.getByTestId('matched-total-bank-payment')).toHaveText('0.00');
+    await expect(matchedSection.getByTestId('matched-total-gl-receive')).toHaveText('1,000.00');
+    await expect(matchedSection.getByTestId('matched-total-gl-payment')).toHaveText('0.00');
 
     // Section 2: Bank Statement ไม่สำเร็จ — B2 (500) และ B3 (300) ต้องอยู่ที่นี่ ไม่มีคอลัมน์ GL ปนอยู่เลย
     const bankUnmatchedSection = page.getByTestId('bank-unmatched-section');
@@ -96,6 +102,9 @@ test.describe('Bank Reconcile — หน้าใหม่ (รายงาน�
     await expect(bankUnmatchedSection.locator('tbody tr')).toHaveCount(2);
     await expect(bankUnmatchedSection).toContainText('ไม่พบข้อมูลใน GL');
     await expect(bankUnmatchedSection.locator('thead')).not.toContainText('เลขที่เอกสาร');
+    // แถวสรุปยอดรวม — B3 (รับ 300) + B2 (จ่าย 500)
+    await expect(bankUnmatchedSection.getByTestId('bank-unmatched-total-receive')).toHaveText('300.00');
+    await expect(bankUnmatchedSection.getByTestId('bank-unmatched-total-payment')).toHaveText('500.00');
 
     // Section 3: GL ไม่สำเร็จ — G2 (DOC-002) และ G3 (DOC-003) ต้องอยู่ที่นี่ พร้อมคอลัมน์ "เลขที่เอกสาร"
     // อยู่ระหว่างวันที่กับรับ (ผู้ใช้ขอเพิ่มกลับมาเฉพาะฝั่งนี้ 2026-07-17 หลังทดสอบใช้งานจริง — เดิมสเปก
@@ -110,6 +119,9 @@ test.describe('Bank Reconcile — หน้าใหม่ (รายงาน�
     await expect(glUnmatchedSection.locator('thead tr th')).toHaveText(['', 'วันที่', 'เลขที่เอกสาร', 'รับ', 'จ่าย', 'สถานะ']);
     await expect(glUnmatchedSection).toContainText('DOC-002');
     await expect(glUnmatchedSection).toContainText('DOC-003');
+    // แถวสรุปยอดรวม — G2 (จ่าย 500) + G3 (จ่าย 900) ไม่มีรายการรับเลย
+    await expect(glUnmatchedSection.getByTestId('gl-unmatched-total-receive')).toHaveText('0.00');
+    await expect(glUnmatchedSection.getByTestId('gl-unmatched-total-payment')).toHaveText('1,400.00');
 
     expect(dialogs).toEqual([]);
     expect(errors).toEqual([]);

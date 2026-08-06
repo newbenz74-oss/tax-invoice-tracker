@@ -68,6 +68,20 @@ export default function BankReconcileUnmatchedTable({
   const safePage = Math.min(page, totalPages);
   const paged = useMemo(() => rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE), [rows, safePage]);
 
+  // ผลรวมรับ/จ่าย ของทั้งตารางนี้ (เพิ่มเข้ามา 2026-08-05 ตามคำขอผู้ใช้ — จะเอาไปชนยอดกับเอกสารจริง) คำนวณ
+  // จาก "rows" ทั้งก้อน (ทุกหน้า ไม่ใช่แค่ paged ที่กำลังแสดงอยู่หน้าปัจจุบัน) เพราะเป้าหมายคือยอดรวมของทั้ง
+  // ตารางนี้ทั้งหมด ไม่ใช่แค่หน้าที่กำลังเปิดดู — component เดียวกันนี้ใช้ซ้ำทั้ง "Bank Statement ไม่สำเร็จ"
+  // และ "GL ไม่สำเร็จ" จึงคำนวณแยกอิสระของ rows ที่ส่งเข้ามาแต่ละครั้งเท่านั้น ไม่ปนกันข้าม instance */
+  const totals = useMemo(() => {
+    let totalReceive = 0;
+    let totalPayment = 0;
+    for (const row of rows) {
+      if (row.type === 'receive') totalReceive += row.amount;
+      else totalPayment += row.amount;
+    }
+    return { totalReceive, totalPayment };
+  }, [rows]);
+
   return (
     <section className="mb-8" data-testid={`${testId}-section`}>
       <h2 className="mb-3 text-base font-bold text-text">{title}</h2>
@@ -132,6 +146,28 @@ export default function BankReconcileUnmatchedTable({
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="sticky bottom-0 z-10 bg-primary-light">
+                <tr>
+                  <td className="px-3.5 py-2.5" />
+                  <td className="px-3.5 py-2.5 text-sm font-bold text-text">
+                    รวม ({rows.length.toLocaleString('th-TH')} รายการ)
+                  </td>
+                  {showDocumentNo && <td className="px-3.5 py-2.5" />}
+                  <td
+                    className="font-numeric px-3.5 py-2.5 text-right text-sm font-bold text-primary"
+                    data-testid={`${testId}-total-receive`}
+                  >
+                    {totals.totalReceive.toLocaleString('th-TH', THB2)}
+                  </td>
+                  <td
+                    className="font-numeric px-3.5 py-2.5 text-right text-sm font-bold text-primary"
+                    data-testid={`${testId}-total-payment`}
+                  >
+                    {totals.totalPayment.toLocaleString('th-TH', THB2)}
+                  </td>
+                  <td className="px-3.5 py-2.5" />
+                </tr>
+              </tfoot>
             </table>
           </div>
           <BankReconcilePagination

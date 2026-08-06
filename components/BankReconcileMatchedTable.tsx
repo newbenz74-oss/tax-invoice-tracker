@@ -35,6 +35,32 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
   const safePage = Math.min(page, totalPages);
   const paged = useMemo(() => groups.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE), [groups, safePage]);
 
+  // ผลรวมรับ/จ่าย ทั้งฝั่ง Bank Statement และฝั่ง GL (เพิ่มเข้ามา 2026-08-05 ตามคำขอผู้ใช้ — จะเอาไปชนยอด
+  // กับเอกสารจริง) คำนวณจาก "groups" ทั้งก้อน (ทุกหน้า ไม่ใช่แค่ paged ที่กำลังแสดงอยู่หน้าปัจจุบัน) เพราะ
+  // เป้าหมายคือยอดรวมของทั้งตาราง "กระทบยอดสำเร็จ" นี้ทั้งหมด ไม่ใช่แค่หน้าที่กำลังเปิดดู — ฝั่ง Bank กับฝั่ง
+  // GL ของแต่ละ type (รับ/จ่าย) ต้องเท่ากันเสมอโดยธรรมชาติของข้อมูล (ดู types/bankReconcileMatch.ts
+  // MatchGroup: "ผลรวม amount ของ bankRows ต้องเท่ากับผลรวม amount ของ glRows เสมอ") แยกคำนวณทั้งสองฝั่งไว้
+  // ตรงๆ แทนที่จะสมมติว่าเท่ากันแล้วโชว์ค่าเดียว เพื่อให้เป็นการยืนยันซ้ำในตัวว่าข้อมูลไม่ได้ผิดเพี้ยนไปจากที่
+  // ควรจะเป็น (ถ้าตัวเลขสองฝั่งต่างกันขึ้นมาจะเป็นสัญญาณว่ามีบัคที่อื่น)
+  const totals = useMemo(() => {
+    let bankReceive = 0;
+    let bankPayment = 0;
+    let glReceive = 0;
+    let glPayment = 0;
+    for (const group of groups) {
+      const bankTotal = sumOf(group.bankRows);
+      const glTotal = sumOf(group.glRows);
+      if (group.type === 'receive') {
+        bankReceive += bankTotal;
+        glReceive += glTotal;
+      } else {
+        bankPayment += bankTotal;
+        glPayment += glTotal;
+      }
+    }
+    return { bankReceive, bankPayment, glReceive, glPayment };
+  }, [groups]);
+
   function toggleExpanded(groupId: string) {
     setExpandedGroupIds((prev) => {
       const next = new Set(prev);
@@ -180,6 +206,40 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
                   );
                 })}
               </tbody>
+              <tfoot className="sticky bottom-0 z-10 bg-primary-light">
+                <tr>
+                  <td colSpan={2} className="px-3.5 py-2.5 text-sm font-bold text-text">
+                    รวมทั้งสิ้น ({groups.length.toLocaleString('th-TH')} รายการ)
+                  </td>
+                  <td
+                    className="font-numeric px-3.5 py-2.5 text-right text-sm font-bold text-primary"
+                    data-testid="matched-total-bank-receive"
+                  >
+                    {totals.bankReceive.toLocaleString('th-TH', THB2)}
+                  </td>
+                  <td
+                    className="font-numeric px-3.5 py-2.5 text-right text-sm font-bold text-primary"
+                    data-testid="matched-total-bank-payment"
+                  >
+                    {totals.bankPayment.toLocaleString('th-TH', THB2)}
+                  </td>
+                  <td className="border-l border-border px-3.5 py-2.5" />
+                  <td className="px-3.5 py-2.5" />
+                  <td
+                    className="font-numeric px-3.5 py-2.5 text-right text-sm font-bold text-primary"
+                    data-testid="matched-total-gl-receive"
+                  >
+                    {totals.glReceive.toLocaleString('th-TH', THB2)}
+                  </td>
+                  <td
+                    className="font-numeric px-3.5 py-2.5 text-right text-sm font-bold text-primary"
+                    data-testid="matched-total-gl-payment"
+                  >
+                    {totals.glPayment.toLocaleString('th-TH', THB2)}
+                  </td>
+                  <td colSpan={2} className="px-3.5 py-2.5" />
+                </tr>
+              </tfoot>
             </table>
           </div>
           <BankReconcilePagination
