@@ -157,3 +157,65 @@ export function buildBankReconcileHistoryPdfBlob(
 
   return doc.output('blob');
 }
+
+export interface UnmatchedTableExportRow {
+  date: string; // ISO YYYY-MM-DD
+  type: TransactionType;
+  amount: number;
+  documentNo?: string;
+}
+
+export interface UnmatchedTableExportTotals {
+  totalReceive: number;
+  totalPayment: number;
+}
+
+/** สร้างไฟล์ Excel ของตาราง "Bank Statement ไม่สำเร็จ" หรือ "GL ไม่สำเร็จ" 1 ตาราง (เพิ่มเข้ามา 2026-08-05
+ * ตามคำขอผู้ใช้ — ยืนยันว่ายอดรวมท้ายตารางมาจากแถวในตารางนี้เท่านั้นได้ด้วยตัวเอง โดยเปิดไฟล์แล้วลองใช้สูตร
+ * SUM ในโปรแกรม Excel เทียบกับตัวเลขที่แอปคำนวณให้) ต่างจาก buildBankReconcileHistoryExcelBlob() ตรงที่
+ * คอลัมน์ตรงกับตารางบนหน้าจอ "เป๊ะ" ทุกคอลัมน์ (วันที่ / [เลขที่เอกสาร] / รับ / จ่าย / สถานะ — ไม่มีคอลัมน์
+ * "จับคู่กับ GL เลขที่" เพราะทุกแถวในตารางนี้ไม่มีคู่อยู่แล้วโดยนิยาม) ไม่ใช่ export รวมทั้งรายงานเหมือนฟังก์ชัน
+ * นั้น — ใช้ใน BankReconcileUnmatchedTable.tsx โดยตรง (component เดียวกันที่ใช้ทั้ง section "Bank Statement
+ * ไม่สำเร็จ" และ "GL ไม่สำเร็จ" อยู่แล้ว จึงส่ง showDocumentNo มาควบคุมว่าจะมีคอลัมน์เลขที่เอกสารหรือไม่) */
+export function buildUnmatchedTableExcelBlob(
+  rows: UnmatchedTableExportRow[],
+  totals: UnmatchedTableExportTotals,
+  title: string,
+  showDocumentNo: boolean
+): Blob {
+  const headers = showDocumentNo
+    ? ['วันที่', 'เลขที่เอกสาร', 'รับ', 'จ่าย', 'สถานะ']
+    : ['วันที่', 'รับ', 'จ่าย', 'สถานะ'];
+
+  const rowToAoa = (r: UnmatchedTableExportRow): (string | number)[] =>
+    showDocumentNo
+      ? [
+          formatDateForExport(r.date),
+          r.documentNo || '-',
+          r.type === 'receive' ? r.amount : '',
+          r.type === 'payment' ? r.amount : '',
+          'ยังไม่จับคู่',
+        ]
+      : [
+          formatDateForExport(r.date),
+          r.type === 'receive' ? r.amount : '',
+          r.type === 'payment' ? r.amount : '',
+          'ยังไม่จับคู่',
+        ];
+
+  const totalRow: (string | number)[] = showDocumentNo
+    ? [`รวมทั้งหมด (${rows.length} รายการ)`, '', totals.totalReceive, totals.totalPayment, '']
+    : [`รวมทั้งหมด (${rows.length} รายการ)`, totals.totalReceive, totals.totalPayment, ''];
+
+  const aoa: (string | number)[][] = [[title], [], headers, ...rows.map(rowToAoa), [], totalRow];
+
+  const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+  worksheet['!cols'] = showDocumentNo
+    ? [{ wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }]
+    : [{ wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, title.slice(0, 31)); // ชื่อชีทของ Excel ยาวได้สูงสุด 31 ตัวอักษร
+  const arrayBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  return new Blob([arrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}

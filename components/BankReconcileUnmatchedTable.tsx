@@ -1,7 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { FileSpreadsheet } from 'lucide-react';
 import BankReconcilePagination from './BankReconcilePagination';
+import { buildUnmatchedTableExcelBlob } from '@/lib/bankReconcileHistoryExport';
+import { downloadBlob } from '@/lib/reportExport';
 
 const THB2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 const PAGE_SIZE = 20;
@@ -82,15 +85,45 @@ export default function BankReconcileUnmatchedTable({
     return { totalReceive, totalPayment };
   }, [rows]);
 
+  // ปุ่ม "Export Excel" (เพิ่มเข้ามา 2026-08-05 ตามคำขอผู้ใช้ — ต้องการยืนยันได้ด้วยตัวเองว่ายอดรวมมาจาก
+  // แถวในตารางนี้เท่านั้นจริงๆ) ไฟล์ที่ export คอลัมน์ตรงกับตารางบนหน้าจอเป๊ะทุกคอลัมน์ (ดู
+  // lib/bankReconcileHistoryExport.ts buildUnmatchedTableExcelBlob) เปิดด้วย Excel แล้วลองลาก SUM คอลัมน์
+  // รับ/จ่ายเทียบกับแถวสรุปที่แอปคำนวณให้ได้ทันที
+  function handleExportExcel() {
+    const blob = buildUnmatchedTableExcelBlob(rows, totals, title, showDocumentNo);
+    downloadBlob(blob, `${title}.xlsx`);
+  }
+
   return (
     <section className="mb-8" data-testid={`${testId}-section`}>
-      <h2 className="mb-3 text-base font-bold text-text">{title}</h2>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-bold text-text">{title}</h2>
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          disabled={rows.length === 0}
+          className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white/8 px-3 py-1.5 text-xs font-medium text-text hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+          data-testid={`${testId}-export-excel`}
+        >
+          <FileSpreadsheet size={14} aria-hidden="true" />
+          Export Excel
+        </button>
+      </div>
       {rows.length === 0 ? (
         <div
           className="card-surface rounded-2xl border border-dashed border-border p-10 text-center text-sm text-text-sub"
           data-testid={`${testId}-empty`}
         >
-          {emptyText}
+          <p>{emptyText}</p>
+          {/* ยืนยันกฎที่ผู้ใช้ระบุไว้อย่างชัดเจน (2026-08-05): "ถ้ามีการจับคู่จนครบ ยอดจะเหลือ 0" — โชว์ 0.00
+              ตรงๆ แทนที่จะซ่อนแถวสรุปไปเฉยๆ ตอนตารางว่าง เพื่อให้เห็นภาพว่ายอดรวมวิ่งไปจนถึง 0 จริงเมื่อจับคู่
+              ครบทุกแถวแล้ว (ไม่ใช่แค่ทฤษฎี) — data-testid เดียวกับตอนตารางไม่ว่างด้านล่าง เพราะแสดงความหมาย
+              เดียวกัน (ยอดรวมรับ/จ่ายของตารางนี้ ณ ขณะนี้) แค่คนละสถานะของ UI */}
+          <p className="mt-2 font-numeric font-semibold text-success">
+            รวม 0 รายการ — ยอดรวมรับ{' '}
+            <span data-testid={`${testId}-total-receive`}>{(0).toLocaleString('th-TH', THB2)}</span> · ยอดรวมจ่าย{' '}
+            <span data-testid={`${testId}-total-payment`}>{(0).toLocaleString('th-TH', THB2)}</span>
+          </p>
         </div>
       ) : (
         <>

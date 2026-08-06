@@ -105,6 +105,9 @@ test.describe('Bank Reconcile — หน้าใหม่ (รายงาน�
     // แถวสรุปยอดรวม — B3 (รับ 300) + B2 (จ่าย 500)
     await expect(bankUnmatchedSection.getByTestId('bank-unmatched-total-receive')).toHaveText('300.00');
     await expect(bankUnmatchedSection.getByTestId('bank-unmatched-total-payment')).toHaveText('500.00');
+    // ปุ่ม Export Excel ของตารางนี้ (เพิ่มเข้ามา 2026-08-05 — ผู้ใช้อยากยืนยันเองได้ว่ายอดรวมมาจากแถวใน
+    // ตารางนี้เท่านั้นจริงๆ) ต้องกดได้เมื่อมีข้อมูล
+    await expect(bankUnmatchedSection.getByTestId('bank-unmatched-export-excel')).toBeEnabled();
 
     // Section 3: GL ไม่สำเร็จ — G2 (DOC-002) และ G3 (DOC-003) ต้องอยู่ที่นี่ พร้อมคอลัมน์ "เลขที่เอกสาร"
     // อยู่ระหว่างวันที่กับรับ (ผู้ใช้ขอเพิ่มกลับมาเฉพาะฝั่งนี้ 2026-07-17 หลังทดสอบใช้งานจริง — เดิมสเปก
@@ -122,6 +125,7 @@ test.describe('Bank Reconcile — หน้าใหม่ (รายงาน�
     // แถวสรุปยอดรวม — G2 (จ่าย 500) + G3 (จ่าย 900) ไม่มีรายการรับเลย
     await expect(glUnmatchedSection.getByTestId('gl-unmatched-total-receive')).toHaveText('0.00');
     await expect(glUnmatchedSection.getByTestId('gl-unmatched-total-payment')).toHaveText('1,400.00');
+    await expect(glUnmatchedSection.getByTestId('gl-unmatched-export-excel')).toBeEnabled();
 
     expect(dialogs).toEqual([]);
     expect(errors).toEqual([]);
