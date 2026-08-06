@@ -146,14 +146,19 @@ export default function BankReconcileUnmatchedTable({
                   </tr>
                 ))}
               </tbody>
-              {/* ไม่ใส่ sticky bottom-0 ที่ tfoot นี้ — เหตุผลเดียวกับ BankReconcileMatchedTable.tsx (ลองแล้ว
-                  ทำให้แถวข้อมูลจริงแถวสุดท้ายเลื่อนไปทับซ้อนกับแถวสรุปนี้ระหว่างเลื่อนดูภายในกล่อง overflow-auto
-                  ที่มี sticky header อยู่แล้ว) */}
-              <tfoot className="bg-primary-light">
+              {/* รอบแก้ไขที่ 2 (2026-08-05) — เหตุผลเดียวกับ BankReconcileMatchedTable.tsx: กลับมา sticky
+                  bottom-0 อีกครั้งตามที่ผู้ใช้ขอ (ไม่อยากให้แถวสรุป "จมหายไป" ต้องเลื่อนสุดตารางถึงจะเห็น) แต่
+                  เปลี่ยนพื้นหลังจาก bg-primary-light (โปร่งใส 18%) เป็น bg-card-bg ทึบเต็ม 100% แทน — ต้นเหตุจริง
+                  ของปัญหา "ทับซ้อน" ที่เจอในรอบแรกคือพื้นหลังโปร่งใสปล่อยให้ข้อความแถวข้อมูลที่เลื่อนผ่านด้านหลัง
+                  ทะลุขึ้นมาปนกัน ไม่ใช่ตัว sticky เอง */}
+              <tfoot className="sticky bottom-0 z-10 border-t-2 border-primary bg-card-bg shadow-[0_-4px_8px_rgba(0,0,0,0.25)]">
                 <tr>
                   <td className="px-3.5 py-2.5" />
                   <td className="px-3.5 py-2.5 text-sm font-bold text-text">
-                    รวม ({rows.length.toLocaleString('th-TH')} รายการ)
+                    {/* ระบุ "ทุกหน้า" ให้ชัดเจน (2026-08-05) กันสับสนว่าเป็นยอดรวมของทั้ง {rows.length} รายการ
+                        ในตารางนี้ (ทุกหน้าที่เลื่อนดูได้ ไม่ใช่แค่หน้าที่กำลังเปิดอยู่) — ผู้ใช้ยืนยันแล้วว่า
+                        ต้องการยอดรวมทั้งหมดทุกหน้าแบบนี้ */}
+                    รวมทั้งหมด ({rows.length.toLocaleString('th-TH')} รายการทุกหน้า)
                   </td>
                   {showDocumentNo && <td className="px-3.5 py-2.5" />}
                   <td
