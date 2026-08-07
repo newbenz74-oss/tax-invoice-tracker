@@ -7,11 +7,16 @@ const TABLE = 'pending_tax_invoices';
  * เรียก useSWR ด้วย key เดียวกัน ใช้ cache ร่วมกับ DashboardContent แทนการดึงข้อมูลซ้ำซ้อน */
 export const INVOICES_SWR_KEY = TABLE;
 
-export async function fetchInvoices(): Promise<PendingTaxInvoice[]> {
+// รับ companyId เข้ามาบังคับ (เพิ่มเข้ามา 2026-08-07 พร้อมฟีเจอร์รองรับหลายบริษัท) — RLS ที่ฐานข้อมูลกรอง
+// ตามบริษัทที่เป็นสมาชิกอยู่แล้ว แต่ user ที่เป็นสมาชิกมากกว่า 1 บริษัทจะเห็นข้อมูลของทุกบริษัทปนกันถ้าไม่
+// filter .eq('company_id', ...) ตรงๆ ที่นี่ด้วย (RLS เป็นแค่เพดานสิทธิ์สูงสุด ไม่ใช่ตัวกรอง "บริษัทที่กำลัง
+// ใช้งานอยู่ตอนนี้") จึงต้อง filter ชัดเจนเสมอ ไม่พึ่ง RLS อย่างเดียว
+export async function fetchInvoices(companyId: string): Promise<PendingTaxInvoice[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from(TABLE)
     .select('*')
+    .eq('company_id', companyId)
     .order('expected_date', { ascending: true });
   if (error) throw error;
   return (data ?? []) as PendingTaxInvoice[];
@@ -44,7 +49,8 @@ export interface InvoiceWriteInput {
 
 export async function createInvoice(
   input: InvoiceWriteInput,
-  createdBy: { id: string | null; email: string | null }
+  createdBy: { id: string | null; email: string | null },
+  companyId: string
 ): Promise<PendingTaxInvoice> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
@@ -54,6 +60,7 @@ export async function createInvoice(
       status: input.status ?? ('pending' as InvoiceStatus),
       created_by: createdBy.id,
       created_by_email: createdBy.email,
+      company_id: companyId,
     })
     .select()
     .single();
@@ -65,7 +72,8 @@ export async function createInvoice(
  * ถ้าแถวใดผิดพลาด (เช่น constraint ที่ฐานข้อมูล) จะไม่มีแถวไหนถูกบันทึกเลย (all-or-nothing) */
 export async function bulkCreateInvoices(
   inputs: InvoiceWriteInput[],
-  createdBy: { id: string | null; email: string | null }
+  createdBy: { id: string | null; email: string | null },
+  companyId: string
 ): Promise<PendingTaxInvoice[]> {
   if (inputs.length === 0) return [];
   const supabase = getSupabaseClient();
@@ -77,6 +85,7 @@ export async function bulkCreateInvoices(
         status: input.status ?? ('pending' as InvoiceStatus),
         created_by: createdBy.id,
         created_by_email: createdBy.email,
+        company_id: companyId,
       }))
     )
     .select();

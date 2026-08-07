@@ -7,6 +7,9 @@ export type TaxType = 'no_vat' | 'claimable_vat' | 'non_claimable_vat';
 
 export interface PendingTaxInvoice {
   id: string;
+  // เพิ่มเข้ามาพร้อมฟีเจอร์รองรับหลายบริษัท (migration_007_multi_company.sql, 2026-08-07) — ทุกแถวมีค่านี้
+  // เสมอ (not null ที่ฐานข้อมูล) ระบุว่าแถวนี้เป็นของบริษัทไหน
+  company_id: string;
   vendor_name: string;
   transaction_date: string; // ISO date (YYYY-MM-DD)
   description: string | null;

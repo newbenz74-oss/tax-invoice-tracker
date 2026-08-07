@@ -14,6 +14,8 @@ export type ContactStatus = 'active' | 'inactive';
  * เป็นตารางใหม่ทั้งหมด ไม่เกี่ยวข้อง/ไม่กระทบตาราง pending_tax_invoices เดิมเลย */
 export interface BusinessPartner {
   id: string;
+  // เพิ่มเข้ามาพร้อมฟีเจอร์รองรับหลายบริษัท (migration_007_multi_company.sql, 2026-08-07)
+  company_id: string;
   partner_type: PartnerType;
   contact_code: string;
   entity_type: EntityType;

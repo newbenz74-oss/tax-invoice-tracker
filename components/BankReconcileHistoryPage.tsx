@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { useAuth } from '@/lib/AuthContext';
+import { useCompany } from '@/lib/CompanyContext';
 import {
   fetchReconcileReports,
   RECONCILE_REPORTS_SWR_KEY,
@@ -42,11 +43,15 @@ interface BankReconcileHistoryPageProps {
  */
 export default function BankReconcileHistoryPage({ onNavigate }: BankReconcileHistoryPageProps) {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompany();
   const {
     data: reports = [],
     error: loadErrorObj,
     isLoading: loading,
-  } = useSWR<ReconcileReportSummary[]>(session ? RECONCILE_REPORTS_SWR_KEY : null, fetchReconcileReports);
+  } = useSWR<ReconcileReportSummary[]>(
+    session && selectedCompanyId ? [RECONCILE_REPORTS_SWR_KEY, selectedCompanyId] : null,
+    () => fetchReconcileReports(selectedCompanyId!)
+  );
   const loadError = loadErrorObj instanceof Error ? loadErrorObj.message : loadErrorObj ? 'โหลดข้อมูลไม่สำเร็จ' : null;
 
   const [page, setPage] = useState(1);

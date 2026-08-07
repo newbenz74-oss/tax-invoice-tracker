@@ -16,6 +16,7 @@ import type { BusinessPartner, ContactFormInput } from '@/types/contact';
 function makeContact(overrides: Partial<BusinessPartner> = {}): BusinessPartner {
   return {
     id: overrides.id ?? Math.random().toString(36).slice(2),
+    company_id: overrides.company_id ?? 'test-company-id',
     partner_type: 'customer',
     contact_code: 'CUS0001',
     entity_type: 'company',

@@ -10,6 +10,7 @@ import BankReconcileUnmatchedTable from './BankReconcileUnmatchedTable';
 import BankReconcileManualMatchToolbar from './BankReconcileManualMatchToolbar';
 import BankReconcileSaveDialog, { type BankReconcileSaveInput } from './BankReconcileSaveDialog';
 import { useAuth } from '@/lib/AuthContext';
+import { useCompany } from '@/lib/CompanyContext';
 import { parseBankFile, parseGLFile } from '@/lib/bankReconcileParse';
 import { reconcileTransactions } from '@/lib/bankReconcileLogic';
 import { createManualMatchGroup, wrapAutoMatchesAsGroups } from '@/lib/bankReconcileManualMatch';
@@ -108,6 +109,7 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
   const [selectedGlIds, setSelectedGlIds] = useState<Set<string>>(new Set());
 
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompany();
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -275,7 +277,8 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
           allGlRows: glFile.rows,
           matchGroups,
         },
-        { id: session?.user?.id ?? null, email: session?.user?.email ?? null }
+        { id: session?.user?.id ?? null, email: session?.user?.email ?? null },
+        selectedCompanyId!
       );
       setCurrentReportId(reportId);
       setLastSaved({ reportName, status: input.status, periodMonth: input.periodMonth, periodYear: input.periodYear });
@@ -290,7 +293,7 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
       // การรีเฟรช cache ของอีกหน้าหนึ่งมีปัญหาชั่วคราว (เช่นเน็ตกระตุก) — หน้าประวัติจะ fetch ใหม่เองตามปกติอยู่
       // ดีเมื่อผู้ใช้เปิดเข้าไปในภายหลัง
       try {
-        await mutate(RECONCILE_REPORTS_SWR_KEY, fetchReconcileReports());
+        await mutate([RECONCILE_REPORTS_SWR_KEY, selectedCompanyId], fetchReconcileReports(selectedCompanyId!));
       } catch {
         // เพิกเฉยตามเหตุผลด้านบน
       }

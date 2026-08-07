@@ -12,6 +12,7 @@ import {
 import useSWR from 'swr';
 import { Search, X } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import { useCompany } from '@/lib/CompanyContext';
 import ContactForm from './ContactForm';
 import ContactTable from './ContactTable';
 import ContactImportPanel from './ContactImportPanel';
@@ -92,13 +93,17 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
 // Header/Footer มองเห็นตลอด เลื่อนได้เฉพาะ Body เท่านั้น ไม่กระทบ logic การบันทึกเดิมแต่อย่างใด
 export default function ContactsPage() {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompany();
 
   const {
     data: contacts = [],
     error: loadErrorObj,
     isLoading: loading,
     mutate,
-  } = useSWR<BusinessPartner[]>(session ? CONTACTS_SWR_KEY : null, fetchContacts);
+  } = useSWR<BusinessPartner[]>(
+    session && selectedCompanyId ? [CONTACTS_SWR_KEY, selectedCompanyId] : null,
+    () => fetchContacts(selectedCompanyId!)
+  );
   const loadError = loadErrorObj instanceof Error ? loadErrorObj.message : loadErrorObj ? 'โหลดข้อมูลไม่สำเร็จ' : null;
 
   const [partnerFilter, setPartnerFilter] = useState<PartnerType | 'all'>(readInitialPartnerFilter);
@@ -386,7 +391,7 @@ export default function ContactsPage() {
     if (selectedContact) {
       await updateContact(selectedContact.id, payload);
     } else {
-      await createContact(payload, session?.user?.id ?? null);
+      await createContact(payload, session?.user?.id ?? null, selectedCompanyId!);
     }
     closeModal();
     await mutate();
@@ -394,7 +399,7 @@ export default function ContactsPage() {
 
   async function handleImportRows(rows: ContactImportRow[]) {
     const inputs = rows.map(contactRowToWriteInput);
-    await bulkCreateContacts(inputs, session?.user?.id ?? null);
+    await bulkCreateContacts(inputs, session?.user?.id ?? null, selectedCompanyId!);
     setShowImportPanel(false);
     await mutate();
   }

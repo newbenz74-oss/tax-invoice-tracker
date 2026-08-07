@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Building2,
   BookUser,
   FileClock,
   FileInput,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
+import { useCompany } from '@/lib/CompanyContext';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 
 interface HeaderProps {
@@ -81,14 +83,24 @@ const PAGE_META: Record<string, { icon: LucideIcon; description: string }> = {
 
 export default function Header({ title, onMenuClick }: HeaderProps) {
   const { session } = useAuth();
+  // เพิ่มเข้ามา 2026-08-07 พร้อมฟีเจอร์รองรับหลายบริษัท — companies/selectedCompany ใช้แสดงชื่อบริษัท
+  // ปัจจุบัน + ปุ่ม "สลับบริษัท" (แสดงเฉพาะ user ที่เป็นสมาชิกมากกว่า 1 บริษัทเท่านั้น) clearSelection ใช้
+  // ล้างค่าที่จำไว้ตอนออกจากระบบ (ผู้ใช้ยืนยันว่าต้องเลือกใหม่ทุกครั้งที่ล็อกอิน ไม่ใช่จำไว้ข้ามรอบ)
+  const { companies, selectedCompany, clearSelection } = useCompany();
   const router = useRouter();
   const meta = PAGE_META[title];
   const PageIcon = meta?.icon ?? FileText;
 
   async function handleSignOut() {
+    clearSelection();
     const supabase = getSupabaseClient();
     await supabase.auth.signOut();
     router.replace('/login');
+  }
+
+  function handleSwitchCompany() {
+    clearSelection();
+    router.replace('/select-company');
   }
 
   return (
@@ -115,6 +127,22 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
+          {selectedCompany && (
+            <div className="hidden items-center gap-1.5 rounded-[10px] border border-border bg-white/8 px-3 py-2 text-sm text-text sm:flex">
+              <Building2 size={15} className="text-text-sub" aria-hidden="true" />
+              <span className="max-w-[160px] truncate">{selectedCompany.name}</span>
+              {companies.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleSwitchCompany}
+                  className="ml-1 text-xs font-medium text-primary hover:underline"
+                  data-testid="switch-company-button"
+                >
+                  สลับบริษัท
+                </button>
+              )}
+            </div>
+          )}
           {session?.user?.email && (
             <span className="hidden text-sm text-text-sub sm:inline">{session.user.email}</span>
           )}

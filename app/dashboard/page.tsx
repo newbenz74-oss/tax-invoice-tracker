@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { Search } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import RequireCompany from '@/components/RequireCompany';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import ComingSoon from '@/components/ComingSoon';
@@ -17,6 +18,7 @@ import ContactsPage from '@/components/ContactsPage';
 import BankReconcilePage from '@/components/BankReconcilePage';
 import BankReconcileHistoryPage from '@/components/BankReconcileHistoryPage';
 import { useAuth } from '@/lib/AuthContext';
+import { useCompany } from '@/lib/CompanyContext';
 import { registerAssistantNavBridge } from '@/lib/assistantNavBridge';
 import {
   bulkCreateInvoices,
@@ -64,7 +66,9 @@ function todayISO(): string {
 export default function DashboardPage() {
   return (
     <ProtectedRoute>
-      <DashboardShell />
+      <RequireCompany>
+        <DashboardShell />
+      </RequireCompany>
     </ProtectedRoute>
   );
 }
@@ -238,16 +242,24 @@ function renderActiveContent(
 // initialIntent จากหน้า Dashboard ได้ (เปิดฟอร์ม/แผงนำเข้า/ตั้ง filter ล่วงหน้า)
 function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | null } = {}) {
   const { session } = useAuth();
+  // เพิ่มเข้ามา 2026-08-07 พร้อมฟีเจอร์รองรับหลายบริษัท — selectedCompanyId เป็นส่วนหนึ่งของ SWR key
+  // เสมอ (ไม่ใช่แค่ INVOICES_SWR_KEY เฉยๆ) เพื่อไม่ให้ cache ของบริษัทหนึ่งไปปนกับอีกบริษัทถ้า user สลับ
+  // บริษัทระหว่างที่แอปยังเปิดอยู่ (ดู components/Header.tsx ปุ่ม "สลับบริษัท")
+  const { selectedCompanyId } = useCompany();
   const today = useMemo(() => todayISO(), []);
 
-  // ใช้ SWR แทน useEffect+useState เพื่อดึงข้อมูล — เรียก fetch เฉพาะตอนมี session แล้ว
-  // (key เป็น null ถ้ายังไม่ login ทำให้ SWR ไม่ยิง request) และ mutate() เพื่อรีเฟรชหลังแก้ไขข้อมูล
+  // ใช้ SWR แทน useEffect+useState เพื่อดึงข้อมูล — เรียก fetch เฉพาะตอนมี session และเลือกบริษัทแล้ว
+  // (key เป็น null ถ้ายังไม่ login หรือยังไม่มีบริษัทที่เลือก ทำให้ SWR ไม่ยิง request) และ mutate()
+  // เพื่อรีเฟรชหลังแก้ไขข้อมูล
   const {
     data: invoices = [],
     error: loadErrorObj,
     isLoading: loading,
     mutate,
-  } = useSWR<PendingTaxInvoice[]>(session ? INVOICES_SWR_KEY : null, fetchInvoices);
+  } = useSWR<PendingTaxInvoice[]>(
+    session && selectedCompanyId ? [INVOICES_SWR_KEY, selectedCompanyId] : null,
+    () => fetchInvoices(selectedCompanyId!)
+  );
   const loadError = loadErrorObj instanceof Error ? loadErrorObj.message : loadErrorObj ? 'โหลดข้อมูลไม่สำเร็จ' : null;
 
   // statusFilter/showForm/showImportPanel อ่านค่าเริ่มต้นจาก initialIntent ผ่าน lazy initializer ของ
@@ -367,10 +379,11 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
     } else {
       // ตอนเพิ่มรายการใหม่ ฟอร์มบังคับเลือกประเภทภาษีเสมอ (taxTypeRequired เป็น true) จึงมั่นใจได้ว่า
       // payload มี tax_type/status ครบตามที่ createInvoice ต้องการแน่นอน
-      await createInvoice(payload as InvoiceWriteInput, {
-        id: session?.user?.id ?? null,
-        email: session?.user?.email ?? null,
-      });
+      await createInvoice(
+        payload as InvoiceWriteInput,
+        { id: session?.user?.id ?? null, email: session?.user?.email ?? null },
+        selectedCompanyId!
+      );
     }
     setShowForm(false);
     setEditingInvoice(null);
@@ -379,10 +392,11 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
 
   async function handleImportRows(rows: ExcelImportRow[]) {
     const inputs = rows.map(excelRowToWriteInput);
-    await bulkCreateInvoices(inputs, {
-      id: session?.user?.id ?? null,
-      email: session?.user?.email ?? null,
-    });
+    await bulkCreateInvoices(
+      inputs,
+      { id: session?.user?.id ?? null, email: session?.user?.email ?? null },
+      selectedCompanyId!
+    );
     setShowImportPanel(false);
     await mutate();
   }

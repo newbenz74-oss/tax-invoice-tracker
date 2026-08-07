@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import { useCompany } from '@/lib/CompanyContext';
 import { fetchInvoices, INVOICES_SWR_KEY, markReceived } from '@/lib/invoiceApi';
 import { thaiMonthName } from '@/lib/thaiDate';
 import {
@@ -75,6 +76,7 @@ interface OverduePurchaseTaxReportProps {
  */
 export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchaseTaxReportProps) {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompany();
   const today = useMemo(() => {
     const now = new Date();
     const y = now.getFullYear();
@@ -88,7 +90,10 @@ export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchase
     error: loadErrorObj,
     isLoading: loading,
     mutate,
-  } = useSWR<PendingTaxInvoice[]>(session ? INVOICES_SWR_KEY : null, fetchInvoices);
+  } = useSWR<PendingTaxInvoice[]>(
+    session && selectedCompanyId ? [INVOICES_SWR_KEY, selectedCompanyId] : null,
+    () => fetchInvoices(selectedCompanyId!)
+  );
   const loadError =
     loadErrorObj instanceof Error ? loadErrorObj.message : loadErrorObj ? 'โหลดข้อมูลไม่สำเร็จ' : null;
 

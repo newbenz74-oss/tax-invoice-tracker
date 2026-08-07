@@ -6,9 +6,15 @@ const TABLE = 'business_partners';
 /** SWR cache key ของสมุดรายชื่อ — แยกจาก INVOICES_SWR_KEY โดยสิ้นเชิง (คนละตาราง คนละ cache) */
 export const CONTACTS_SWR_KEY = TABLE;
 
-export async function fetchContacts(): Promise<BusinessPartner[]> {
+// รับ companyId เข้ามาบังคับ (เพิ่มเข้ามา 2026-08-07 พร้อมฟีเจอร์รองรับหลายบริษัท) — เหตุผลเดียวกับ
+// lib/invoiceApi.ts fetchInvoices: RLS เป็นแค่เพดานสิทธิ์สูงสุด ต้อง filter บริษัทที่กำลังใช้งานอยู่เองด้วย
+export async function fetchContacts(companyId: string): Promise<BusinessPartner[]> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from(TABLE).select('*').order('contact_code', { ascending: true });
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('*')
+    .eq('company_id', companyId)
+    .order('contact_code', { ascending: true });
   if (error) throw error;
   return (data ?? []) as BusinessPartner[];
 }
@@ -38,7 +44,8 @@ export interface ContactWriteInput {
 
 export async function createContact(
   input: ContactWriteInput,
-  createdBy: string | null
+  createdBy: string | null,
+  companyId: string
 ): Promise<BusinessPartner> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
@@ -47,6 +54,7 @@ export async function createContact(
       ...input,
       status: input.status ?? ('active' as ContactStatus),
       created_by: createdBy,
+      company_id: companyId,
     })
     .select()
     .single();
@@ -58,7 +66,8 @@ export async function createContact(
  * เหมือน bulkCreateInvoices เดิม (ถ้าแถวใดผิด constraint เช่นรหัสซ้ำ จะไม่มีแถวไหนถูกบันทึกเลย) */
 export async function bulkCreateContacts(
   inputs: ContactWriteInput[],
-  createdBy: string | null
+  createdBy: string | null,
+  companyId: string
 ): Promise<BusinessPartner[]> {
   if (inputs.length === 0) return [];
   const supabase = getSupabaseClient();
@@ -69,6 +78,7 @@ export async function bulkCreateContacts(
         ...input,
         status: input.status ?? ('active' as ContactStatus),
         created_by: createdBy,
+        company_id: companyId,
       }))
     )
     .select();

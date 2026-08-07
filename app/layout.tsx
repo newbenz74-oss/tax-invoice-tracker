@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/lib/AuthContext";
+import { CompanyProvider } from "@/lib/CompanyContext";
 import AssistantRoot from "@/components/AssistantRoot";
 import "./globals.css";
 
@@ -27,8 +28,12 @@ export default function RootLayout({
             (ดู 'use client' บนสุดของ components/AssistantRoot.tsx) แต่ import ตรงๆ เข้ามาใน Server
             Component นี้ได้ปกติตามธรรมชาติของ Next.js App Router ไม่ต้องทำอะไรพิเศษเพิ่ม */}
         <AuthProvider>
-          {children}
-          <AssistantRoot />
+          {/* CompanyProvider ต้องอยู่ใน AuthProvider เสมอ (ดึงรายชื่อบริษัทจาก session ปัจจุบัน) — ครอบ
+              AssistantRoot ด้วยเพราะ AI Copilot อาจต้องรู้บริบทบริษัทที่กำลังใช้งานอยู่ในอนาคต */}
+          <CompanyProvider>
+            {children}
+            <AssistantRoot />
+          </CompanyProvider>
         </AuthProvider>
       </body>
     </html>

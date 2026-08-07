@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { FileSpreadsheet, FileText } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import { useCompany } from '@/lib/CompanyContext';
 import { fetchInvoices, INVOICES_SWR_KEY } from '@/lib/invoiceApi';
 import {
   filterPurchaseTaxReport,
@@ -28,6 +29,7 @@ function formatDate(iso: string | null): string {
 // vat_claim_month/vat_claim_year (ไม่ใช่วันที่ใบกำกับภาษีหรือวันที่ได้รับ) ตามหลักการที่สเปกกำหนด
 export default function PurchaseTaxReport() {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompany();
   const [month, setMonth] = useState<number | 'all'>(currentMonth());
   const [year, setYear] = useState<number>(currentBuddhistYear());
 
@@ -35,7 +37,10 @@ export default function PurchaseTaxReport() {
     data: invoices = [],
     error: loadErrorObj,
     isLoading: loading,
-  } = useSWR<PendingTaxInvoice[]>(session ? INVOICES_SWR_KEY : null, fetchInvoices);
+  } = useSWR<PendingTaxInvoice[]>(
+    session && selectedCompanyId ? [INVOICES_SWR_KEY, selectedCompanyId] : null,
+    () => fetchInvoices(selectedCompanyId!)
+  );
   const loadError =
     loadErrorObj instanceof Error ? loadErrorObj.message : loadErrorObj ? 'โหลดข้อมูลไม่สำเร็จ' : null;
 

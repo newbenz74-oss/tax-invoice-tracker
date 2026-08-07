@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import useSWR from 'swr';
 import { ArrowRight, FileInput, FileOutput, FileSpreadsheet, PlusCircle } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import { useCompany } from '@/lib/CompanyContext';
 import { fetchInvoices, INVOICES_SWR_KEY } from '@/lib/invoiceApi';
 import { AGING_BADGE_CLASS, AGING_LABELS, computeMonthlyVatSummary, computeStats, getAgingBucket } from '@/lib/invoiceLogic';
 import type { NavIntent } from '@/lib/navigation';
@@ -43,12 +44,16 @@ interface DashboardOverviewProps {
  */
 export default function DashboardOverview({ onNavigate }: DashboardOverviewProps) {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompany();
 
   const {
     data: invoices = [],
     error: loadErrorObj,
     isLoading: loading,
-  } = useSWR<PendingTaxInvoice[]>(session ? INVOICES_SWR_KEY : null, fetchInvoices);
+  } = useSWR<PendingTaxInvoice[]>(
+    session && selectedCompanyId ? [INVOICES_SWR_KEY, selectedCompanyId] : null,
+    () => fetchInvoices(selectedCompanyId!)
+  );
   const loadError =
     loadErrorObj instanceof Error ? loadErrorObj.message : loadErrorObj ? 'โหลดข้อมูลไม่สำเร็จ' : null;
 

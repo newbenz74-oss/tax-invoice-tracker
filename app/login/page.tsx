@@ -67,7 +67,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && session) {
-      router.replace('/dashboard');
+      router.replace('/select-company');
     }
   }, [loading, session, router]);
 
@@ -130,14 +130,17 @@ export default function LoginPage() {
   // exiting=true ไว้ก่อนเสมอ (ควบคุมสถานะปุ่ม disabled/ข้อความ "กำลังเข้าสู่ระบบ..." ให้ยังติดอยู่แม้
   // finally ของ handleSubmit จะ setSubmitting(false) ไปแล้วก็ตาม) ถ้าผู้ใช้เปิด prefers-reduced-motion
   // ไว้ ข้าม setTimeout แล้วนำทางทันที (ลด/ปิด animation ตามสเปก ไม่ใช่แค่ทำให้สั้นลง)
+  // เปลี่ยนปลายทางจาก '/dashboard' ตรงๆ เป็น '/select-company' (2026-08-07 พร้อมฟีเจอร์รองรับหลายบริษัท) —
+  // หน้าเลือกบริษัทเป็นผู้ตัดสินใจเองว่าจะข้ามไป /dashboard ทันที (ถ้ามีบริษัทเดียว) หรือต้องให้เลือกก่อน
+  // (ถ้ามีมากกว่า 1 บริษัท) ไม่ต้องรู้ตรรกะนี้ตรงนี้เลย
   function enterDashboard() {
     setExiting(true);
     if (prefersReducedMotion) {
-      router.replace('/dashboard');
+      router.replace('/select-company');
       return;
     }
     window.setTimeout(() => {
-      router.replace('/dashboard');
+      router.replace('/select-company');
     }, EXIT_TRANSITION_MS);
   }
 

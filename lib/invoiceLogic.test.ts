@@ -21,6 +21,7 @@ const TODAY = '2026-07-13';
 function makeInvoice(overrides: Partial<PendingTaxInvoice>): PendingTaxInvoice {
   return {
     id: overrides.id ?? Math.random().toString(36).slice(2),
+    company_id: overrides.company_id ?? 'test-company-id',
     vendor_name: 'บริษัท ทดสอบ จำกัด',
     transaction_date: '2026-07-01',
     description: null,

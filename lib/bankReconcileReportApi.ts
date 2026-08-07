@@ -105,11 +105,14 @@ function toGLTransaction(row: GlRowRecord): GLTransaction {
   return { id: row.id, documentNo: row.document_no, date: row.transaction_date, type: row.type, amount: Number(row.amount) };
 }
 
-export async function fetchReconcileReports(): Promise<ReconcileReportSummary[]> {
+// รับ companyId เข้ามาบังคับ (เพิ่มเข้ามา 2026-08-07 พร้อมฟีเจอร์รองรับหลายบริษัท) — เหตุผลเดียวกับ
+// lib/invoiceApi.ts fetchInvoices: RLS เป็นแค่เพดานสิทธิ์สูงสุด ต้อง filter บริษัทที่กำลังใช้งานอยู่เองด้วย
+export async function fetchReconcileReports(companyId: string): Promise<ReconcileReportSummary[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from(REPORTS_TABLE)
     .select('*')
+    .eq('company_id', companyId)
     .order('period_year', { ascending: false })
     .order('period_month', { ascending: false })
     .order('updated_at', { ascending: false });
@@ -185,7 +188,8 @@ export async function getReportDetail(id: string): Promise<ReconcileReportDetail
  * (เดิมหรือใหม่) ให้ผู้เรียกใช้สลับไปโหมด "เปิดจากประวัติ" ต่อได้ทันทีหลังบันทึกครั้งแรก */
 export async function saveReconcileReport(
   input: ReconcileReportWriteInput,
-  actor: { id: string | null; email: string | null }
+  actor: { id: string | null; email: string | null },
+  companyId: string
 ): Promise<string> {
   const supabase = getSupabaseClient();
 
@@ -235,6 +239,7 @@ export async function saveReconcileReport(
   };
 
   const { data, error } = await supabase.rpc('save_bank_reconcile_report', {
+    p_company_id: companyId,
     p_report: reportPayload,
     p_match_groups: groupsPayload,
     p_bank_rows: bankPayload,
