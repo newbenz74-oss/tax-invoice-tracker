@@ -223,6 +223,28 @@ export default function BankReconcileUnmatchedTable({
                   </td>
                   <td className="px-3.5 py-2.5" />
                 </tr>
+                {/* บรรทัดที่ 2 ของแถวสรุป (เพิ่มกลับมา 2026-08-06 เพื่อความสม่ำเสมอกับ BankReconcileMatchedTable.tsx)
+                    ยอดรวมทั้งหมดทุกหน้า แยกไว้อีกบรรทัดต่างหากจากยอดรวมเฉพาะหน้านี้ด้านบน */}
+                <tr className="border-t border-border/60">
+                  <td className="px-3.5 py-2" />
+                  <td className="px-3.5 py-2 text-xs font-semibold text-text-sub">
+                    รวมทั้งหมดทุกหน้า ({rows.length.toLocaleString('th-TH')} รายการ)
+                  </td>
+                  {showDocumentNo && <td className="px-3.5 py-2" />}
+                  <td
+                    className="font-numeric px-3.5 py-2 text-right text-xs font-semibold text-text-sub"
+                    data-testid={`${testId}-total-all-receive`}
+                  >
+                    {allRowsTotals.totalReceive.toLocaleString('th-TH', THB2)}
+                  </td>
+                  <td
+                    className="font-numeric px-3.5 py-2 text-right text-xs font-semibold text-text-sub"
+                    data-testid={`${testId}-total-all-payment`}
+                  >
+                    {allRowsTotals.totalPayment.toLocaleString('th-TH', THB2)}
+                  </td>
+                  <td className="px-3.5 py-2" />
+                </tr>
               </tfoot>
             </table>
           </div>

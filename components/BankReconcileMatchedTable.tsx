@@ -17,6 +17,25 @@ function sumOf(rows: Array<{ amount: number }>): number {
   return rows.reduce((total, row) => total + row.amount, 0);
 }
 
+function sumGroups(list: MatchGroup[]): { bankReceive: number; bankPayment: number; glReceive: number; glPayment: number } {
+  let bankReceive = 0;
+  let bankPayment = 0;
+  let glReceive = 0;
+  let glPayment = 0;
+  for (const group of list) {
+    const bankTotal = sumOf(group.bankRows);
+    const glTotal = sumOf(group.glRows);
+    if (group.type === 'receive') {
+      bankReceive += bankTotal;
+      glReceive += glTotal;
+    } else {
+      bankPayment += bankTotal;
+      glPayment += glTotal;
+    }
+  }
+  return { bankReceive, bankPayment, glReceive, glPayment };
+}
+
 interface BankReconcileMatchedTableProps {
   groups: MatchGroup[];
 }
@@ -43,24 +62,11 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
   // (ดู types/bankReconcileMatch.ts MatchGroup: "ผลรวม amount ของ bankRows ต้องเท่ากับผลรวม amount ของ
   // glRows เสมอ") แยกคำนวณทั้งสองฝั่งไว้ตรงๆ แทนที่จะสมมติว่าเท่ากันแล้วโชว์ค่าเดียว เพื่อให้เป็นการยืนยันซ้ำ
   // ในตัวว่าข้อมูลไม่ได้ผิดเพี้ยนไปจากที่ควรจะเป็น (ถ้าตัวเลขสองฝั่งต่างกันขึ้นมาจะเป็นสัญญาณว่ามีบัคที่อื่น)
-  const totals = useMemo(() => {
-    let bankReceive = 0;
-    let bankPayment = 0;
-    let glReceive = 0;
-    let glPayment = 0;
-    for (const group of paged) {
-      const bankTotal = sumOf(group.bankRows);
-      const glTotal = sumOf(group.glRows);
-      if (group.type === 'receive') {
-        bankReceive += bankTotal;
-        glReceive += glTotal;
-      } else {
-        bankPayment += bankTotal;
-        glPayment += glTotal;
-      }
-    }
-    return { bankReceive, bankPayment, glReceive, glPayment };
-  }, [paged]);
+  const totals = useMemo(() => sumGroups(paged), [paged]);
+
+  // ยอดรวม "ทุกหน้ารวมกัน" (เพิ่มกลับมา 2026-08-06 ตามคำขอผู้ใช้ — อยากได้ทั้งสองบรรทัด: ยอดรวมเฉพาะหน้านี้
+  // ที่มีอยู่แล้วด้านบน กับยอดรวมทั้งหมดทุกหน้าอีกบรรทัดแยกต่างหาก ไม่ใช่แทนที่กัน) คำนวณจาก "groups" ทั้งก้อน
+  const allPagesTotals = useMemo(() => sumGroups(groups), [groups]);
 
   function toggleExpanded(groupId: string) {
     setExpandedGroupIds((prev) => {
@@ -250,6 +256,41 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
                     {totals.glPayment.toLocaleString('th-TH', THB2)}
                   </td>
                   <td colSpan={2} className="px-3.5 py-2.5" />
+                </tr>
+                {/* บรรทัดที่ 2 ของแถวสรุป (เพิ่มกลับมา 2026-08-06) — ยอดรวมทั้งหมดทุกหน้า แยกไว้อีกบรรทัด
+                    ต่างจากบรรทัดบนที่เป็นยอดรวมเฉพาะหน้านี้ — ใช้เส้นคั่นบางๆ กับสีตัวอักษรที่รองกว่าเพื่อไม่ให้
+                    สับสนว่าเป็นยอดเดียวกัน */}
+                <tr className="border-t border-border/60">
+                  <td colSpan={2} className="px-3.5 py-2 text-xs font-semibold text-text-sub">
+                    รวมทั้งหมดทุกหน้า ({groups.length.toLocaleString('th-TH')} รายการ)
+                  </td>
+                  <td
+                    className="font-numeric px-3.5 py-2 text-right text-xs font-semibold text-text-sub"
+                    data-testid="matched-total-all-bank-receive"
+                  >
+                    {allPagesTotals.bankReceive.toLocaleString('th-TH', THB2)}
+                  </td>
+                  <td
+                    className="font-numeric px-3.5 py-2 text-right text-xs font-semibold text-text-sub"
+                    data-testid="matched-total-all-bank-payment"
+                  >
+                    {allPagesTotals.bankPayment.toLocaleString('th-TH', THB2)}
+                  </td>
+                  <td className="border-l border-border px-3.5 py-2" />
+                  <td className="px-3.5 py-2" />
+                  <td
+                    className="font-numeric px-3.5 py-2 text-right text-xs font-semibold text-text-sub"
+                    data-testid="matched-total-all-gl-receive"
+                  >
+                    {allPagesTotals.glReceive.toLocaleString('th-TH', THB2)}
+                  </td>
+                  <td
+                    className="font-numeric px-3.5 py-2 text-right text-xs font-semibold text-text-sub"
+                    data-testid="matched-total-all-gl-payment"
+                  >
+                    {allPagesTotals.glPayment.toLocaleString('th-TH', THB2)}
+                  </td>
+                  <td colSpan={2} className="px-3.5 py-2" />
                 </tr>
               </tfoot>
             </table>
