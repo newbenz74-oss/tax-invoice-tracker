@@ -22,10 +22,13 @@ const BANK_ROWS = [
   { วันที่: '2026-07-02', รับ: '', จ่าย: 500 },
   { วันที่: '2026-07-10', รับ: 300, จ่าย: '' },
 ];
+// คอลัมน์ "คำอธิบาย" (เพิ่มเข้ามา 2026-08-07) — ใส่ไว้เฉพาะ G2/G3 เพื่อทดสอบว่าตาราง "GL ไม่สำเร็จ" แสดง
+// ค่านี้ถูกต้อง (G1 จับคู่สำเร็จไปแล้ว ไม่โผล่ในตารางนี้ จึงไม่ต้องมีคำอธิบายก็ได้ ทดสอบว่าไม่มีคอลัมน์นี้ในไฟล์
+// ต้นฉบับก็ไม่พังด้วยในตัว เพราะเป็น optional)
 const GL_ROWS = [
   { 'เลขที่เอกสาร': 'DOC-001', วันที่: '2026-07-01', รับ: 1000, จ่าย: '' },
-  { 'เลขที่เอกสาร': 'DOC-002', วันที่: '2026-07-05', รับ: '', จ่าย: 500 },
-  { 'เลขที่เอกสาร': 'DOC-003', วันที่: '2026-07-20', รับ: '', จ่าย: 900 },
+  { 'เลขที่เอกสาร': 'DOC-002', วันที่: '2026-07-05', รับ: '', จ่าย: 500, คำอธิบาย: 'จ่ายค่าเช่าสำนักงาน' },
+  { 'เลขที่เอกสาร': 'DOC-003', วันที่: '2026-07-20', รับ: '', จ่าย: 900, คำอธิบาย: 'จ่ายค่าไฟฟ้า' },
 ];
 
 async function uploadStandardFiles(page: import('@playwright/test').Page) {
@@ -111,7 +114,8 @@ test.describe('Bank Reconcile — หน้าใหม่ (รายงาน�
 
     // Section 3: GL ไม่สำเร็จ — G2 (DOC-002) และ G3 (DOC-003) ต้องอยู่ที่นี่ พร้อมคอลัมน์ "เลขที่เอกสาร"
     // อยู่ระหว่างวันที่กับรับ (ผู้ใช้ขอเพิ่มกลับมาเฉพาะฝั่งนี้ 2026-07-17 หลังทดสอบใช้งานจริง — เดิมสเปก
-    // แรกระบุว่าไม่แสดง แต่ตอนนี้เปลี่ยนเป็นแสดงตามคำขอ)
+    // แรกระบุว่าไม่แสดง แต่ตอนนี้เปลี่ยนเป็นแสดงตามคำขอ) และคอลัมน์ "คำอธิบาย" ต่อจากนั้น (เพิ่มเข้ามา
+    // 2026-08-07 ตามคำขอผู้ใช้ — ดึงมาจากคอลัมน์คำอธิบายของไฟล์ GL ต้นฉบับ)
     const glUnmatchedSection = page.getByTestId('gl-unmatched-section');
     await expect(glUnmatchedSection.getByText('GL ไม่สำเร็จ')).toBeVisible();
     await expect(glUnmatchedSection.locator('tbody tr')).toHaveCount(2);
@@ -119,9 +123,19 @@ test.describe('Bank Reconcile — หน้าใหม่ (รายงาน�
     // คอลัมน์แรก "" คือ checkbox เลือกทั้งหมด (เพิ่มเข้ามา 2026-07-19 สำหรับฟีเจอร์จับคู่เอง) — เป็น <th>
     // จริงที่มี input+aria-label อยู่ข้างใน ไม่มีข้อความที่มองเห็นได้ จึงมี text content ว่างเปล่าใน assertion
     // นี้ (ไม่ใช่ error — checkbox ยังคง render และใช้งานได้ปกติ แค่ไม่มีข้อความ)
-    await expect(glUnmatchedSection.locator('thead tr th')).toHaveText(['', 'วันที่', 'เลขที่เอกสาร', 'รับ', 'จ่าย', 'สถานะ']);
+    await expect(glUnmatchedSection.locator('thead tr th')).toHaveText([
+      '',
+      'วันที่',
+      'เลขที่เอกสาร',
+      'คำอธิบาย',
+      'รับ',
+      'จ่าย',
+      'สถานะ',
+    ]);
     await expect(glUnmatchedSection).toContainText('DOC-002');
     await expect(glUnmatchedSection).toContainText('DOC-003');
+    await expect(glUnmatchedSection).toContainText('จ่ายค่าเช่าสำนักงาน');
+    await expect(glUnmatchedSection).toContainText('จ่ายค่าไฟฟ้า');
     // แถวสรุปยอดรวม — G2 (จ่าย 500) + G3 (จ่าย 900) ไม่มีรายการรับเลย
     await expect(glUnmatchedSection.getByTestId('gl-unmatched-total-receive')).toHaveText('0.00');
     await expect(glUnmatchedSection.getByTestId('gl-unmatched-total-payment')).toHaveText('1,400.00');

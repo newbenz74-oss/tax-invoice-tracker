@@ -24,6 +24,9 @@ export interface UnmatchedRowInput {
   type: 'receive' | 'payment';
   amount: number;
   documentNo?: string;
+  /** คำอธิบายรายการ (เพิ่มเข้ามา 2026-08-07) — มีเฉพาะฝั่ง GL เท่านั้น (BankTransaction ไม่มีฟิลด์นี้) ใช้
+   * คู่กับ prop showDescription ด้านล่าง */
+  description?: string;
 }
 
 interface BankReconcileUnmatchedTableProps {
@@ -37,6 +40,10 @@ interface BankReconcileUnmatchedTableProps {
    * ใช้งานจริงแล้วพบว่าอยากรู้เลขที่เอกสาร/ใบสำคัญของแต่ละแถวเพื่อไปตามหาในโปรแกรมบัญชีต่อ — Section 2
    * "Bank Statement ไม่สำเร็จ" ยังคงไม่มีคอลัมน์นี้เหมือนเดิม (ไม่ส่ง prop นี้เข้ามาเลย ค่าเริ่มต้นคือ false) */
   showDocumentNo?: boolean;
+  /** แสดงคอลัมน์ "คำอธิบาย" ต่อจากคอลัมน์เลขที่เอกสาร (เพิ่มเข้ามา 2026-08-07 ตามคำขอผู้ใช้ — เฉพาะตาราง
+   * "GL ไม่สำเร็จ" เท่านั้น) ดึงค่าจาก row.description ตรงๆ (มาจากคอลัมน์ "คำอธิบาย"/description ของไฟล์ GL
+   * ต้นฉบับ — ดู lib/bankReconcileParse.ts) แถวที่ไฟล์ต้นฉบับไม่มีคอลัมน์นี้เลยจะแสดง "-" แทน */
+  showDescription?: boolean;
   /** แถวที่ถูกติ๊กเลือกไว้อยู่ตอนนี้ (จับคู่เอง, เพิ่มเข้ามา 2026-07-19) — ควบคุมจาก parent
    * (BankReconcileWorkspace) ทั้งหมด ไม่เก็บ state ในตารางเอง เพราะต้องอยู่รอดข้าม pagination ของตารางนี้
    * และต้องให้ toolbar ยืนยันจับคู่ (ซึ่งอยู่นอกตารางนี้) เห็นค่าเดียวกันพร้อมกันเสมอ */
@@ -62,6 +69,7 @@ export default function BankReconcileUnmatchedTable({
   emptyText,
   rows,
   showDocumentNo = false,
+  showDescription = false,
   selectedIds,
   onToggleRow,
   onToggleAll,
@@ -105,7 +113,7 @@ export default function BankReconcileUnmatchedTable({
   // แถวในตารางนี้เท่านั้นจริงๆ) ไฟล์ที่ export รวมแถวทุกหน้า (allRowsTotals) เพราะเป็นไฟล์แยกต่างหากที่ตั้งใจ
   // ให้ครบทุกรายการไว้ตรวจสอบ ไม่ใช่ยอดที่ต้องตรงกับแถวสรุปบนจอ ณ ขณะนั้น (ซึ่งตอนนี้เป็นยอดเฉพาะหน้าแล้ว)
   function handleExportExcel() {
-    const blob = buildUnmatchedTableExcelBlob(rows, allRowsTotals, title, showDocumentNo);
+    const blob = buildUnmatchedTableExcelBlob(rows, allRowsTotals, title, showDocumentNo, showDescription);
     downloadBlob(blob, `${title}.xlsx`);
   }
 
@@ -158,6 +166,7 @@ export default function BankReconcileUnmatchedTable({
                   </th>
                   <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">วันที่</th>
                   {showDocumentNo && <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">เลขที่เอกสาร</th>}
+                  {showDescription && <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">คำอธิบาย</th>}
                   <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">รับ</th>
                   <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">จ่าย</th>
                   <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">สถานะ</th>
@@ -182,6 +191,7 @@ export default function BankReconcileUnmatchedTable({
                     </td>
                     <td className="px-3.5 py-2.5 text-text-sub">{formatDateDisplay(row.date)}</td>
                     {showDocumentNo && <td className="px-3.5 py-2.5 text-text-sub">{row.documentNo || '-'}</td>}
+                    {showDescription && <td className="px-3.5 py-2.5 text-text-sub">{row.description || '-'}</td>}
                     <td className="font-numeric px-3.5 py-2.5 text-right text-text">
                       {row.type === 'receive' ? row.amount.toLocaleString('th-TH', THB2) : '-'}
                     </td>
@@ -209,6 +219,7 @@ export default function BankReconcileUnmatchedTable({
                     รวมหน้านี้ ({paged.length.toLocaleString('th-TH')} จาก {rows.length.toLocaleString('th-TH')} รายการ)
                   </td>
                   {showDocumentNo && <td className="px-3.5 py-2.5" />}
+                  {showDescription && <td className="px-3.5 py-2.5" />}
                   <td
                     className="font-numeric px-3.5 py-2.5 text-right text-sm font-bold text-primary"
                     data-testid={`${testId}-total-receive`}
@@ -231,6 +242,7 @@ export default function BankReconcileUnmatchedTable({
                     รวมทั้งหมดทุกหน้า ({rows.length.toLocaleString('th-TH')} รายการ)
                   </td>
                   {showDocumentNo && <td className="px-3.5 py-2" />}
+                  {showDescription && <td className="px-3.5 py-2" />}
                   <td
                     className="font-numeric px-3.5 py-2 text-right text-xs font-semibold text-text-sub"
                     data-testid={`${testId}-total-all-receive`}

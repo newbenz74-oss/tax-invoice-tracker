@@ -163,6 +163,9 @@ export interface UnmatchedTableExportRow {
   type: TransactionType;
   amount: number;
   documentNo?: string;
+  /** คำอธิบายรายการ (เพิ่มเข้ามา 2026-08-07) — มีเฉพาะฝั่ง GL เท่านั้น ใช้คู่กับพารามิเตอร์ showDescription
+   * ของ buildUnmatchedTableExcelBlob ด้านล่าง */
+  description?: string;
 }
 
 export interface UnmatchedTableExportTotals {
@@ -181,38 +184,51 @@ export function buildUnmatchedTableExcelBlob(
   rows: UnmatchedTableExportRow[],
   totals: UnmatchedTableExportTotals,
   title: string,
-  showDocumentNo: boolean
+  showDocumentNo: boolean,
+  // เพิ่มเข้ามา 2026-08-07 ตามคำขอผู้ใช้ — คอลัมน์ "คำอธิบาย" เฉพาะตาราง "GL ไม่สำเร็จ" ค่าเริ่มต้น false
+  // เพื่อไม่กระทบ call site เดิมที่ยังไม่ได้ส่งพารามิเตอร์นี้มา (Bank Statement ไม่สำเร็จ)
+  showDescription: boolean = false
 ): Blob {
-  const headers = showDocumentNo
-    ? ['วันที่', 'เลขที่เอกสาร', 'รับ', 'จ่าย', 'สถานะ']
-    : ['วันที่', 'รับ', 'จ่าย', 'สถานะ'];
+  // จำนวนคอลัมน์ "นำหน้า" ก่อนถึง รับ/จ่าย/สถานะ เปลี่ยนไปตาม showDocumentNo/showDescription — สร้างหัว
+  // ตาราง/แถวข้อมูล/แถวสรุปแบบไดนามิกด้วยอาร์เรย์เดียวกันนี้เสมอ กัน hard-code ตำแหน่งคอลัมน์ผิดพลาด
+  const headers = [
+    'วันที่',
+    ...(showDocumentNo ? ['เลขที่เอกสาร'] : []),
+    ...(showDescription ? ['คำอธิบาย'] : []),
+    'รับ',
+    'จ่าย',
+    'สถานะ',
+  ];
+  const leadingBlanksForTotalRow = (showDocumentNo ? 1 : 0) + (showDescription ? 1 : 0);
 
-  const rowToAoa = (r: UnmatchedTableExportRow): (string | number)[] =>
-    showDocumentNo
-      ? [
-          formatDateForExport(r.date),
-          r.documentNo || '-',
-          r.type === 'receive' ? r.amount : '',
-          r.type === 'payment' ? r.amount : '',
-          'ยังไม่จับคู่',
-        ]
-      : [
-          formatDateForExport(r.date),
-          r.type === 'receive' ? r.amount : '',
-          r.type === 'payment' ? r.amount : '',
-          'ยังไม่จับคู่',
-        ];
+  const rowToAoa = (r: UnmatchedTableExportRow): (string | number)[] => [
+    formatDateForExport(r.date),
+    ...(showDocumentNo ? [r.documentNo || '-'] : []),
+    ...(showDescription ? [r.description || '-'] : []),
+    r.type === 'receive' ? r.amount : '',
+    r.type === 'payment' ? r.amount : '',
+    'ยังไม่จับคู่',
+  ];
 
-  const totalRow: (string | number)[] = showDocumentNo
-    ? [`รวมทั้งหมด (${rows.length} รายการ)`, '', totals.totalReceive, totals.totalPayment, '']
-    : [`รวมทั้งหมด (${rows.length} รายการ)`, totals.totalReceive, totals.totalPayment, ''];
+  const totalRow: (string | number)[] = [
+    `รวมทั้งหมด (${rows.length} รายการ)`,
+    ...Array(leadingBlanksForTotalRow).fill(''),
+    totals.totalReceive,
+    totals.totalPayment,
+    '',
+  ];
 
   const aoa: (string | number)[][] = [[title], [], headers, ...rows.map(rowToAoa), [], totalRow];
 
   const worksheet = XLSX.utils.aoa_to_sheet(aoa);
-  worksheet['!cols'] = showDocumentNo
-    ? [{ wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }]
-    : [{ wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
+  worksheet['!cols'] = [
+    { wch: 14 },
+    ...(showDocumentNo ? [{ wch: 18 }] : []),
+    ...(showDescription ? [{ wch: 28 }] : []),
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 16 },
+  ];
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, title.slice(0, 31)); // ชื่อชีทของ Excel ยาวได้สูงสุด 31 ตัวอักษร

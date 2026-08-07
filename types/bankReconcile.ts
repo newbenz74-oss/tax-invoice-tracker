@@ -30,6 +30,11 @@ export interface GLTransaction {
   date: string;
   type: TransactionType;
   amount: number;
+  /** คำอธิบายรายการ ดึงมาจากคอลัมน์ "คำอธิบาย"/"รายละเอียด"/description ของไฟล์ GL ต้นฉบับ (เพิ่มเข้ามา
+   * 2026-08-07 ตามคำขอผู้ใช้ — อยากรู้ว่าแถว GL ที่ยังไม่จับคู่แต่ละแถวคืออะไร) เป็น optional เพราะไฟล์ GL
+   * บางไฟล์ไม่มีคอลัมน์นี้เลย ไม่บังคับต้องมี (ดู lib/bankReconcileParse.ts) — ฝั่ง BankTransaction ไม่มี
+   * ฟิลด์นี้เพราะยังไม่มีที่ไหนขอใช้ */
+  description?: string;
 }
 
 /** 1 คู่ที่กระทบยอดสำเร็จ — Bank 1 แถว ต่อ GL 1 แถว เท่านั้น (1:1 เท่านั้นตามกติกาข้อ 7) */

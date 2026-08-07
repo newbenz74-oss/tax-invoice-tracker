@@ -163,4 +163,28 @@ describe('buildUnmatchedTableExcelBlob', () => {
     expect(lastRow[1]).toBe(0);
     expect(lastRow[2]).toBe(0);
   });
+
+  it('มีคอลัมน์คำอธิบาย ต่อจากเลขที่เอกสาร เมื่อ showDescription=true (เพิ่มเข้ามา 2026-08-07)', async () => {
+    const rows: UnmatchedTableExportRow[] = [
+      { date: '2026-07-20', type: 'payment', amount: 900, documentNo: 'DOC-003', description: 'จ่ายค่าไฟฟ้า' },
+      { date: '2026-07-21', type: 'receive', amount: 100, documentNo: 'DOC-004' }, // ไม่มีคำอธิบาย
+    ];
+    const totals = { totalReceive: 100, totalPayment: 900 };
+    const blob = buildUnmatchedTableExcelBlob(rows, totals, 'GL ไม่สำเร็จ', true, true);
+
+    const arrayBuffer = await blob.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
+
+    expect(aoa[2]).toEqual(['วันที่', 'เลขที่เอกสาร', 'คำอธิบาย', 'รับ', 'จ่าย', 'สถานะ']);
+    expect(aoa[3]).toEqual(['20/07/2026', 'DOC-003', 'จ่ายค่าไฟฟ้า', '', 900, 'ยังไม่จับคู่']);
+    expect(aoa[4]).toEqual(['21/07/2026', 'DOC-004', '-', 100, '', 'ยังไม่จับคู่']);
+    const lastRow = aoa[aoa.length - 1];
+    expect(lastRow[0]).toContain('2 รายการ');
+    expect(lastRow[1]).toBe('');
+    expect(lastRow[2]).toBe('');
+    expect(lastRow[3]).toBe(100);
+    expect(lastRow[4]).toBe(900);
+  });
 });

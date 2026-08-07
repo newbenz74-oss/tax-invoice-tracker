@@ -320,7 +320,11 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
     : null;
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
+    // ขยายความกว้างสูงสุดจาก max-w-6xl (1152px, เท่ากับหน้าอื่นๆ ในแอป) เป็น 1800px (เพิ่มเข้ามา 2026-08-07
+    // ตามคำขอผู้ใช้ — ตารางกระทบยอดสำเร็จมีคอลัมน์เยอะมาก (ฝั่ง Bank Statement + ฝั่ง GL รวมกัน 9 คอลัมน์)
+    // แคบเกินไปทำให้ดูอึดอัด ต้องเลื่อนดูเยอะ) เฉพาะหน้านี้เท่านั้นที่กว้างขึ้น หน้าอื่นในแอปยังใช้ max-w-6xl
+    // เหมือนเดิม เพราะเป็นฟอร์ม/รายการที่ไม่ได้ต้องการพื้นที่แนวนอนเยอะขนาดนี้
+    <main className="mx-auto w-full max-w-[1800px] flex-1 px-4 py-6 sm:px-6">
       <p className="mb-6 text-sm text-text-sub">
         เปรียบเทียบ Bank Statement กับ GL เพื่อดูรายการที่กระทบยอดสำเร็จ และรายการที่ไม่พบข้อมูลตรงกันในอีก
         ฝั่งหนึ่ง รายการที่ระบบจับคู่ไม่ได้เองสามารถติ๊กเลือกจับคู่เองได้ และบันทึกเป็นประวัติไว้ดูภายหลังได้
@@ -476,6 +480,7 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
             emptyText="ไม่มีรายการ GL ที่ไม่พบข้อมูลใน Bank Statement"
             rows={glUnmatched}
             showDocumentNo
+            showDescription
             selectedIds={selectedGlIds}
             onToggleRow={toggleGlRow}
             onToggleAll={toggleAllGl}

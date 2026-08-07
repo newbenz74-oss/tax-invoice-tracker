@@ -97,6 +97,21 @@ const DOC_NO_ALIASES = [
   'referenceno',
 ].map(normalizeHeader);
 
+// คอลัมน์คำอธิบาย (เพิ่มเข้ามา 2026-08-07 ตามคำขอผู้ใช้ — ใช้เฉพาะฝั่ง GL เท่านั้น) ไม่ใช่คอลัมน์บังคับ
+// (optional) — ไฟล์ GL ที่ไม่มีคอลัมน์นี้เลยยังอ่านได้ปกติ แค่ description จะเป็น undefined
+const DESCRIPTION_ALIASES = [
+  'คำอธิบาย',
+  'รายละเอียด',
+  'คำอธิบายรายการ',
+  'รายละเอียดรายการ',
+  'description',
+  'memo',
+  'note',
+  'remark',
+  'narrative',
+  'details',
+].map(normalizeHeader);
+
 // ---------- Cell value helpers ----------
 
 function cellToAmount(value: unknown): number | null {
@@ -171,6 +186,10 @@ interface DetectedTableColumns {
   receiveIdx: number;
   paymentIdx: number;
   docNoIdx: number | null;
+  /** ตำแหน่งคอลัมน์คำอธิบาย ถ้ามีในไฟล์ (เพิ่มเข้ามา 2026-08-07) — ตรวจหาเสมอไม่ว่าจะเรียกจาก parseBankRows
+   * หรือ parseGLRows ก็ตาม (ไม่ใช่คอลัมน์บังคับ ไม่กระทบ requiredFound) แต่ปัจจุบันใช้จริงเฉพาะ parseGLRows
+   * เท่านั้น — null = ไม่พบคอลัมน์นี้ในไฟล์ */
+  descIdx: number | null;
 }
 
 /** สแกนหาแถวหัวตารางจริงในช่วง 20 แถวแรกของไฟล์ — รายงานจากโปรแกรมบัญชีมักมีแถวชื่อบริษัท/หัวรายงาน/
@@ -185,9 +204,20 @@ function detectHeaderRow(rows: unknown[][], includeDocNo: boolean): { columns: D
     const receiveIdx = normalized.findIndex((h) => RECEIVE_ALIASES.includes(h));
     const paymentIdx = normalized.findIndex((h) => PAYMENT_ALIASES.includes(h));
     const docNoIdx = normalized.findIndex((h) => DOC_NO_ALIASES.includes(h));
+    const descIdx = normalized.findIndex((h) => DESCRIPTION_ALIASES.includes(h));
     const requiredFound = dateIdx !== -1 && receiveIdx !== -1 && paymentIdx !== -1 && (!includeDocNo || docNoIdx !== -1);
     if (requiredFound) {
-      return { columns: { headerRowIndex: i, dateIdx, receiveIdx, paymentIdx, docNoIdx: includeDocNo ? docNoIdx : null }, error: null };
+      return {
+        columns: {
+          headerRowIndex: i,
+          dateIdx,
+          receiveIdx,
+          paymentIdx,
+          docNoIdx: includeDocNo ? docNoIdx : null,
+          descIdx: descIdx !== -1 ? descIdx : null,
+        },
+        error: null,
+      };
     }
   }
   const missing = ['วันที่ (Date)', 'รับ (Receive)', 'จ่าย (Payment)', ...(includeDocNo ? ['เลขที่เอกสาร (Document No.)'] : [])];
@@ -225,7 +255,15 @@ export function parseGLRows(rows: unknown[][]): ParsedTransactionFile<GLTransact
     const tx = buildTransaction(raw[columns.dateIdx], raw[columns.receiveIdx], raw[columns.paymentIdx], `แถวที่ ${i + 1}`, warnings);
     if (!tx) continue;
     const documentNo = columns.docNoIdx !== null ? String(raw[columns.docNoIdx] ?? '').trim() : '';
-    result.push({ id: `gl-${i}`, documentNo, date: tx.date, type: tx.type, amount: tx.amount });
+    const descriptionRaw = columns.descIdx !== null ? String(raw[columns.descIdx] ?? '').trim() : '';
+    result.push({
+      id: `gl-${i}`,
+      documentNo,
+      date: tx.date,
+      type: tx.type,
+      amount: tx.amount,
+      description: descriptionRaw || undefined,
+    });
   }
   return { rows: result, errors: [], warnings };
 }

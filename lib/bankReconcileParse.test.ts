@@ -223,6 +223,34 @@ describe('parseGLRows — เพิ่มเติมเรื่องเลข
   });
 });
 
+describe('parseGLRows — คอลัมน์คำอธิบาย (เพิ่มเข้ามา 2026-08-07, optional)', () => {
+  it('อ่านคำอธิบายได้เมื่อมีคอลัมน์ที่ตรงกับ alias', () => {
+    const result = parseGLRows([
+      ['เลขที่เอกสาร', 'วันที่', 'คำอธิบาย', 'รับ', 'จ่าย'],
+      ['DOC-001', '2026-07-01', 'รับชำระค่าสินค้า', 1000, ''],
+    ]);
+    expect(result.errors).toHaveLength(0);
+    expect(result.rows[0]).toMatchObject({ documentNo: 'DOC-001', description: 'รับชำระค่าสินค้า' });
+  });
+
+  it('ไม่มีคอลัมน์คำอธิบายเลยก็ยังอ่านไฟล์ได้ปกติ (ไม่ใช่คอลัมน์บังคับ) — description เป็น undefined', () => {
+    const result = parseGLRows([
+      ['เลขที่เอกสาร', 'วันที่', 'รับ', 'จ่าย'],
+      ['DOC-001', '2026-07-01', 1000, ''],
+    ]);
+    expect(result.errors).toHaveLength(0);
+    expect(result.rows[0].description).toBeUndefined();
+  });
+
+  it('เซลล์คำอธิบายว่างเปล่าสำหรับบางแถว ก็เป็น undefined เช่นกัน (ไม่ใช่ string ว่าง)', () => {
+    const result = parseGLRows([
+      ['เลขที่เอกสาร', 'วันที่', 'คำอธิบาย', 'รับ', 'จ่าย'],
+      ['DOC-001', '2026-07-01', '', 1000, ''],
+    ]);
+    expect(result.rows[0].description).toBeUndefined();
+  });
+});
+
 describe('parseBankFile / parseGLFile — อ่านไฟล์จริง (Excel / CSV)', () => {
   it('อ่านไฟล์ .xlsx ได้ถูกต้อง', async () => {
     const file = makeExcelFile([
