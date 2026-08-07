@@ -36,18 +36,19 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
   const paged = useMemo(() => groups.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE), [groups, safePage]);
 
   // ผลรวมรับ/จ่าย ทั้งฝั่ง Bank Statement และฝั่ง GL (เพิ่มเข้ามา 2026-08-05 ตามคำขอผู้ใช้ — จะเอาไปชนยอด
-  // กับเอกสารจริง) คำนวณจาก "groups" ทั้งก้อน (ทุกหน้า ไม่ใช่แค่ paged ที่กำลังแสดงอยู่หน้าปัจจุบัน) เพราะ
-  // เป้าหมายคือยอดรวมของทั้งตาราง "กระทบยอดสำเร็จ" นี้ทั้งหมด ไม่ใช่แค่หน้าที่กำลังเปิดดู — ฝั่ง Bank กับฝั่ง
-  // GL ของแต่ละ type (รับ/จ่าย) ต้องเท่ากันเสมอโดยธรรมชาติของข้อมูล (ดู types/bankReconcileMatch.ts
-  // MatchGroup: "ผลรวม amount ของ bankRows ต้องเท่ากับผลรวม amount ของ glRows เสมอ") แยกคำนวณทั้งสองฝั่งไว้
-  // ตรงๆ แทนที่จะสมมติว่าเท่ากันแล้วโชว์ค่าเดียว เพื่อให้เป็นการยืนยันซ้ำในตัวว่าข้อมูลไม่ได้ผิดเพี้ยนไปจากที่
-  // ควรจะเป็น (ถ้าตัวเลขสองฝั่งต่างกันขึ้นมาจะเป็นสัญญาณว่ามีบัคที่อื่น)
+  // กับเอกสารจริง) แก้ไข 2026-08-06: เปลี่ยนจากคำนวณจาก "groups" ทั้งก้อนทุกหน้า มาเป็นคำนวณจาก "paged"
+  // (เฉพาะกลุ่มที่แสดงอยู่ในตารางบนจอหน้าปัจจุบันเท่านั้น) ตามที่ผู้ใช้ยืนยันชัดเจนว่าต้องการ "ผลรวมของตาราง
+  // ใครตารางมัน" — ถ้าตารางแสดงอะไรอยู่ ยอดสรุปก็ต้องรวมเฉพาะสิ่งที่แสดงอยู่นั้นเท่านั้น ไม่ใช่ข้อมูลทุกหน้า
+  // ที่ยังไม่ได้เลื่อนไปดู — ฝั่ง Bank กับฝั่ง GL ของแต่ละ type (รับ/จ่าย) ต้องเท่ากันเสมอโดยธรรมชาติของข้อมูล
+  // (ดู types/bankReconcileMatch.ts MatchGroup: "ผลรวม amount ของ bankRows ต้องเท่ากับผลรวม amount ของ
+  // glRows เสมอ") แยกคำนวณทั้งสองฝั่งไว้ตรงๆ แทนที่จะสมมติว่าเท่ากันแล้วโชว์ค่าเดียว เพื่อให้เป็นการยืนยันซ้ำ
+  // ในตัวว่าข้อมูลไม่ได้ผิดเพี้ยนไปจากที่ควรจะเป็น (ถ้าตัวเลขสองฝั่งต่างกันขึ้นมาจะเป็นสัญญาณว่ามีบัคที่อื่น)
   const totals = useMemo(() => {
     let bankReceive = 0;
     let bankPayment = 0;
     let glReceive = 0;
     let glPayment = 0;
-    for (const group of groups) {
+    for (const group of paged) {
       const bankTotal = sumOf(group.bankRows);
       const glTotal = sumOf(group.glRows);
       if (group.type === 'receive') {
@@ -59,7 +60,7 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
       }
     }
     return { bankReceive, bankPayment, glReceive, glPayment };
-  }, [groups]);
+  }, [paged]);
 
   function toggleExpanded(groupId: string) {
     setExpandedGroupIds((prev) => {
@@ -218,9 +219,9 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
               <tfoot className="sticky bottom-0 z-10 border-t-2 border-primary bg-card-bg shadow-[0_-4px_8px_rgba(0,0,0,0.25)]">
                 <tr>
                   <td colSpan={2} className="px-3.5 py-2.5 text-sm font-bold text-text">
-                    {/* ระบุ "ทุกหน้า" ให้ชัดเจน (2026-08-05) กันสับสนว่าเป็นยอดรวมของทั้ง {groups.length} กลุ่ม
-                        ในตารางนี้ (ทุกหน้าที่เลื่อนดูได้ ไม่ใช่แค่หน้าที่กำลังเปิดอยู่) */}
-                    รวมทั้งสิ้น ({groups.length.toLocaleString('th-TH')} รายการทุกหน้า)
+                    {/* แก้ไข 2026-08-06 — เปลี่ยนจากยอดรวม "ทุกหน้า" กลับมาเป็นยอดรวมเฉพาะกลุ่มที่แสดงอยู่ใน
+                        ตารางบนจอ ณ ขณะนี้เท่านั้น (paged.length กลุ่ม) เปลี่ยนหน้าแล้วเลขนี้จะเปลี่ยนตาม */}
+                    รวมหน้านี้ ({paged.length.toLocaleString('th-TH')} จาก {groups.length.toLocaleString('th-TH')} รายการ)
                   </td>
                   <td
                     className="font-numeric px-3.5 py-2.5 text-right text-sm font-bold text-primary"

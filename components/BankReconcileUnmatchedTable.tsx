@@ -75,7 +75,9 @@ export default function BankReconcileUnmatchedTable({
   // จาก "rows" ทั้งก้อน (ทุกหน้า ไม่ใช่แค่ paged ที่กำลังแสดงอยู่หน้าปัจจุบัน) เพราะเป้าหมายคือยอดรวมของทั้ง
   // ตารางนี้ทั้งหมด ไม่ใช่แค่หน้าที่กำลังเปิดดู — component เดียวกันนี้ใช้ซ้ำทั้ง "Bank Statement ไม่สำเร็จ"
   // และ "GL ไม่สำเร็จ" จึงคำนวณแยกอิสระของ rows ที่ส่งเข้ามาแต่ละครั้งเท่านั้น ไม่ปนกันข้าม instance */
-  const totals = useMemo(() => {
+  // ยอดรวม "ทุกแถวในตารางนี้ทุกหน้า" — ใช้เฉพาะตอน export Excel เท่านั้น (ไฟล์ export มีข้อมูลครบทุกแถวเสมอ
+  // ไม่ผูกกับหน้าที่กำลังเปิดดูอยู่บนจอ) ไม่ได้ใช้แสดงในแถวสรุปท้ายตารางบนจอแล้ว (ดู pageTotals ด้านล่าง)
+  const allRowsTotals = useMemo(() => {
     let totalReceive = 0;
     let totalPayment = 0;
     for (const row of rows) {
@@ -85,12 +87,25 @@ export default function BankReconcileUnmatchedTable({
     return { totalReceive, totalPayment };
   }, [rows]);
 
+  // ยอดรวม "เฉพาะแถวที่แสดงอยู่ในตารางบนจอตอนนี้" (แก้ไข 2026-08-06 ตามที่ผู้ใช้ยืนยันชัดเจนว่า "ผลรวมของ
+  // ตารางใครตารางมัน" — ถ้าตารางกำลังแสดงแถวรับรวม 800,000 แถวสรุปก็ต้องขึ้น 800,000 ไม่ใช่ยอดรวมข้ามหน้าอื่น
+  // ที่มองไม่เห็น) คำนวณจาก "paged" (เฉพาะหน้าปัจจุบัน) เท่านั้น — เปลี่ยนหน้าแล้วยอดนี้จะเปลี่ยนตามไปด้วยโดย
+  // ตั้งใจ เพราะ "ตาราง" ในความหมายของผู้ใช้คือสิ่งที่มองเห็นอยู่จริง ไม่ใช่ข้อมูลทั้งก้อนที่ยังไม่ได้เลื่อนไปดู
+  const pageTotals = useMemo(() => {
+    let totalReceive = 0;
+    let totalPayment = 0;
+    for (const row of paged) {
+      if (row.type === 'receive') totalReceive += row.amount;
+      else totalPayment += row.amount;
+    }
+    return { totalReceive, totalPayment };
+  }, [paged]);
+
   // ปุ่ม "Export Excel" (เพิ่มเข้ามา 2026-08-05 ตามคำขอผู้ใช้ — ต้องการยืนยันได้ด้วยตัวเองว่ายอดรวมมาจาก
-  // แถวในตารางนี้เท่านั้นจริงๆ) ไฟล์ที่ export คอลัมน์ตรงกับตารางบนหน้าจอเป๊ะทุกคอลัมน์ (ดู
-  // lib/bankReconcileHistoryExport.ts buildUnmatchedTableExcelBlob) เปิดด้วย Excel แล้วลองลาก SUM คอลัมน์
-  // รับ/จ่ายเทียบกับแถวสรุปที่แอปคำนวณให้ได้ทันที
+  // แถวในตารางนี้เท่านั้นจริงๆ) ไฟล์ที่ export รวมแถวทุกหน้า (allRowsTotals) เพราะเป็นไฟล์แยกต่างหากที่ตั้งใจ
+  // ให้ครบทุกรายการไว้ตรวจสอบ ไม่ใช่ยอดที่ต้องตรงกับแถวสรุปบนจอ ณ ขณะนั้น (ซึ่งตอนนี้เป็นยอดเฉพาะหน้าแล้ว)
   function handleExportExcel() {
-    const blob = buildUnmatchedTableExcelBlob(rows, totals, title, showDocumentNo);
+    const blob = buildUnmatchedTableExcelBlob(rows, allRowsTotals, title, showDocumentNo);
     downloadBlob(blob, `${title}.xlsx`);
   }
 
@@ -188,23 +203,23 @@ export default function BankReconcileUnmatchedTable({
                 <tr>
                   <td className="px-3.5 py-2.5" />
                   <td className="px-3.5 py-2.5 text-sm font-bold text-text">
-                    {/* ระบุ "ทุกหน้า" ให้ชัดเจน (2026-08-05) กันสับสนว่าเป็นยอดรวมของทั้ง {rows.length} รายการ
-                        ในตารางนี้ (ทุกหน้าที่เลื่อนดูได้ ไม่ใช่แค่หน้าที่กำลังเปิดอยู่) — ผู้ใช้ยืนยันแล้วว่า
-                        ต้องการยอดรวมทั้งหมดทุกหน้าแบบนี้ */}
-                    รวมทั้งหมด ({rows.length.toLocaleString('th-TH')} รายการทุกหน้า)
+                    {/* แก้ไข 2026-08-06 — เปลี่ยนจากยอดรวม "ทุกหน้า" กลับมาเป็นยอดรวมเฉพาะแถวที่แสดงอยู่ในตาราง
+                        บนจอ ณ ขณะนี้เท่านั้น (paged.length แถว) ตามที่ผู้ใช้ยืนยันชัดเจนว่าต้องการ "ผลรวมของ
+                        ตารางใครตารางมัน" — เปลี่ยนหน้าแล้วเลขนี้จะเปลี่ยนตาม ตั้งใจให้เป็นแบบนั้น */}
+                    รวมหน้านี้ ({paged.length.toLocaleString('th-TH')} จาก {rows.length.toLocaleString('th-TH')} รายการ)
                   </td>
                   {showDocumentNo && <td className="px-3.5 py-2.5" />}
                   <td
                     className="font-numeric px-3.5 py-2.5 text-right text-sm font-bold text-primary"
                     data-testid={`${testId}-total-receive`}
                   >
-                    {totals.totalReceive.toLocaleString('th-TH', THB2)}
+                    {pageTotals.totalReceive.toLocaleString('th-TH', THB2)}
                   </td>
                   <td
                     className="font-numeric px-3.5 py-2.5 text-right text-sm font-bold text-primary"
                     data-testid={`${testId}-total-payment`}
                   >
-                    {totals.totalPayment.toLocaleString('th-TH', THB2)}
+                    {pageTotals.totalPayment.toLocaleString('th-TH', THB2)}
                   </td>
                   <td className="px-3.5 py-2.5" />
                 </tr>
