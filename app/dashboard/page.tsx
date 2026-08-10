@@ -279,7 +279,11 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
   // ถูกต้องเพราะ component นี้ mount ใหม่เสมอทุกครั้งที่ activeId เปลี่ยนมาเป็น 'record-expense'
   // (การ์ด/Quick Action ในหน้า Dashboard เปลี่ยน activeId เสมอ ไม่มีทางกดซ้ำตอน activeId เป็น
   // 'record-expense' อยู่แล้ว เพราะสองเมนูนี้แสดงพร้อมกันไม่ได้) จึง mount ใหม่ทุกครั้งที่มี intent จริง
-  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>(() =>
+  // เพิ่มค่า 'no_vat' เข้ามา (2026-08-10 ตามคำขอผู้ใช้) — ไม่ใช่ค่า status จริงในฐานข้อมูล (ยังเป็นแค่
+  // pending/received/cancelled เดิมทุกประการ ไม่แตะ InvoiceStatus/deriveStatusForTaxType เลย) เป็นแค่แท็บ
+  // กรองฝั่ง UI เพิ่มเติมที่แยกรายการ tax_type = no_vat ออกจากหมวด "ได้รับแล้ว" เดิม — ดู visibleInvoices
+  // ด้านล่างสำหรับ logic การกรองจริง
+  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all' | 'no_vat'>(() =>
     initialIntent?.type === 'filter' ? initialIntent.status : 'pending'
   );
   const [search, setSearch] = useState('');
@@ -306,7 +310,24 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
   const [page, setPage] = useState(1);
 
   const visibleInvoices = useMemo(() => {
-    const filtered = filterInvoices(invoices, { status: statusFilter, search });
+    let filtered: PendingTaxInvoice[];
+    if (statusFilter === 'no_vat') {
+      // แท็บใหม่ (2026-08-10) — กรองด้วย tax_type ตรงๆ ที่ชั้นนี้แทน filterInvoices (ซึ่งกรองด้วย status
+      // เท่านั้น) ไม่รวมรายการที่ถูกยกเลิกไปแล้ว (ยังอยู่ในแท็บ "ยกเลิก" ตามเดิม ไม่ว่า tax_type จะเป็นอะไร)
+      filtered = filterInvoices(invoices, { search }).filter(
+        (i) => i.tax_type === 'no_vat' && i.status !== 'cancelled'
+      );
+    } else if (statusFilter === 'received') {
+      // หมวด "ได้รับแล้ว" ตอนนี้หมายถึงเฉพาะรายการที่เป็น VAT (claimable_vat/non_claimable_vat หรือ null
+      // ของข้อมูลเก่าก่อนมีฟีเจอร์นี้) และได้รับเอกสารแล้วเท่านั้น ตามที่ผู้ใช้ระบุ ("หมวด ได้รับแล้ว จะเป็น
+      // รายการที่เป็น VAT ที่ได้รับเอกสารแล้วเท่านั้น") — รายการ no_vat ที่ status เป็น received เหมือนกัน
+      // (ตามดีไซน์เดิมของ deriveStatusForTaxType ที่ไม่มีขั้นตอนรอรับ) ถูกแยกไปอยู่แท็บ "ไม่มี VAT" แทน
+      filtered = filterInvoices(invoices, { status: 'received', search }).filter(
+        (i) => i.tax_type !== 'no_vat'
+      );
+    } else {
+      filtered = filterInvoices(invoices, { status: statusFilter, search });
+    }
     return sortInvoices(filtered, sortField, sortDirection);
   }, [invoices, statusFilter, search, sortField, sortDirection]);
 
@@ -332,7 +353,7 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
     setPage(1);
   }
 
-  function handleStatusFilterChange(status: InvoiceStatus | 'all') {
+  function handleStatusFilterChange(status: InvoiceStatus | 'all' | 'no_vat') {
     setStatusFilter(status);
     setPage(1);
   }
@@ -445,7 +466,9 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
               (dark glassmorphism, 2026-07-18 รอบ 3) — ฟังก์ชันนี้เพิ่งถูกตั้งฐานใหม่จาก GitHub ตอนทำฟีเจอร์
               entrance-animate เมื่อครู่ ทำให้หลุดจากธีมเข้มไปชั่วคราว ใส่กลับให้ตรงกับไฟล์อื่นๆ ในระบบ */}
           <div className="entrance-animate entrance-delay-1 flex flex-wrap gap-2">
-            {(['all', 'pending', 'received', 'cancelled'] as const).map((s) => (
+            {/* เพิ่มแท็บ 'no_vat' เข้ามาต่อจาก 'received' (2026-08-10 ตามคำขอผู้ใช้) — ดูคอมเมนต์ที่
+                ประกาศ statusFilter/visibleInvoices ด้านบนสำหรับ logic การกรองจริง */}
+            {(['all', 'pending', 'received', 'no_vat', 'cancelled'] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => handleStatusFilterChange(s)}
@@ -456,7 +479,15 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
                 }`}
                 data-testid={`filter-${s}`}
               >
-                {s === 'all' ? 'ทั้งหมด' : s === 'pending' ? 'รอรับ' : s === 'received' ? 'ได้รับแล้ว' : 'ยกเลิก'}
+                {s === 'all'
+                  ? 'ทั้งหมด'
+                  : s === 'pending'
+                    ? 'รอรับ'
+                    : s === 'received'
+                      ? 'ได้รับแล้ว'
+                      : s === 'no_vat'
+                        ? 'ไม่มี VAT'
+                        : 'ยกเลิก'}
               </button>
             ))}
           </div>
