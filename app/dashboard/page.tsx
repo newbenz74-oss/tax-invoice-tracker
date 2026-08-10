@@ -429,7 +429,10 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-8">
+    // ขยายจาก max-w-6xl เดิม (2026-08-10 ตามคำขอผู้ใช้ "ปรับตารางซ้ายและขวาบันทึกการจ่ายหน้านี้ให้เต็มหน่อย")
+    // ใช้ค่าเดียวกับที่เคยขยายให้หน้า Bank Reconcile ไปแล้วก่อนหน้านี้ (BankReconcileWorkspace.tsx) เพื่อความ
+    // สม่ำเสมอของความกว้างสูงสุดระหว่างหน้าที่มีตารางกว้างๆ ในระบบ
+    <main className="mx-auto w-full max-w-[1800px] flex-1 px-4 py-8 sm:px-8">
       <div className="mb-8 flex flex-col gap-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* entrance-animate ทั้งหน้า (2026-07-18) — ผู้ใช้ขอให้กดเข้าหน้านี้แล้ว smooth เหมือนหน้า
