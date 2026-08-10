@@ -178,21 +178,18 @@ function SelectCompanyContent() {
           )}
 
           {showEmpty && (
+            // ตั้งแต่ระบบอนุมัติสมาชิกใหม่ (2026-08-10 — ดู supabase/migration_010_member_approval.sql) คน
+            // ที่เพิ่งสมัครสมาชิกเองแล้วยังไม่มีบริษัทเลย "ไม่ให้" สร้างบริษัทของตัวเองได้อีกต่อไป (เดิมมีปุ่ม
+            // "เพิ่มบริษัทใหม่" ตรงนี้) ต้องรอสมาชิกบริษัทที่มีอยู่แล้วอนุมัติให้เข้าบริษัทที่ถูกต้องก่อนเท่านั้น
+            // — ผู้ใช้ที่ผ่านการอนุมัติมาแล้วอย่างน้อยครั้งหนึ่ง (มี >=1 บริษัท) ยังกดปุ่ม "เพิ่มบริษัทใหม่" ใน
+            // กริดด้านล่าง (showPicker) ได้ตามปกติ ไม่ถูกปิด — จำกัดเฉพาะกรณี 0 บริษัทเท่านั้น
             <div className="mx-auto max-w-md text-center" data-testid="select-company-empty">
               <div
                 className="rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-8 text-sm text-white/60"
               >
-                บัญชีนี้ยังไม่ได้รับสิทธิ์เข้าใช้งานบริษัทใดเลย สร้างบริษัทใหม่เองได้เลย หรือให้ผู้ดูแลระบบเพิ่มสิทธิ์ให้
+                สมัครสมาชิกสำเร็จแล้ว แต่บัญชีนี้ยังไม่ได้รับอนุมัติให้เข้าใช้งานบริษัทใดเลย กรุณาแจ้งผู้ดูแลระบบ
+                (หรือเพื่อนร่วมบริษัท) ให้เข้าไปอนุมัติที่เมนู &quot;อนุมัติสมาชิกใหม่&quot;
               </div>
-              <button
-                type="button"
-                onClick={openAddModal}
-                className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[var(--login-primary)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--login-primary-hover)]"
-                data-testid="select-company-add-toggle"
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                เพิ่มบริษัทใหม่
-              </button>
             </div>
           )}
 

@@ -10,6 +10,7 @@ import {
   Library,
   SearchCheck,
   Send,
+  UserCheck,
   type LucideIcon,
 } from 'lucide-react';
 import type { InvoiceStatus } from '@/types/invoice';
@@ -104,6 +105,9 @@ export const NAV_STRUCTURE: NavEntry[] = [
   // 'bank-reconcile' เองก็ถูกจงใจวางเป็นเมนูเดี่ยวไม่มี submenu อยู่แล้วเช่นกัน ไอคอน History ยังไม่เคยถูกใช้
   // ที่ไหนใน NAV_STRUCTURE นี้มาก่อน เลือกเพราะสื่อความหมาย "บันทึกของกิจกรรมที่ผ่านมา" ตรงตัว
   { id: 'reconcile-history', label: 'ประวัติการกระทบยอด', icon: History, implemented: true },
+  // เมนูใหม่ (2026-08-10) พร้อมระบบอนุมัติสมาชิกใหม่ — วางเป็นเมนูเดี่ยวระดับบนสุดต่อจาก 'reconcile-history'
+  // ไม่ซ้อนใต้หมวดใดๆ (ไม่เกี่ยวกับข้อมูลบัญชี/ข้อมูลหลักในหมวดอื่นๆ เลย เป็นเรื่องจัดการสิทธิ์เข้าใช้งานล้วนๆ)
+  { id: 'manage-members', label: 'อนุมัติสมาชิกใหม่', icon: UserCheck, implemented: true },
   {
     // หมวดใหม่ทั้งหมด (2026-07-17) — ไอคอน Calculator เลือกใหม่เพราะยังไม่เคยถูกใช้ที่ไหนในระบบ (ไอคอน
     // เดิมของหมวด "กระทบยอด"/RefreshCw และ "VAT Reconcile"/FileCheck2 เลิกใช้ไปพร้อมการยุบทั้งสองหมวดนี้)

@@ -17,6 +17,7 @@ import OverduePurchaseTaxReport from '@/components/OverduePurchaseTaxReport';
 import ContactsPage from '@/components/ContactsPage';
 import BankReconcilePage from '@/components/BankReconcilePage';
 import BankReconcileHistoryPage from '@/components/BankReconcileHistoryPage';
+import ManageMembersPage from '@/components/ManageMembersPage';
 import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
 import { registerAssistantNavBridge } from '@/lib/assistantNavBridge';
@@ -228,6 +229,11 @@ function renderActiveContent(
     // components/BankReconcileHistoryPage.tsx สำหรับรายละเอียดเต็ม)
     case 'reconcile-history':
       return <BankReconcileHistoryPage onNavigate={onNavigate} />;
+    // เมนูใหม่ (2026-08-10) พร้อมระบบอนุมัติสมาชิกใหม่ — ดู lib/navigation.ts (id: 'manage-members') และ
+    // components/ManageMembersPage.tsx สำหรับรายละเอียดเต็ม ไม่รับ prop ใดๆ เพิ่ม (ดึงข้อมูลเองผ่าน
+    // useCompany()/SWR ภายในตัวเอง เหมือน ContactsPage.tsx)
+    case 'manage-members':
+      return <ManageMembersPage />;
     default:
       return <ComingSoon label={title} />;
   }
