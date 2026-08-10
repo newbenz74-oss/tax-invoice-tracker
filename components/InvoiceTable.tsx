@@ -31,11 +31,15 @@ interface InvoiceTableProps {
   onDelete: (invoice: PendingTaxInvoice) => Promise<void>;
 }
 
+// เอาคอลัมน์ "คาดว่าจะได้รับ" ออกจากตารางแล้ว (2026-08-10 ตามคำขอผู้ใช้) — ยังคง 'expected_date' ไว้เป็น
+// ค่าเริ่มต้นของ sortField ใน app/dashboard/page.tsx เหมือนเดิม (ไม่กระทบ การเรียงลำดับข้อมูลยังทำงานปกติ
+// แค่ไม่มีคอลัมน์ให้กดเปลี่ยนการเรียงลำดับด้วยฟิลด์นี้ในตารางอีกต่อไปเท่านั้น) และ getAgingBucket ด้านล่างยัง
+// ใช้ invoice.expected_date คำนวณป้าย Aging (รอรับกี่วัน) อยู่เหมือนเดิมทุกประการ ไม่ได้ลบข้อมูลนี้ทิ้ง แค่ไม่
+// โชว์เป็นคอลัมน์แยกอีกต่อไป
 const COLUMNS: { field: SortField; label: string }[] = [
   { field: 'vendor_name', label: 'ผู้ขาย' },
   { field: 'transaction_date', label: 'วันที่ทำรายการ' },
   { field: 'total_amount', label: 'ยอดรวม' },
-  { field: 'expected_date', label: 'คาดว่าจะได้รับ' },
 ];
 
 // อินพุตในตาราง (แถบ "มาร์กว่าได้รับแล้ว") ตั้งใจให้กระชับกว่า input ทั่วไปของระบบ (สูง 48px)
@@ -145,7 +149,6 @@ export default function InvoiceTable({
                 <td className="px-[18px] py-[18px] font-medium text-text">{invoice.vendor_name}</td>
                 <td className="px-[18px] py-[18px] text-text-sub">{formatDate(invoice.transaction_date)}</td>
                 <td className="font-numeric px-[18px] py-[18px] text-text">{THB.format(invoice.total_amount)}</td>
-                <td className="px-[18px] py-[18px] text-text-sub">{formatDate(invoice.expected_date)}</td>
                 <td
                   className="font-numeric px-[18px] py-[18px] text-right text-text-sub"
                   data-testid={`amount-excl-vat-${invoice.id}`}
