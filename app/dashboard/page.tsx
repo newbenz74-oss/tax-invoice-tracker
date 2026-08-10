@@ -20,6 +20,7 @@ import BankReconcileHistoryPage from '@/components/BankReconcileHistoryPage';
 import ManageMembersPage from '@/components/ManageMembersPage';
 import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
+import { isPrimaryAdmin } from '@/lib/adminAccess';
 import { registerAssistantNavBridge } from '@/lib/assistantNavBridge';
 import {
   bulkCreateInvoices,
@@ -90,6 +91,10 @@ function readInitialActiveId(): string {
 }
 
 function DashboardShell() {
+  // เพิ่มเข้ามาพร้อมฟีเจอร์ "อนุมัติสมาชิกใหม่" รอบปรับปรุง (2026-08-10) — ใช้เช็คว่าผู้ใช้ปัจจุบันเป็นแอดมิน
+  // หรือไม่ (ดู lib/adminAccess.ts) เพื่อส่งต่อให้ Sidebar ซ่อน/แสดงเมนู 'manage-members' ตาม adminOnly flag
+  const { session } = useAuth();
+  const isAdmin = isPrimaryAdmin(session?.user?.id);
   const [activeId, setActiveId] = useState<string>(readInitialActiveId);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   // สัญญาณเสริม (optional) จากปุ่ม/การ์ดในหน้า Dashboard ภาพรวม เช่น "เพิ่มค่าใช้จ่าย" ควรเปิดฟอร์ม
@@ -157,6 +162,7 @@ function DashboardShell() {
           onSelect={(id) => handleSelect(id)}
           isOpen={mobileNavOpen}
           onClose={() => setMobileNavOpen(false)}
+          isAdmin={isAdmin}
         />
         {/* เอฟเฟกต์ fade-in + เลื่อนขึ้นเล็กน้อยตอน DashboardShell mount ทุกครั้ง (2026-07-18) — ทั้งตอนมา
             จากการเข้าสู่ระบบสำเร็จที่หน้า login (ดู app/login/page.tsx enterDashboard) และตอน mount ตรงๆ

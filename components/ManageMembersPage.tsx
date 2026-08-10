@@ -6,28 +6,34 @@ import { UserCheck } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
 import { approveMember, listPendingUsers, type PendingUser } from '@/lib/adminApi';
+import { isPrimaryAdmin } from '@/lib/adminAccess';
 
 const PENDING_USERS_SWR_KEY = 'pending-users';
 
 /**
  * หน้า "อนุมัติสมาชิกใหม่" (เพิ่มเข้ามา 2026-08-10 พร้อมระบบอนุมัติสมาชิก — ดู
- * supabase/migration_010_member_approval.sql) — สมัครสมาชิกเองที่หน้า login ได้ตามเดิม (ฟีเจอร์เดิมที่มีอยู่
- * แล้ว ไม่ได้แตะ) แต่บัญชีใหม่จะยังใช้งานอะไรไม่ได้ (เจอหน้าว่างที่ /select-company) จนกว่าสมาชิกบริษัทที่มีอยู่
- * แล้วคนใดคนหนึ่งจะมาอนุมัติให้เข้าบริษัทนั้นที่หน้านี้ — ไม่มีระดับสิทธิ์ "แอดมิน" แยกต่างหาก (ตามดีไซน์เดิม
- * ของทั้งระบบที่สมาชิกทุกคนในบริษัทเดียวกันมีสิทธิ์เท่ากัน) ใครก็ตามที่เป็นสมาชิกบริษัทอยู่แล้วอย่างน้อย 1
- * บริษัท เข้าหน้านี้และอนุมัติคนใหม่เข้าบริษัทของตัวเองได้เหมือนกันหมด — ฝั่งฐานข้อมูล (approve_member RPC)
- * เป็นผู้บังคับสิทธิ์จริงอีกชั้นอยู่แล้วว่าอนุมัติเข้าได้เฉพาะบริษัทที่ตัวเองเป็นสมาชิกเท่านั้น ฝั่งนี้แค่จำกัด
- * ตัวเลือกใน dropdown ให้เหลือเฉพาะบริษัทของผู้ใช้ปัจจุบันเพื่อ UX ที่ชัดเจน ไม่ใช่กลไกความปลอดภัยหลัก
+ * supabase/migration_010_member_approval.sql, migration_011_admin_only_approval.sql) — สมัครสมาชิกเองที่หน้า
+ * login ได้ตามเดิม (ฟีเจอร์เดิมที่มีอยู่แล้ว ไม่ได้แตะ) แต่บัญชีใหม่จะยังใช้งานอะไรไม่ได้ (เจอหน้าว่างที่
+ * /select-company) จนกว่าจะได้รับอนุมัติจากแอดมินที่หน้านี้
+ *
+ * ปรับปรุง 2026-08-10 (รอบสอง): เดิมออกแบบให้สมาชิกบริษัทคนไหนก็อนุมัติคนใหม่เข้าบริษัทตัวเองได้เหมือนกันหมด
+ * (ตามดีไซน์ "ทุกคนสิทธิ์เท่ากัน" ของทั้งระบบ) แต่ผู้ใช้ (Ben) ระบุชัดเจนว่าอยากให้เฉพาะบัญชีของตัวเองเท่านั้นที่
+ * อนุมัติได้ ("เพื่อไม่ให้อนุมัติโดยที่ฉันไม่ได้อนุญาต") จึงกันหน้านี้ไว้เฉพาะแอดมิน (ดู lib/adminAccess.ts) —
+ * Sidebar.tsx ซ่อนเมนูนี้จากคนอื่นอยู่แล้วชั้นหนึ่ง แต่เผื่อกรณีเข้าถึง component นี้ตรงๆ (เช่น activeId ค้างอยู่
+ * ใน localStorage จากตอนที่ยังไม่ได้ปรับสิทธิ์ หรือแก้ localStorage เอง) จึงกันซ้ำอีกชั้นในนี้ด้วย — เป็นแค่
+ * UX ที่ดีขึ้น (ไม่โชว์ error message งงๆ ให้คนที่ไม่ควรเห็น) ไม่ใช่ชั้นความปลอดภัยจริง ตัวบังคับสิทธิ์จริงอยู่ที่
+ * RPC ฝั่งฐานข้อมูลเท่านั้น
  */
 export default function ManageMembersPage() {
   const { session } = useAuth();
   const { companies } = useCompany();
+  const isAdmin = isPrimaryAdmin(session?.user?.id);
   const {
     data: pendingUsers = [],
     error: loadErrorObj,
     isLoading: loading,
     mutate,
-  } = useSWR<PendingUser[]>(session ? PENDING_USERS_SWR_KEY : null, listPendingUsers);
+  } = useSWR<PendingUser[]>(session && isAdmin ? PENDING_USERS_SWR_KEY : null, listPendingUsers);
   const loadError =
     loadErrorObj instanceof Error ? loadErrorObj.message : loadErrorObj ? 'โหลดรายชื่อไม่สำเร็จ' : null;
 
@@ -54,6 +60,21 @@ export default function ManageMembersPage() {
     } finally {
       setApprovingId(null);
     }
+  }
+
+  // กันซ้ำอีกชั้นนอกเหนือจากที่ Sidebar.tsx ซ่อนเมนูไว้แล้ว (ดูคอมเมนต์ด้านบน) — ไม่ raise error หรือแสดงผล
+  // จากการเรียก RPC เลยด้วยซ้ำถ้าไม่ใช่แอดมิน กันไม่ให้เห็น error message ที่งงๆ
+  if (!isAdmin) {
+    return (
+      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-8">
+        <div
+          className="rounded-xl border border-dashed border-border bg-white px-6 py-10 text-center text-sm text-text-sub"
+          data-testid="manage-members-forbidden"
+        >
+          หน้านี้สำหรับผู้ดูแลระบบเท่านั้น
+        </div>
+      </main>
+    );
   }
 
   return (

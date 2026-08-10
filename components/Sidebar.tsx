@@ -20,6 +20,10 @@ interface SidebarProps {
   onSelect: (id: string) => void;
   isOpen: boolean;
   onClose: () => void;
+  /** เพิ่มเข้ามาพร้อมฟีเจอร์ "อนุมัติสมาชิกใหม่" รอบปรับปรุง (2026-08-10) — คุมว่าเมนูที่ตั้ง adminOnly: true
+   * ไว้ (ดู lib/navigation.ts) จะแสดงหรือไม่ ค่าเริ่มต้น false เผื่อกรณีที่ยังไม่ทันส่ง prop นี้มา (ปลอดภัย
+   * กว่าเสมอ — ซ่อนไว้ก่อนถ้าไม่แน่ใจ ดีกว่าเผลอโชว์ให้คนที่ไม่ควรเห็น) */
+  isAdmin?: boolean;
 }
 
 // อ่านสถานะ expand/collapse ที่บันทึกไว้จาก localStorage (client-only) — ไม่มีค่าก็ใช้ default (เปิดทุกหมวด)
@@ -34,7 +38,7 @@ function readInitialExpanded(): Record<string, boolean> {
   return defaultExpandedState();
 }
 
-export default function Sidebar({ activeId, onSelect, isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ activeId, onSelect, isOpen, onClose, isAdmin = false }: SidebarProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(readInitialExpanded);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
@@ -130,6 +134,7 @@ export default function Sidebar({ activeId, onSelect, isOpen, onClose }: Sidebar
               onSelect={onSelect}
               expanded={expanded}
               onToggleSection={toggleSection}
+              isAdmin={isAdmin}
             />
           ))}
         </nav>
@@ -144,12 +149,14 @@ function NavItem({
   onSelect,
   expanded,
   onToggleSection,
+  isAdmin,
 }: {
   entry: NavEntry;
   activeId: string;
   onSelect: (id: string) => void;
   expanded: Record<string, boolean>;
   onToggleSection: (id: string) => void;
+  isAdmin: boolean;
 }) {
   // อัปเดต 2026-07-17 (รอบปรับโครงสร้าง Sidebar): เมนูที่ตั้ง hidden: true ไว้ใน lib/navigation.ts
   // (sales-tax-report/overdue-purchase-tax/data-check) ไม่ต้อง render เลย — คืน null ตั้งแต่ต้นฟังก์ชัน
@@ -157,6 +164,13 @@ function NavItem({
   // ประการ (ยังอยู่ใน NAV_STRUCTURE ให้ findNavLeaf หาเจอ) แค่ไม่มี entry ให้คลิกใน Sidebar อีกต่อไป —
   // เช็คแค่ NavLeaf เท่านั้น (NavSection ไม่มี field นี้ ไม่มีหมวดไหนถูกซ่อนทั้งหมวดในรอบนี้)
   if (!isNavSection(entry) && entry.hidden) {
+    return null;
+  }
+  // เพิ่มเข้ามาพร้อมฟีเจอร์ "อนุมัติสมาชิกใหม่" รอบปรับปรุง (2026-08-10) — เมนูที่ตั้ง adminOnly: true ไว้
+  // ซ่อนจาก Sidebar ทั้งหมดถ้าผู้ใช้ปัจจุบันไม่ใช่แอดมิน (ดู lib/adminAccess.ts) ตรรกะเดียวกับ hidden ด้านบน
+  // เป๊ะๆ แค่เงื่อนไขต่างกัน — findNavLeaf ยังหา id นี้เจอเหมือนเดิม (ไม่กระทบ routing) แค่ไม่มี entry ให้
+  // คลิกใน Sidebar สำหรับคนที่ไม่ใช่แอดมินเท่านั้น
+  if (!isNavSection(entry) && entry.adminOnly && !isAdmin) {
     return null;
   }
 
@@ -203,6 +217,7 @@ function NavItem({
                 onSelect={onSelect}
                 expanded={expanded}
                 onToggleSection={onToggleSection}
+                isAdmin={isAdmin}
               />
             ))}
           </div>
