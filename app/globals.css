@@ -243,6 +243,21 @@ body {
   transform: scale(1.02);
 }
 
+/* แก้บั๊กตัวหนังสือใน dropdown ของ <select> มองไม่เห็น (2026-08-10 — เจอครั้งแรกที่ตัวกรองเดือน/ปีของหน้า
+   "รายงานภาษีซื้อ" แต่จริงๆ เป็นบั๊กเดียวกันกับทุก <select> ในระบบที่ใช้ text-text) — สาเหตุ: ทุก <select>
+   ในระบบใช้ text-text (สีเกือบขาว #f1f5f9 ตามธีมกระจกเข้มของกล่องปิด/ตัว select เอง) แต่รายการ <option> ที่
+   กางออกมาเป็น native popup ของเบราว์เซอร์/OS เอง ไม่ใช่ CSS ของเราเลย — พื้นหลัง native popup ปกติเป็นสีขาว
+   ทึบเสมอไม่ว่าธีมหน้าเว็บจะเป็นสีอะไร ทำให้ตัวหนังสือสี text-text (เกือบขาว) ที่ inherit เข้าไปกลายเป็น
+   ขาวเกือบสนิทบนพื้นขาว มองไม่เห็นเลย (ตัว select ปิดอยู่ยังเห็นปกติ เพราะพื้นหลังกล่อง select เองเป็นกระจก
+   เข้มโปร่งแสง ไม่ใช่ปัญหาเดียวกัน) — แก้ตรงจุดเดียวที่นี่ระดับ global แทนการไล่แก้ทีละไฟล์ เพราะกระทบทุก
+   <select> ในระบบเหมือนกันหมด (PurchaseTaxReport/OverduePurchaseTaxReport/BankReconcileSaveDialog/
+   ManageMembersPage/InvoiceForm/ContactForm ฯลฯ) กำหนดสีตัวหนังสือ/พื้นหลังของ <option> ตรงๆ ให้อ่านง่ายเสมอ
+   ไม่ว่า <select> ที่ครอบมันจะใช้สีอะไรก็ตาม */
+select option {
+  color: #1f2937;
+  background-color: #ffffff;
+}
+
 .focus-ring-primary:focus {
   outline: none;
   border-color: var(--primary);

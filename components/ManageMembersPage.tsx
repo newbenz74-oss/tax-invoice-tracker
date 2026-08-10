@@ -68,7 +68,7 @@ export default function ManageMembersPage() {
     return (
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-8">
         <div
-          className="rounded-xl border border-dashed border-border bg-white px-6 py-10 text-center text-sm text-text-sub"
+          className="rounded-xl border border-dashed border-border bg-white px-6 py-10 text-center text-sm text-gray-500"
           data-testid="manage-members-forbidden"
         >
           หน้านี้สำหรับผู้ดูแลระบบเท่านั้น
@@ -105,7 +105,7 @@ export default function ManageMembersPage() {
 
       {!loading && !loadError && pendingUsers.length === 0 && (
         <div
-          className="rounded-xl border border-dashed border-border bg-white px-6 py-10 text-center text-sm text-text-sub"
+          className="rounded-xl border border-dashed border-border bg-white px-6 py-10 text-center text-sm text-gray-500"
           data-testid="manage-members-empty"
         >
           ไม่มีคำขอสมัครที่รอดำเนินการตอนนี้
@@ -119,6 +119,10 @@ export default function ManageMembersPage() {
               {approveError}
             </p>
           )}
+          {/* แก้บั๊กตัวหนังสือมองไม่เห็น (2026-08-10) — การ์ดแถวนี้ตั้งใจใช้ bg-white ทึบล้วน (ไม่ใช่กระจก
+              เข้มเหมือนพื้นหลังหน้าอื่นๆ) ตอนแรกใช้ text-text/text-text-sub (สีเกือบขาว ออกแบบมาให้อ่านออก
+              บนพื้นเข้มเท่านั้น) ผิดคู่กัน ทำให้ตัวหนังสือแทบมองไม่เห็นบนพื้นขาว — เปลี่ยนเป็น text-gray-800/
+              text-gray-500 ตรงๆ แทน (ค่าเดิมก่อนธีมมืดของ --text/--text-sub ตามคอมเมนต์ใน app/globals.css) */}
           {pendingUsers.map((user) => (
             <div
               key={user.id}
@@ -126,8 +130,8 @@ export default function ManageMembersPage() {
               data-testid={`manage-members-row-${user.id}`}
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-text">{user.email}</p>
-                <p className="text-xs text-text-sub">
+                <p className="truncate text-sm font-medium text-gray-800">{user.email}</p>
+                <p className="text-xs text-gray-500">
                   สมัครเมื่อ{' '}
                   {new Date(user.createdAt).toLocaleDateString('th-TH', {
                     year: 'numeric',
@@ -140,7 +144,7 @@ export default function ManageMembersPage() {
                 <select
                   value={companyForUser(user.id)}
                   onChange={(e) => setSelectedCompanyByUser((prev) => ({ ...prev, [user.id]: e.target.value }))}
-                  className="h-10 rounded-lg border border-border bg-white px-3 text-sm text-text focus:border-primary focus:outline-none"
+                  className="h-10 rounded-lg border border-border bg-white px-3 text-sm text-gray-800 focus:border-primary focus:outline-none"
                   data-testid={`manage-members-company-select-${user.id}`}
                 >
                   {companies.map((c) => (
