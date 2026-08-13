@@ -139,7 +139,17 @@ describe('buildWhtCertificatePdf', () => {
 });
 
 describe('whtCertificateFilename', () => {
-  it('ใช้เลขที่ใบเป็นชื่อไฟล์', () => {
-    expect(whtCertificateFilename(makeCert({ cert_number: '53-6904002' }))).toBe('wht-cert-53-6904002.pdf');
+  it('ประกอบชื่อไฟล์จาก เลขที่ใบ_วันที่ออกใบ(วว.ดด.ปปปป)_ชื่อผู้ถูกหักภาษี', () => {
+    expect(
+      whtCertificateFilename(
+        makeCert({ cert_number: '53-6904002', issued_date: '2026-04-06', payee_name: 'บริษัท เอ็น วาย ฟิล์ม จำกัด' })
+      )
+    ).toBe('53-6904002_06.04.2026_บริษัท เอ็น วาย ฟิล์ม จำกัด.pdf');
+  });
+
+  it('ตัดอักขระที่ใช้ในชื่อไฟล์ไม่ได้ออกจากชื่อผู้ถูกหักภาษี', () => {
+    expect(
+      whtCertificateFilename(makeCert({ cert_number: '03-6908001', issued_date: '2026-08-11', payee_name: 'บริษัท A/B: C จำกัด' }))
+    ).toBe('03-6908001_11.08.2026_บริษัท A B C จำกัด.pdf');
   });
 });

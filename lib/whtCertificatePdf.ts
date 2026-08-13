@@ -800,7 +800,19 @@ export function buildWhtCertificatePdfForEmail(cert: WhtCertificate, invoices: P
   return doc.output('blob');
 }
 
-/** ชื่อไฟล์มาตรฐานตอนดาวน์โหลด — ใช้เลขที่ใบเป็นหลัก (unique ต่อบริษัทอยู่แล้วตาม constraint ที่ฐานข้อมูล) */
+/** วันที่แบบ วว.ดด.ปปปป (ปี ค.ศ. เต็ม 4 หลัก ต่างจาก shortBuddhistDate ที่ใช้ในตัวเอกสารซึ่งเป็น พ.ศ. 2 หลัก) —
+ * ใช้เฉพาะในชื่อไฟล์ PDF เท่านั้น เช่น "11.08.2026" */
+function fileNameDate(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}.${m}.${y}`;
+}
+
+/** ชื่อไฟล์มาตรฐานตอนดาวน์โหลด/แนบอีเมล — รูปแบบ "{เลขที่ใบ}_{วันที่ออกใบ วว.ดด.ปปปป}_{ชื่อผู้ถูกหักภาษี}.pdf"
+ * เช่น "03-6908001_11.08.2026_นายศักรินทร์ บุญช่วย.pdf" (ตามคำขอผู้ใช้ 2026-08-13 — เดิมใช้แค่ "wht-cert-เลขที่
+ * ใบ.pdf") ตัดอักขระที่ใช้ในชื่อไฟล์ไม่ได้ (/ \ : * ? " < > |) ออกจากชื่อผู้ถูกหักภาษีก่อนเสมอ กันชื่อไฟล์พังถ้ามี
+ * อักขระแปลกปลอมปนมา (เช่น พิมพ์ชื่อบริษัทมีเครื่องหมาย "/" ปนมาโดยไม่ตั้งใจ) */
 export function whtCertificateFilename(cert: WhtCertificate): string {
-  return `wht-cert-${cert.cert_number}.pdf`;
+  const datePart = fileNameDate(cert.issued_date);
+  const safePayeeName = cert.payee_name.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return `${[cert.cert_number, datePart, safePayeeName].filter((p) => p).join('_')}.pdf`;
 }
