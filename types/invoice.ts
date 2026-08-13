@@ -16,6 +16,17 @@ export interface PendingTaxInvoice {
   amount_excl_vat: number;
   vat_amount: number;
   total_amount: number;
+  // เพิ่มสำหรับฟีเจอร์ "หัก ณ ที่จ่าย" (migration_012, 2026-08-10) — ไม่บังคับกรอก ถ้าไม่กรอก/ไม่มีค่า
+  // ถือว่าไม่มียอดหัก (ค่าเริ่มต้นที่ฐานข้อมูลคือ 0 ไม่ใช่ null) แยกเป็นคอลัมน์ต่างหากจาก total_amount
+  // เพราะ total_amount เป็น generated column (amount_excl_vat + vat_amount) แก้ไขให้รวม WHT ไม่ได้ —
+  // "ยอดจ่ายสุทธิ" (total_amount - wht_amount) คำนวณฝั่ง frontend เท่านั้น ไม่เก็บเป็นคอลัมน์ ดู
+  // lib/invoiceLogic.ts calcNetPayment()
+  wht_amount: number;
+  // เพิ่มสำหรับฟีเจอร์ "ออกใบหัก ณ ที่จ่าย" (migration_015, 2026-08-11) — null = ยังไม่เคยออกใบให้รายการนี้
+  // ตั้งค่าโดย RPC create_wht_certificate() เท่านั้น (ดู lib/whtCertificateApi.ts createWhtCertificate) ไม่มี
+  // จุดไหนในโค้ด frontend เขียนค่านี้ตรงๆ ผ่าน updateInvoice เด็ดขาด — ใช้เช็คว่ารายการนี้ออกใบไปแล้วหรือยัง
+  // (ดู lib/invoiceLogic.ts isWhtCertEligible) กันออกใบซ้ำซ้อนรายการเดียวกัน
+  wht_certificate_id: string | null;
   reference_no: string | null;
   expected_date: string | null;
   status: InvoiceStatus;
@@ -44,6 +55,8 @@ export interface InvoiceFormInput {
   description: string;
   amount_excl_vat: string;
   vat_amount: string;
+  // ไม่บังคับกรอก — เว้นว่างไว้ = ไม่มียอดหัก ณ ที่จ่าย (validateInvoiceForm ไม่บังคับให้กรอก)
+  wht_amount: string;
   reference_no: string;
   expected_date: string;
   notes: string;

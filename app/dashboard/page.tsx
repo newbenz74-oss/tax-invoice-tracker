@@ -12,12 +12,15 @@ import DashboardOverview from '@/components/DashboardOverview';
 import InvoiceForm from '@/components/InvoiceForm';
 import InvoiceTable from '@/components/InvoiceTable';
 import ExcelImportPanel from '@/components/ExcelImportPanel';
+import IssueWhtCertificateModal from '@/components/IssueWhtCertificateModal';
 import PurchaseTaxReport from '@/components/PurchaseTaxReport';
 import OverduePurchaseTaxReport from '@/components/OverduePurchaseTaxReport';
 import ContactsPage from '@/components/ContactsPage';
 import BankReconcilePage from '@/components/BankReconcilePage';
 import BankReconcileHistoryPage from '@/components/BankReconcileHistoryPage';
 import ManageMembersPage from '@/components/ManageMembersPage';
+import CompanySettingsPage from '@/components/CompanySettingsPage';
+import WhtCertificateHistoryPage from '@/components/WhtCertificateHistoryPage';
 import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
 import { isPrimaryAdmin } from '@/lib/adminAccess';
@@ -33,8 +36,12 @@ import {
   updateInvoice,
   type InvoiceWriteInput,
 } from '@/lib/invoiceApi';
-import { deriveStatusForTaxType, filterInvoices, sortInvoices } from '@/lib/invoiceLogic';
+import { deriveStatusForTaxType, filterInvoices, isWhtCertEligible, sortInvoices } from '@/lib/invoiceLogic';
 import { excelRowToWriteInput, type ExcelImportRow } from '@/lib/excelImport';
+import { CONTACTS_SWR_KEY, fetchContacts } from '@/lib/contactApi';
+import { fetchWhtCertificates, WHT_CERTIFICATES_SWR_KEY } from '@/lib/whtCertificateApi';
+import { buildWhtCertificatePdf, whtCertificateFilename } from '@/lib/whtCertificatePdf';
+import { downloadBlob } from '@/lib/reportExport';
 import { DEFAULT_ACTIVE_ID, findNavLeaf, type NavIntent } from '@/lib/navigation';
 import type {
   InvoiceFormInput,
@@ -45,6 +52,8 @@ import type {
   SortField,
   TaxType,
 } from '@/types/invoice';
+import type { BusinessPartner } from '@/types/contact';
+import type { WhtCertificate } from '@/types/whtCertificate';
 
 const ACTIVE_NAV_STORAGE_KEY = 'benz_sidebar_active';
 // จำนวนรายการต่อหน้าของตารางในหน้า "บันทึกค่าใช้จ่าย" — เพิ่มเข้ามาในรอบปรับโครงสร้าง
@@ -212,13 +221,24 @@ function renderActiveContent(
     case 'dashboard':
       return <DashboardOverview onNavigate={onNavigate} />;
     case 'record-expense':
-      return <ExpenseRecordContent initialIntent={navIntent ?? null} />;
+      return <ExpenseRecordContent initialIntent={navIntent ?? null} onNavigate={onNavigate} />;
     case 'purchase-tax-report':
       return <PurchaseTaxReport />;
     case 'overdue-purchase-tax':
       return <OverduePurchaseTaxReport onNavigate={onNavigate} />;
     case 'address-book':
       return <ContactsPage />;
+    // เมนูใหม่ (2026-08-11) พื้นฐานแรกของฟีเจอร์ "ออกใบหัก ณ ที่จ่าย" — ดู lib/navigation.ts
+    // (id: 'company-settings') และ components/CompanySettingsPage.tsx สำหรับรายละเอียดเต็ม ไม่รับ prop
+    // ใดๆ เพิ่ม (ดึง/บันทึกข้อมูลเองผ่าน useCompany() ภายในตัวเอง เหมือน ContactsPage.tsx/
+    // ManageMembersPage.tsx)
+    case 'company-settings':
+      return <CompanySettingsPage />;
+    // เมนูใหม่ (2026-08-11) ส่วนสุดท้ายของฟีเจอร์ "ออกใบหัก ณ ที่จ่าย" — ดู
+    // components/WhtCertificateHistoryPage.tsx ไม่รับ prop ใดๆ เพิ่ม (ดึงข้อมูลเองผ่าน useCompany()/SWR
+    // ภายในตัวเอง เหมือน ContactsPage.tsx/ManageMembersPage.tsx)
+    case 'wht-certificates':
+      return <WhtCertificateHistoryPage />;
     // Bank Reconcile เวอร์ชันออกแบบใหม่ทั้งหมด (2026-07-17) — เดิมเป็นรายงานเปรียบเทียบ Bank Statement กับ
     // GL ล้วนๆ ไม่มี prop ใดๆ ที่ต้องส่งเข้าไป — ตั้งแต่ฟีเจอร์ "จับคู่เอง + บันทึกประวัติ" (2026-07-19)
     // ส่ง navIntent ต่อเข้าไปด้วยแล้ว (รูปแบบเดียวกับ record-expense ด้านบน) เพื่อรองรับปุ่ม "เปิดดู/แก้ไข"
@@ -252,13 +272,37 @@ function renderActiveContent(
 // MonthlyVatSummary ออก (ย้ายไปอยู่ DashboardOverview แทนแล้ว — component เดิมทั้งสองตัวไม่ถูกแก้ไข
 // logic การคำนวณเลยแม้แต่บรรทัดเดียว แค่เปลี่ยนที่ render) (2) เพิ่ม pagination ตามสเปก (3) รับ
 // initialIntent จากหน้า Dashboard ได้ (เปิดฟอร์ม/แผงนำเข้า/ตั้ง filter ล่วงหน้า)
-function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | null } = {}) {
+function ExpenseRecordContent({
+  initialIntent,
+  onNavigate,
+}: { initialIntent?: NavIntent | null; onNavigate?: (id: string, intent?: NavIntent) => void } = {}) {
   const { session } = useAuth();
   // เพิ่มเข้ามา 2026-08-07 พร้อมฟีเจอร์รองรับหลายบริษัท — selectedCompanyId เป็นส่วนหนึ่งของ SWR key
   // เสมอ (ไม่ใช่แค่ INVOICES_SWR_KEY เฉยๆ) เพื่อไม่ให้ cache ของบริษัทหนึ่งไปปนกับอีกบริษัทถ้า user สลับ
   // บริษัทระหว่างที่แอปยังเปิดอยู่ (ดู components/Header.tsx ปุ่ม "สลับบริษัท")
-  const { selectedCompanyId } = useCompany();
+  const { selectedCompanyId, selectedCompany } = useCompany();
   const today = useMemo(() => todayISO(), []);
+
+  // ดึงสมุดรายชื่อมาด้วย (เพิ่มพร้อมฟีเจอร์ "ออกใบหัก ณ ที่จ่าย" 2026-08-11) — ใช้จับคู่ผู้ขายตอนเปิด modal
+  // ออกใบ (ดู lib/whtCertificateLogic.ts findPayeeCandidates) SWR key เดียวกับ ContactsPage.tsx ทุกประการ
+  // จึงใช้ cache ร่วมกันได้เลยถ้าผู้ใช้เคยเปิดหน้าสมุดรายชื่อมาก่อนแล้วในเซสชันเดียวกัน
+  const { data: contacts = [] } = useSWR<BusinessPartner[]>(
+    session && selectedCompanyId ? [CONTACTS_SWR_KEY, selectedCompanyId] : null,
+    () => fetchContacts(selectedCompanyId!)
+  );
+
+  // ดึงใบหัก ณ ที่จ่ายทั้งหมดมาด้วย (เพิ่มเข้ามาตามคำขอผู้ใช้ 2026-08-12) — ใช้แสดงเลขที่ใบ + ชื่อที่ออกใบให้
+  // เป็นตัวเล็กๆ ใต้ชื่อผู้ขายในตาราง (ดู whtCertificatesById ด้านล่าง ส่งต่อให้ InvoiceTable) SWR key
+  // เดียวกับ components/WhtCertificateHistoryPage.tsx ทุกประการ จึงใช้ cache ร่วมกันได้เลยถ้าผู้ใช้เคยเปิด
+  // หน้าประวัติใบหัก ณ ที่จ่ายมาก่อนแล้วในเซสชันเดียวกัน (ไม่ query ซ้ำ)
+  const { data: whtCertificates = [], mutate: mutateWhtCertificates } = useSWR<WhtCertificate[]>(
+    session && selectedCompanyId ? [WHT_CERTIFICATES_SWR_KEY, selectedCompanyId] : null,
+    () => fetchWhtCertificates(selectedCompanyId!)
+  );
+  const whtCertificatesById = useMemo(
+    () => new Map(whtCertificates.map((cert) => [cert.id, { cert_number: cert.cert_number, payee_name: cert.payee_name }])),
+    [whtCertificates]
+  );
 
   // ใช้ SWR แทน useEffect+useState เพื่อดึงข้อมูล — เรียก fetch เฉพาะตอนมี session และเลือกบริษัทแล้ว
   // (key เป็น null ถ้ายังไม่ login หรือยังไม่มีบริษัทที่เลือก ทำให้ SWR ไม่ยิง request) และ mutate()
@@ -308,6 +352,48 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
   // Pagination (เพิ่มเข้ามาในรอบปรับโครงสร้าง Navigation/Layout 2026-07-15 ตามสเปก) — page state
   // ล้วนๆ ฝั่ง client (slice array ก่อน render) ไม่แตะ lib/invoiceLogic.ts หรือการเรียก API ใดๆ เลย
   const [page, setPage] = useState(1);
+
+  // เลือกรายการไว้ออกใบหัก ณ ที่จ่ายรวมกัน (เพิ่มพร้อมฟีเจอร์นี้ 2026-08-11) — เก็บเป็น Set ของ invoice id
+  // อยู่ที่ชั้นนี้ (ไม่ใช่ใน InvoiceTable) เพราะแถบปุ่ม "ออกใบหัก ณ ที่จ่าย (N รายการ)" ลอยอยู่นอกตาราง
+  // (เหนือ pagination) และคงอยู่ข้ามหน้า pagination ได้เองโดยธรรมชาติ (เก็บด้วย id ไม่ใช่ index)
+  const [selectedWhtIds, setSelectedWhtIds] = useState<Set<string>>(new Set());
+  const [showWhtModal, setShowWhtModal] = useState(false);
+
+  function toggleWhtSelect(id: string) {
+    setSelectedWhtIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const selectedWhtInvoices = useMemo(
+    () => invoices.filter((inv) => selectedWhtIds.has(inv.id) && isWhtCertEligible(inv)),
+    [invoices, selectedWhtIds]
+  );
+  const selectedWhtVendorMismatch =
+    selectedWhtInvoices.length > 1 &&
+    selectedWhtInvoices.some((inv) => inv.vendor_name.trim() !== selectedWhtInvoices[0].vendor_name.trim());
+
+  // ออกใบสำเร็จ -> ดาวน์โหลด PDF ให้ทันที (เพิ่มพร้อม lib/whtCertificatePdf.ts) ใช้ selectedWhtInvoices ที่
+  // ยัง capture ไว้ก่อนล้างการเลือก (invoices ต้นทางที่ประกอบเป็นใบนี้ ไม่ใช่ invoices ทั้งหมดในตาราง) —
+  // ห่อ downloadBlob ด้วย try/catch แยกต่างหากจาก mutate() เพราะการสร้าง PDF ไม่สำเร็จ (เช่น browser
+  // บล็อก popup การดาวน์โหลด) ไม่ควรทำให้ผู้ใช้เข้าใจผิดว่าออกใบไม่สำเร็จ — ใบถูกบันทึกลงฐานข้อมูลแล้วจริง
+  // เสมอ ณ จุดนี้ (ผู้ใช้ยังไปดาวน์โหลดซ้ำได้ทีหลังจากหน้าประวัติ #55)
+  async function handleWhtIssued(cert: WhtCertificate) {
+    const issuedInvoices = selectedWhtInvoices;
+    setSelectedWhtIds(new Set());
+    setShowWhtModal(false);
+    await Promise.all([mutate(), mutateWhtCertificates()]);
+    try {
+      const blob = buildWhtCertificatePdf(cert, issuedInvoices);
+      downloadBlob(blob, whtCertificateFilename(cert));
+    } catch {
+      // สร้าง/ดาวน์โหลด PDF ไม่สำเร็จ — ไม่บล็อก flow หลัก (ใบถูกบันทึกแล้วจริง) ผู้ใช้ดาวน์โหลดซ้ำได้จาก
+      // หน้าประวัติในอนาคต
+    }
+  }
 
   const visibleInvoices = useMemo(() => {
     let filtered: PendingTaxInvoice[];
@@ -379,6 +465,8 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
       amount_excl_vat: parseFloat(input.amount_excl_vat) || 0,
       // ไม่มี VAT: บังคับเป็น 0 เสมอไม่ว่าในฟอร์มจะมีค่าเดิมค้างอยู่หรือไม่ (ผู้ใช้อาจสลับประเภทไปมา)
       vat_amount: isNoVat ? 0 : parseFloat(input.vat_amount) || 0,
+      // หัก ณ ที่จ่ายไม่บังคับกรอก เว้นว่าง = 0 (ไม่มียอดหัก) ไม่ผูกกับ tax_type
+      wht_amount: parseFloat(input.wht_amount) || 0,
       reference_no: input.reference_no.trim() || null,
       // วันที่คาดว่าจะได้รับมีความหมายเฉพาะ claimable_vat เท่านั้น (ประเภทอื่นไม่มีขั้นตอนรอ)
       expected_date: isNoVat || isNonClaimable ? null : input.expected_date || null,
@@ -588,7 +676,60 @@ function ExpenseRecordContent({ initialIntent }: { initialIntent?: NavIntent | n
             onMarkReceived={handleMarkReceived}
             onCancelInvoice={handleCancelInvoice}
             onDelete={handleDelete}
+            selectedIds={selectedWhtIds}
+            onToggleSelect={toggleWhtSelect}
+            whtCertificatesById={whtCertificatesById}
           />
+
+          {/* แถบปุ่ม "ออกใบหัก ณ ที่จ่าย" ลอยอยู่เหนือ pagination (เพิ่มพร้อมฟีเจอร์นี้ 2026-08-11) — แสดงเฉพาะ
+              ตอนมีรายการที่เลือกไว้อย่างน้อย 1 รายการเท่านั้น เตือนถ้าเลือกข้ามผู้ขายกัน (บล็อกปุ่มยืนยัน แต่
+              ยังกดล้างที่เลือกได้เสมอ) */}
+          {selectedWhtIds.size > 0 && (
+            <div
+              className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary-light px-4 py-3"
+              data-testid="wht-selection-bar"
+            >
+              <p className="text-sm font-medium text-text">
+                เลือกไว้ {selectedWhtInvoices.length} รายการ
+                {selectedWhtVendorMismatch && (
+                  <span className="ml-2 text-xs font-normal text-danger">
+                    (เลือกได้เฉพาะผู้ขายเดียวกันเท่านั้น — กรุณาเลือกใหม่)
+                  </span>
+                )}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedWhtIds(new Set())}
+                  className="btn-press rounded-[10px] border border-border bg-white px-3.5 py-2 text-xs font-medium text-text-sub hover:bg-page-bg"
+                >
+                  ล้างที่เลือก
+                </button>
+                <button
+                  type="button"
+                  disabled={selectedWhtVendorMismatch || selectedWhtInvoices.length === 0}
+                  onClick={() => setShowWhtModal(true)}
+                  className="btn-press rounded-[10px] bg-primary px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  data-testid="open-issue-wht-cert"
+                >
+                  ออกใบหัก ณ ที่จ่าย
+                </button>
+              </div>
+            </div>
+          )}
+
+          {showWhtModal && selectedCompany && selectedWhtInvoices.length > 0 && !selectedWhtVendorMismatch && (
+            <IssueWhtCertificateModal
+              invoices={selectedWhtInvoices}
+              contacts={contacts}
+              company={selectedCompany}
+              companyId={selectedCompanyId!}
+              createdByEmail={session?.user?.email ?? null}
+              onClose={() => setShowWhtModal(false)}
+              onIssued={handleWhtIssued}
+              onGoToContacts={onNavigate ? () => onNavigate('address-book') : undefined}
+            />
+          )}
 
           {/* Pagination — เพิ่มเข้ามาในรอบปรับโครงสร้าง Navigation/Layout (2026-07-15) ตามสเปก
               หลังย้าย KPI Cards/Summary VAT รายเดือนออกไปหน้า Dashboard แล้ว ซ่อนไปเลยถ้าไม่มีรายการ

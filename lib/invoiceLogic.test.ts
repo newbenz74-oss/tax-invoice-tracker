@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   TAX_TYPE_LABELS,
+  calcNetPayment,
   calcTotal,
   computeMonthlyVatSummary,
   computeStats,
@@ -10,6 +11,7 @@ import {
   getAgingBucket,
   getTaxInvoiceStatusBadgeClass,
   getTaxInvoiceStatusLabel,
+  isWhtCertEligible,
   sortInvoices,
   suggestVatAmount,
   validateInvoiceForm,
@@ -28,6 +30,8 @@ function makeInvoice(overrides: Partial<PendingTaxInvoice>): PendingTaxInvoice {
     amount_excl_vat: 1000,
     vat_amount: 70,
     total_amount: 1070,
+    wht_amount: 0,
+    wht_certificate_id: null,
     reference_no: null,
     expected_date: '2026-07-10',
     status: 'pending',
@@ -55,6 +59,7 @@ const emptyForm: InvoiceFormInput = {
   description: '',
   amount_excl_vat: '',
   vat_amount: '',
+  wht_amount: '',
   reference_no: '',
   expected_date: '',
   notes: '',
@@ -102,6 +107,49 @@ describe('calcTotal', () => {
 
   it('ปัดเศษผลรวมให้ถูกต้อง', () => {
     expect(calcTotal(100.1, 7.02)).toBeCloseTo(107.12, 2);
+  });
+});
+
+describe('calcNetPayment', () => {
+  it('ยอดจ่ายสุทธิ = ยอดรวม - หัก ณ ที่จ่าย', () => {
+    expect(calcNetPayment(1070, 30)).toBe(1040);
+  });
+
+  it('ไม่มีการหัก ณ ที่จ่าย (0) → ยอดจ่ายสุทธิเท่ากับยอดรวม', () => {
+    expect(calcNetPayment(1070, 0)).toBe(1070);
+  });
+
+  it('จัดการค่าที่ไม่ใช่ตัวเลขเป็น 0', () => {
+    expect(calcNetPayment(NaN, 30)).toBe(-30);
+    expect(calcNetPayment(1070, NaN)).toBe(1070);
+  });
+});
+
+describe('isWhtCertEligible', () => {
+  it('มียอดหัก ยังไม่เคยออกใบ ไม่ได้ยกเลิก -> true', () => {
+    expect(isWhtCertEligible(makeInvoice({ wht_amount: 100, wht_certificate_id: null, status: 'pending' }))).toBe(
+      true
+    );
+  });
+
+  it('ไม่มียอดหัก (0) -> false', () => {
+    expect(isWhtCertEligible(makeInvoice({ wht_amount: 0, wht_certificate_id: null }))).toBe(false);
+  });
+
+  it('ออกใบไปแล้ว (มี wht_certificate_id) -> false', () => {
+    expect(isWhtCertEligible(makeInvoice({ wht_amount: 100, wht_certificate_id: 'cert-1' }))).toBe(false);
+  });
+
+  it('รายการที่ยกเลิกแล้ว -> false แม้จะมียอดหักและยังไม่เคยออกใบ', () => {
+    expect(isWhtCertEligible(makeInvoice({ wht_amount: 100, wht_certificate_id: null, status: 'cancelled' }))).toBe(
+      false
+    );
+  });
+
+  it('รายการ received ที่มียอดหักและยังไม่ออกใบ -> true (ไม่ผูกกับ status pending/received)', () => {
+    expect(isWhtCertEligible(makeInvoice({ wht_amount: 100, wht_certificate_id: null, status: 'received' }))).toBe(
+      true
+    );
   });
 });
 
@@ -240,6 +288,57 @@ describe('validateInvoiceForm', () => {
       vat_amount: '-5',
     });
     expect(errors.vat_amount).toBeDefined();
+  });
+
+  it('เว้นว่างช่องหัก ณ ที่จ่าย → ไม่ error (ไม่บังคับกรอก)', () => {
+    const errors = validateInvoiceForm({
+      ...emptyForm,
+      vendor_name: 'A',
+      transaction_date: '2026-07-01',
+      amount_excl_vat: '1000',
+      vat_amount: '70',
+      tax_type: 'claimable_vat',
+    });
+    expect(errors.wht_amount).toBeUndefined();
+  });
+
+  it('ปฏิเสธหัก ณ ที่จ่ายติดลบ', () => {
+    const errors = validateInvoiceForm({
+      ...emptyForm,
+      vendor_name: 'A',
+      transaction_date: '2026-07-01',
+      amount_excl_vat: '1000',
+      vat_amount: '70',
+      tax_type: 'claimable_vat',
+      wht_amount: '-5',
+    });
+    expect(errors.wht_amount).toBeDefined();
+  });
+
+  it('ปฏิเสธหัก ณ ที่จ่ายที่เกินยอดรวม (ยอดก่อน VAT + VAT)', () => {
+    const errors = validateInvoiceForm({
+      ...emptyForm,
+      vendor_name: 'A',
+      transaction_date: '2026-07-01',
+      amount_excl_vat: '1000',
+      vat_amount: '70',
+      tax_type: 'claimable_vat',
+      wht_amount: '2000',
+    });
+    expect(errors.wht_amount).toBeDefined();
+  });
+
+  it('ยอมรับหัก ณ ที่จ่ายที่ถูกต้อง (ไม่เกินยอดรวม)', () => {
+    const errors = validateInvoiceForm({
+      ...emptyForm,
+      vendor_name: 'A',
+      transaction_date: '2026-07-01',
+      amount_excl_vat: '1000',
+      vat_amount: '70',
+      tax_type: 'claimable_vat',
+      wht_amount: '30',
+    });
+    expect(errors.wht_amount).toBeUndefined();
   });
 
   it('ปฏิเสธเมื่อวันที่คาดว่าจะได้รับอยู่ก่อนวันที่ทำรายการ', () => {

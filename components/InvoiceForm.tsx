@@ -2,7 +2,13 @@
 
 import { useState, type FormEvent } from 'react';
 import type { InvoiceFormInput, PendingTaxInvoice, TaxType } from '@/types/invoice';
-import { TAX_TYPE_LABELS, calcTotal, suggestVatAmount, validateInvoiceForm } from '@/lib/invoiceLogic';
+import {
+  TAX_TYPE_LABELS,
+  calcNetPayment,
+  calcTotal,
+  suggestVatAmount,
+  validateInvoiceForm,
+} from '@/lib/invoiceLogic';
 
 const EMPTY_FORM: InvoiceFormInput = {
   vendor_name: '',
@@ -10,6 +16,7 @@ const EMPTY_FORM: InvoiceFormInput = {
   description: '',
   amount_excl_vat: '',
   vat_amount: '',
+  wht_amount: '',
   reference_no: '',
   expected_date: '',
   notes: '',
@@ -26,6 +33,9 @@ function invoiceToForm(invoice: PendingTaxInvoice): InvoiceFormInput {
     description: invoice.description ?? '',
     amount_excl_vat: String(invoice.amount_excl_vat),
     vat_amount: String(invoice.vat_amount),
+    // แสดงเป็นช่องว่างถ้าเป็น 0 (ไม่ใช่เลข "0" ค้างอยู่) เพราะ 0 = ไม่มียอดหักตามดีไซน์ที่ตกลงกันไว้ —
+    // ทำให้แก้ไขรายการเก่าที่ไม่เคยมี WHT แล้วยังเห็นช่องว่างตามปกติ ไม่ใช่ "0" ที่ต้องลบก่อนพิมพ์ใหม่
+    wht_amount: invoice.wht_amount ? String(invoice.wht_amount) : '',
     reference_no: invoice.reference_no ?? '',
     expected_date: invoice.expected_date ?? '',
     notes: invoice.notes ?? '',
@@ -91,6 +101,8 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
   // เคยกรอก VAT ไว้ก่อนสลับมาเลือก "ไม่มี VAT" ทีหลัง) การคำนวณตรงนี้ป้องกันยอดรวมที่แสดงผิดเพี้ยน
   const vatNum = isNoVat ? 0 : parseFloat(form.vat_amount) || 0;
   const total = calcTotal(amountNum, vatNum);
+  const whtNum = parseFloat(form.wht_amount) || 0;
+  const netPayment = calcNetPayment(total, whtNum);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -237,6 +249,32 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
         </div>
       )}
 
+      {/* หัก ณ ที่จ่าย (เพิ่มเข้ามา 2026-08-10) — ไม่บังคับกรอก ไม่ผูกกับ tax_type เพราะ WHT ขึ้นอยู่กับ
+          ประเภทค่าใช้จ่าย/ผู้รับเงิน ไม่เกี่ยวกับ VAT โดยตรง (รายการไม่มี VAT ก็อาจถูกหัก ณ ที่จ่ายได้)
+          เว้นว่างไว้ = ไม่มียอดหัก แสดง "ยอดจ่ายสุทธิ" คำนวณสดให้ดูก่อนบันทึกด้วย */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field label="หัก ณ ที่จ่าย (บาท)" error={errors.wht_amount}>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="ไม่บังคับ — เว้นว่างถ้าไม่มีการหัก"
+            value={form.wht_amount}
+            onChange={(e) => setForm((p) => ({ ...p, wht_amount: e.target.value }))}
+            className={inputClass(Boolean(errors.wht_amount))}
+            data-testid="input-wht"
+          />
+        </Field>
+        <Field label="ยอดจ่ายสุทธิ (บาท)">
+          <div
+            className="font-numeric flex h-12 w-full items-center rounded-[10px] border border-border bg-page-bg px-3.5 text-sm font-semibold text-text"
+            data-testid="computed-net-payment"
+          >
+            {netPayment.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        </Field>
+      </div>
+
       <div className={`grid grid-cols-1 gap-4 ${showExpectedDate ? 'sm:grid-cols-2' : ''}`}>
         <Field label="เลขที่อ้างอิง">
           <input
@@ -301,7 +339,7 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
         <button
           type="button"
           onClick={onCancel}
-          className="btn-press rounded-[10px] border border-border bg-white px-5 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg"
+          className="btn-press rounded-[10px] border border-border bg-white px-5 py-2.5 text-sm font-medium text-gray-500 hover:bg-page-bg"
         >
           ยกเลิก
         </button>
@@ -318,9 +356,15 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
   );
 }
 
+// แก้บั๊กตัวหนังสือมองไม่เห็น (2026-08-11) — ช่องกรอกในฟอร์มนี้เป็น "กล่องขาวบนการ์ดกระจกเข้ม" โดยตั้งใจ
+// (bg-white เฉพาะตัว input เอง ไม่ใช่ทั้งการ์ด) แต่เดิมใช้ text-text/text-text-sub (สีเกือบขาว ออกแบบมา
+// สำหรับพื้นกระจกเข้มเท่านั้น) ทำให้ตัวหนังสือที่พิมพ์ในช่องกรอกมองไม่เห็นบนพื้นขาวของช่องนั้นเอง (บั๊กเดียวกัน
+// กับที่เจอใน ContactForm.tsx แต่คนละสาเหตุเชิงโครงสร้าง — ที่นี่การ์ดรอบนอกยังเป็นกระจกเข้มถูกต้องอยู่ ปัญหา
+// อยู่ที่ตัว input เอง) — label ของฟิลด์ (ฟังก์ชัน Field ด้านล่าง) ยังใช้ text-text ตามเดิมถูกต้อง เพราะ label
+// อยู่บนพื้นการ์ดกระจกเข้ม ไม่ได้อยู่บนกล่องขาว ไม่ต้องแก้
 function inputClass(hasError: boolean): string {
   const base =
-    'w-full rounded-[10px] border bg-white px-3.5 py-3.5 text-sm text-text placeholder:text-text-sub transition-colors duration-[250ms] focus:outline-none';
+    'w-full rounded-[10px] border bg-white px-3.5 py-3.5 text-sm text-gray-800 placeholder:text-gray-400 transition-colors duration-[250ms] focus:outline-none';
   if (hasError) {
     return `${base} border-danger focus:border-danger focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]`;
   }

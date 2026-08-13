@@ -27,6 +27,26 @@ export function calcTotal(amountExclVat: number, vatAmount: number): number {
   return round2(a + v);
 }
 
+/** คำนวณ "ยอดจ่ายสุทธิ" = ยอดรวม - หัก ณ ที่จ่าย (เพิ่มพร้อมฟีเจอร์ WHT, migration_012) — ไม่เก็บเป็น
+ * คอลัมน์ในฐานข้อมูล (total_amount เป็น generated column แก้ให้รวม WHT ไม่ได้) คำนวณสดฝั่ง frontend
+ * เท่านั้น ใช้ทั้งในฟอร์ม (แสดงตัวเลขให้ดูก่อนบันทึก) และตาราง (คอลัมน์ "ยอดจ่ายสุทธิ") */
+export function calcNetPayment(totalAmount: number, whtAmount: number): number {
+  const t = Number.isFinite(totalAmount) ? totalAmount : 0;
+  const w = Number.isFinite(whtAmount) ? whtAmount : 0;
+  return round2(t - w);
+}
+
+/** รายการนี้ออกใบหัก ณ ที่จ่ายได้หรือไม่ — เพิ่มพร้อมฟีเจอร์ "ออกใบหัก ณ ที่จ่าย" (2026-08-11) ต้องมียอดหัก
+ * จริง (wht_amount > 0) ยังไม่เคยออกใบให้มาก่อน (wht_certificate_id เป็น null) และไม่ใช่รายการที่ยกเลิกไปแล้ว
+ * — ไม่ผูกกับ status pending/received เพราะการออกใบหัก ณ ที่จ่ายเกี่ยวกับ "จ่ายเงินจริงแล้ว" ไม่ใช่เกี่ยวกับ
+ * ขั้นตอนรอรับใบกำกับภาษี VAT ซึ่งเป็นคนละเรื่องกัน ใช้ทั้งเช็คว่าจะแสดง checkbox เลือกในตารางหรือไม่ (ดู
+ * components/InvoiceTable.tsx) และเช็คซ้ำอีกชั้นก่อนเปิด modal ออกใบ (ดู app/dashboard/page.tsx) */
+export function isWhtCertEligible(
+  invoice: Pick<PendingTaxInvoice, 'wht_amount' | 'wht_certificate_id' | 'status'>
+): boolean {
+  return invoice.wht_amount > 0 && invoice.wht_certificate_id === null && invoice.status !== 'cancelled';
+}
+
 /** จำนวนวันจาก fromISO ถึง toISO (บวก = toISO อยู่หลัง fromISO) */
 export function daysBetween(fromISO: string, toISO: string): number {
   const from = new Date(fromISO + 'T00:00:00Z').getTime();
@@ -150,6 +170,21 @@ export function validateInvoiceForm(
     const vat = parseFloat(input.vat_amount);
     if (Number.isNaN(vat) || vat < 0) {
       errors.vat_amount = 'จำนวน VAT ไม่ถูกต้อง';
+    }
+  }
+
+  // หัก ณ ที่จ่ายไม่บังคับกรอก (เว้นว่าง = ไม่มียอดหัก) แต่ถ้ากรอกมาต้องเป็นตัวเลขไม่ติดลบ และห้ามเกิน
+  // ยอดก่อน VAT + VAT (ยอดรวม) เพราะหักเกินยอดที่ต้องจ่ายจริงไม่สมเหตุสมผล — เทียบกับยอดรวมที่คำนวณสด
+  // จาก input ตรงๆ (ไม่พึ่ง total_amount ที่มาจากฐานข้อมูล เพราะตอนกรอกฟอร์มยังไม่มีค่านั้น)
+  if (input.wht_amount.trim() !== '') {
+    const wht = parseFloat(input.wht_amount);
+    if (Number.isNaN(wht) || wht < 0) {
+      errors.wht_amount = 'จำนวนหัก ณ ที่จ่ายไม่ถูกต้อง';
+    } else {
+      const total = calcTotal(amount || 0, parseFloat(input.vat_amount) || 0);
+      if (wht > total) {
+        errors.wht_amount = 'ยอดหัก ณ ที่จ่ายต้องไม่เกินยอดรวม';
+      }
     }
   }
 

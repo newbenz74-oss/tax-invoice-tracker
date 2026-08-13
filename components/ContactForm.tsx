@@ -433,7 +433,7 @@ export default function ContactForm({
         <button
           type="button"
           onClick={onCancel}
-          className="btn-press w-full rounded-[10px] border border-border bg-white px-5 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg md:w-auto"
+          className="btn-press w-full rounded-[10px] border border-border bg-white px-5 py-2.5 text-sm font-medium text-gray-500 hover:bg-page-bg md:w-auto"
         >
           {readOnly ? 'ปิด' : 'ยกเลิก'}
         </button>
@@ -465,10 +465,14 @@ export default function ContactForm({
   );
 }
 
+// ช่องกรอก (input/select/textarea) มี bg-white ของตัวเอง ไม่ติด .card-surface จึงเป็นกล่องขาวทึบจริง ใช้
+// text-gray-800/placeholder:text-gray-400 ถูกต้องแล้ว (2026-08-12) — Modal Body ที่ครอบฟอร์มนี้ (บรรทัดถัดไป)
+// ไม่มี bg-white ของตัวเอง จึงวางอยู่บนพื้น .card-surface ของการ์ด modal ตรงๆ (กระจกเข้มเสมอ ดู
+// app/globals.css) หัวข้อ Section/label ของ Field ด้านล่างจึงต้องใช้สีอ่อน text-text/text-text-sub แทน
 /** ช่องกรอกทั่วไป (input/select) — ความสูงคงที่ 44px ตามสเปก (ลดจากเดิมที่ใช้ padding แนวตั้งอย่างเดียว) */
 function inputClass(hasError: boolean): string {
   const base =
-    'h-11 w-full rounded-[10px] border bg-white px-3.5 text-sm text-text placeholder:text-text-sub transition-colors duration-[250ms] focus:outline-none disabled:cursor-not-allowed disabled:bg-page-bg disabled:opacity-70';
+    'h-11 w-full rounded-[10px] border bg-white px-3.5 text-sm text-gray-800 placeholder:text-gray-400 transition-colors duration-[250ms] focus:outline-none disabled:cursor-not-allowed disabled:bg-page-bg disabled:opacity-70';
   if (hasError) {
     return `${base} border-danger focus:border-danger focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]`;
   }
@@ -479,7 +483,7 @@ function inputClass(hasError: boolean): string {
  * แนวตั้งปกติ (ไม่ใช่ h-11 ตายตัวแบบช่องบรรทัดเดียว) */
 function textareaClass(hasError: boolean): string {
   const base =
-    'min-h-[96px] w-full resize-y rounded-[10px] border bg-white px-3.5 py-2.5 text-sm text-text placeholder:text-text-sub transition-colors duration-[250ms] focus:outline-none disabled:cursor-not-allowed disabled:bg-page-bg disabled:opacity-70';
+    'min-h-[96px] w-full resize-y rounded-[10px] border bg-white px-3.5 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 transition-colors duration-[250ms] focus:outline-none disabled:cursor-not-allowed disabled:bg-page-bg disabled:opacity-70';
   if (hasError) {
     return `${base} border-danger focus:border-danger focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]`;
   }

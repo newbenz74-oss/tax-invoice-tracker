@@ -276,6 +276,38 @@ describe('parseExcelRow — จำแนกประเภทภาษีจา�
   });
 });
 
+describe('parseExcelRow — หัก ณ ที่จ่าย (ไม่บังคับกรอก, ใช้ตรรกะแปลงค่าเดียวกับ VAT)', () => {
+  it('ไม่กรอกคอลัมน์หัก ณ ที่จ่าย → ถือเป็น 0 ไม่มี error', () => {
+    const result = parseExcelRow(row(), 2)!;
+    expect(result.wht_amount).toBe('0');
+    expect(result.errors).toEqual([]);
+  });
+
+  it('กรอกยอดหัก ณ ที่จ่ายมาปกติ → อ่านค่าได้ถูกต้อง', () => {
+    const result = parseExcelRow(row({ [EXCEL_HEADERS.wht_amount]: 30 }), 2)!;
+    expect(result.wht_amount).toBe('30');
+    expect(result.errors).toEqual([]);
+  });
+
+  it('"-" หรือค่าว่าง → ถือเป็น 0 เหมือนคอลัมน์ VAT', () => {
+    expect(parseExcelRow(row({ [EXCEL_HEADERS.wht_amount]: '-' }), 2)!.wht_amount).toBe('0');
+    expect(parseExcelRow(row({ [EXCEL_HEADERS.wht_amount]: '' }), 2)!.wht_amount).toBe('0');
+  });
+
+  it('ข้อความที่ไม่ใช่ตัวเลข → error', () => {
+    const result = parseExcelRow(row({ [EXCEL_HEADERS.wht_amount]: 'abc' }), 2)!;
+    expect(result.errors.some((e) => e.includes('หัก ณ ที่จ่ายไม่ถูกต้อง'))).toBe(true);
+  });
+
+  it('ยอดหัก ณ ที่จ่ายเกินยอดรวม (ยอดก่อน VAT + VAT) → error', () => {
+    const result = parseExcelRow(
+      row({ [EXCEL_HEADERS.amount_excl_vat]: 1000, [EXCEL_HEADERS.vat_amount]: 70, [EXCEL_HEADERS.wht_amount]: 2000 }),
+      2
+    )!;
+    expect(result.errors.some((e) => e.includes('หัก ณ ที่จ่ายต้องไม่เกินยอดรวม'))).toBe(true);
+  });
+});
+
 describe('parseExcelRow — ตรวจสอบยอดรวมเทียบกับที่คำนวณได้ (เตือนเท่านั้น ไม่เขียนทับ/ไม่ error)', () => {
   it('ยอดรวมในไฟล์ตรงกับที่คำนวณได้ (ยอดก่อน VAT + VAT) — ไม่มีคำเตือน', () => {
     const result = parseExcelRow(
@@ -336,6 +368,7 @@ describe('excelRowToWriteInput', () => {
       description: 'ค่าสินค้า',
       amount_excl_vat: 1000,
       vat_amount: 70,
+      wht_amount: 0,
       reference_no: 'PO-001',
       expected_date: null,
       notes: null,
@@ -394,6 +427,8 @@ describe('findDuplicateRowNumbers', () => {
       amount_excl_vat: 1000,
       vat_amount: 70,
       total_amount: 1070,
+      wht_amount: 0,
+      wht_certificate_id: null,
       reference_no: 'PO-001',
       expected_date: null,
       status: 'pending',

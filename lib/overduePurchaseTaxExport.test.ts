@@ -15,6 +15,8 @@ function makeInvoice(overrides: Partial<PendingTaxInvoice>): PendingTaxInvoice {
     amount_excl_vat: 1000,
     vat_amount: 70,
     total_amount: 1070,
+    wht_amount: 0,
+    wht_certificate_id: null,
     reference_no: 'PO-001',
     expected_date: '2026-07-25',
     status: 'pending',

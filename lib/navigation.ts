@@ -1,5 +1,6 @@
 import {
   BookUser,
+  Building2,
   Calculator,
   FileClock,
   FileInput,
@@ -7,9 +8,10 @@ import {
   History,
   Landmark,
   LayoutDashboard,
-  Library,
+  Receipt,
   SearchCheck,
   Send,
+  Settings,
   UserCheck,
   type LucideIcon,
 } from 'lucide-react';
@@ -123,16 +125,32 @@ export const NAV_STRUCTURE: NavEntry[] = [
       // เดิมซ้อนอยู่ใต้หมวด "กระทบยอด" > "VAT Reconcile" (2 ชั้น) — ย้ายเข้ามาอยู่ในหมวด "บัญชี" โดยตรง
       // (1 ชั้น) ตามโครงสร้างใหม่ที่ผู้ใช้ระบุ id/label/icon/implemented เดิมทุกประการ
       { id: 'purchase-tax-report', label: 'รายงานภาษีซื้อ', icon: FileInput, implemented: true },
+      // เมนูใหม่ (2026-08-11) ส่วนสุดท้ายของฟีเจอร์ "ออกใบหัก ณ ที่จ่าย" — ดู
+      // components/WhtCertificateHistoryPage.tsx วางไว้ใต้หมวด "บัญชี" ต่อจาก "รายงานภาษีซื้อ" เพราะเป็น
+      // เอกสารทางบัญชีเหมือนกัน (ไม่ใช่ "ข้อมูลตั้งค่า" แบบ 'company-settings' ที่อยู่ใต้หมวด "ตั้งค่า")
+      { id: 'wht-certificates', label: 'ใบหัก ณ ที่จ่าย', icon: Receipt, implemented: true },
     ],
   },
   {
-    // หมวด "ข้อมูลหลัก (Master Data)" — ไม่เปลี่ยนแปลงเลยในรอบปรับโครงสร้างนี้ (ตำแหน่ง/id/label/icon/
-    // children เดิมทุกประการ) ตามที่ผู้ใช้ระบุ ("Keep ข้อมูลหลัก (Master Data)")
+    // หมวดเดิมชื่อ "ข้อมูลหลัก (Master Data)" — เปลี่ยนชื่อเป็น "ตั้งค่า" ทั้งหมวด (2026-08-11 ตามคำขอผู้ใช้
+    // หลังเพิ่มเมนู "ตั้งค่าบริษัท" เข้ามา รู้สึกว่าชื่อเดิมไม่ค่อยสื่อกับเนื้อหาข้างในแล้ว) คง id 'master-data'
+    // ไว้เหมือนเดิมทุกประการ (ไม่เปลี่ยนเป็น 'settings' หรืออื่นๆ) เพราะใช้เป็น key เก็บสถานะ expand/collapse
+    // ของหมวดนี้ใน localStorage อยู่ (ดู allSectionIds/readInitialExpanded ใน components/Sidebar.tsx) —
+    // เปลี่ยน id จะทำให้ผู้ใช้เดิมที่เคยยุบ/ขยายหมวดนี้ไว้ค้างใน localStorage เสียสถานะไปเฉยๆ โดยไม่จำเป็น
+    // เปลี่ยนแค่ label เท่านั้น icon/children/ตำแหน่งเดิมทุกประการ
     id: 'master-data',
-    label: 'ข้อมูลหลัก (Master Data)',
-    icon: Library,
+    label: 'ตั้งค่า',
+    // ไอคอนฟันเฟือง (Settings) แทน Library เดิม (2026-08-11 พร้อมการเปลี่ยนชื่อหมวดเป็น "ตั้งค่า") — Library
+    // ไม่ได้ใช้ที่ไหนอื่นในระบบแล้ว ตัดออกจาก import ด้านบนไปด้วย
+    icon: Settings,
     children: [
       { id: 'address-book', label: 'สมุดรายชื่อ', icon: BookUser, implemented: true },
+      // เมนูใหม่ (2026-08-11) พื้นฐานแรกของฟีเจอร์ "ออกใบหัก ณ ที่จ่าย" — เก็บข้อมูลฝั่งผู้จ่ายเงิน
+      // (ที่อยู่/เลขผู้เสียภาษี/สำนักงานใหญ่หรือสาขา/ชื่อผู้ลงนามเริ่มต้น) ดู
+      // components/CompanySettingsPage.tsx และ supabase/migration_013_company_settings.sql — วางไว้ใต้
+      // หมวด "ตั้งค่า" ต่อจาก "สมุดรายชื่อ" สมาชิกทุกคนเห็น/แก้ไขได้เหมือนกันหมด (ไม่ใช่ adminOnly แบบ
+      // 'manage-members' ด้านล่าง)
+      { id: 'company-settings', label: 'ตั้งค่าบริษัท', icon: Building2, implemented: true },
     ],
   },
   // เมนูใหม่ (2026-08-10) พร้อมระบบอนุมัติสมาชิกใหม่ — ผู้ใช้ระบุชัดเจนให้ย้ายมาไว้ล่างสุดของเมนูที่มองเห็นได้

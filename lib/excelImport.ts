@@ -20,6 +20,9 @@ export const EXCEL_HEADERS = {
   description: 'รายละเอียด',
   amount_excl_vat: 'ยอดก่อน VAT',
   vat_amount: 'VAT',
+  // เพิ่มพร้อมฟีเจอร์ "หัก ณ ที่จ่าย" (migration_012, 2026-08-10) — ไม่บังคับกรอก เว้นว่าง/"-"/0 = ไม่มี
+  // ยอดหัก ใช้ตรรกะแปลงค่าเดียวกับคอลัมน์ VAT (ดู parseVatCell) เพราะเป็นตัวเลขไม่ติดลบเหมือนกัน
+  wht_amount: 'หัก ณ ที่จ่าย',
   total_amount: 'ยอดรวม',
   reference_no: 'เลขที่อ้างอิง',
   expected_date: 'วันที่คาดว่าจะได้รับใบกำกับภาษี',
@@ -40,6 +43,8 @@ export interface ExcelImportRow {
   // no_vat) ไม่มีคอลัมน์ให้ผู้ใช้กรอก/เลือกเองอีกต่อไป — '' หมายถึงคอลัมน์ VAT มีค่าที่อ่านเป็นตัวเลข
   // ไม่ได้ (ดู errors) ยังจำแนกประเภทไม่ได้ แถวนี้จะ import ไม่ได้จนกว่าจะแก้ไขค่า VAT ให้ถูกต้อง
   tax_type: TaxType | '';
+  // ไม่บังคับกรอก — ค่าว่าง/"-"/0 ล้วนหมายถึง "0" (ไม่มียอดหัก) เหมือนคอลัมน์ VAT ทุกประการ (parseVatCell)
+  wht_amount: string;
   reference_no: string;
   expected_date: string;
   notes: string;
@@ -164,6 +169,7 @@ export function parseExcelRow(raw: Record<string, unknown>, rowNumber: number): 
   const description = cellToString(raw[EXCEL_HEADERS.description]);
   const amountRaw = raw[EXCEL_HEADERS.amount_excl_vat];
   const vatRaw = raw[EXCEL_HEADERS.vat_amount];
+  const whtRaw = raw[EXCEL_HEADERS.wht_amount];
   const totalRaw = raw[EXCEL_HEADERS.total_amount];
   const reference_no = cellToString(raw[EXCEL_HEADERS.reference_no]);
   const expectedDateRaw = raw[EXCEL_HEADERS.expected_date];
@@ -214,6 +220,26 @@ export function parseExcelRow(raw: Record<string, unknown>, rowNumber: number): 
     tax_type = vatCell.amount > 0 ? 'claimable_vat' : 'no_vat';
   }
 
+  // หัก ณ ที่จ่าย — ไม่บังคับกรอก ใช้ตรรกะแปลงค่าเดียวกับคอลัมน์ VAT (ว่าง/"-"/0 = 0) ตรวจสอบเพิ่มว่า
+  // ต้องไม่เกินยอดรวม (ยอดก่อน VAT + VAT) ที่คำนวณได้จากแถวนี้ เหมือนกับที่ฟอร์มเพิ่มรายการด้วยตนเอง
+  // ตรวจสอบ (ดู validateInvoiceForm ใน lib/invoiceLogic.ts)
+  const whtCell = parseVatCell(whtRaw);
+  let wht_amount: string;
+  if (whtCell.kind === 'invalid') {
+    errors.push(
+      `หัก ณ ที่จ่ายไม่ถูกต้อง: "${whtCell.raw}" (ต้องเป็นตัวเลขที่ไม่ติดลบ หรือเว้นว่าง/"-" ถ้าไม่มีการหัก)`
+    );
+    wht_amount = cellToString(whtRaw);
+  } else {
+    wht_amount = String(whtCell.amount);
+    if (amountValid && vatCell.kind === 'ok') {
+      const computedTotal = round2(amountNum + vatCell.amount);
+      if (whtCell.amount > computedTotal) {
+        errors.push('ยอดหัก ณ ที่จ่ายต้องไม่เกินยอดรวม (ยอดก่อน VAT + VAT)');
+      }
+    }
+  }
+
   // ตรวจสอบยอดรวมที่ผู้ใช้กรอกมาในไฟล์ (ถ้ามี) เทียบกับผลรวมที่คำนวณได้จริง (ยอดก่อน VAT + VAT) — แค่
   // เตือนเฉยๆ ไม่ error และไม่มีทาง "เขียนทับ" อะไรอยู่แล้ว เพราะยอดรวมจริงในฐานข้อมูลเป็นคอลัมน์ที่
   // Supabase คำนวณอัตโนมัติเสมอ (generated column) ไม่เคยอ่านค่าจากคอลัมน์นี้ไปบันทึกตรงๆ
@@ -250,6 +276,7 @@ export function parseExcelRow(raw: Record<string, unknown>, rowNumber: number): 
     amount_excl_vat,
     vat_amount,
     tax_type,
+    wht_amount,
     reference_no,
     expected_date,
     notes,
@@ -308,6 +335,7 @@ export function excelRowToWriteInput(row: ExcelImportRow): InvoiceWriteInput {
     description: row.description.trim() || null,
     amount_excl_vat: parseFloat(row.amount_excl_vat) || 0,
     vat_amount: isNoVat ? 0 : parseFloat(row.vat_amount) || 0,
+    wht_amount: parseFloat(row.wht_amount) || 0,
     reference_no: row.reference_no.trim() || null,
     expected_date: isNoVat ? null : row.expected_date || null,
     notes: row.notes.trim() || null,
@@ -339,6 +367,7 @@ export function buildTemplateBlob(): Blob {
       [EXCEL_HEADERS.description]: 'ค่าสินค้า/บริการ ตัวอย่างรายการมี VAT (ลบแถวนี้ทิ้งแล้วกรอกของจริงแทนได้เลย)',
       [EXCEL_HEADERS.amount_excl_vat]: 1000,
       [EXCEL_HEADERS.vat_amount]: 70,
+      [EXCEL_HEADERS.wht_amount]: 30,
       [EXCEL_HEADERS.total_amount]: '(ไม่ต้องกรอก ระบบคำนวณให้อัตโนมัติ)',
       [EXCEL_HEADERS.reference_no]: 'PO-0001',
       [EXCEL_HEADERS.expected_date]: '',
@@ -351,6 +380,7 @@ export function buildTemplateBlob(): Blob {
       [EXCEL_HEADERS.description]: 'ตัวอย่างรายการไม่มี VAT — เว้นว่างช่อง VAT ไว้ (ลบแถวนี้ทิ้งแล้วกรอกของจริงแทนได้เลย)',
       [EXCEL_HEADERS.amount_excl_vat]: 500,
       [EXCEL_HEADERS.vat_amount]: '',
+      [EXCEL_HEADERS.wht_amount]: '',
       [EXCEL_HEADERS.total_amount]: '(ไม่ต้องกรอก ระบบคำนวณให้อัตโนมัติ)',
       [EXCEL_HEADERS.reference_no]: '',
       [EXCEL_HEADERS.expected_date]: '',

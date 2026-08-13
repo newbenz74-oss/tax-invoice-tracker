@@ -28,6 +28,9 @@ export interface InvoiceWriteInput {
   description: string | null;
   amount_excl_vat: number;
   vat_amount: number;
+  // เพิ่มสำหรับฟีเจอร์ "หัก ณ ที่จ่าย" (migration_012) — optional เพื่อไม่กระทบผู้เรียกเดิมที่ยังไม่รู้จัก
+  // ค่านี้ (จะ fallback เป็นค่าเริ่มต้นที่ฐานข้อมูล = 0) ผู้เรียกใหม่ (ฟอร์ม/Excel import) ควรส่งมาเสมอ
+  wht_amount?: number;
   reference_no: string | null;
   expected_date: string | null;
   notes: string | null;

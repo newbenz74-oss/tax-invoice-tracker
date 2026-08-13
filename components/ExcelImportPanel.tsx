@@ -59,6 +59,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
       0
     );
     const totalVat = importableRows.reduce((sum, r) => sum + (parseFloat(r.vat_amount) || 0), 0);
+    const totalWht = importableRows.reduce((sum, r) => sum + (parseFloat(r.wht_amount) || 0), 0);
     return {
       total: reviewRows.length,
       vatCount,
@@ -67,6 +68,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
       includedCount: importableRows.length,
       totalAmount: round2(totalAmount),
       totalVat: round2(totalVat),
+      totalWht: round2(totalWht),
     };
   }, [reviewRows, importableRows]);
 
@@ -148,7 +150,8 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
       <p className="text-sm text-text-sub">
         นำเข้ารายการยอดซื้อหลายรายการพร้อมกันจากไฟล์ Excel — ดาวน์โหลดเทมเพลต กรอกข้อมูล แล้วอัปโหลดกลับมา
         ระบบจะตรวจจากยอดในคอลัมน์ &quot;VAT&quot; ให้อัตโนมัติเสมอ: กรอกยอด VAT มา (มากกว่า 0) ถือเป็น
-        &quot;มี VAT&quot; ส่วนเว้นว่างไว้ หรือใส่ 0 หรือเครื่องหมาย &quot;-&quot; ถือเป็น &quot;ไม่มี VAT&quot; —
+        &quot;มี VAT&quot; ส่วนเว้นว่างไว้ หรือใส่ 0 หรือเครื่องหมาย &quot;-&quot; ถือเป็น &quot;ไม่มี VAT&quot; — คอลัมน์
+        &quot;หัก ณ ที่จ่าย&quot; ไม่บังคับกรอก เว้นว่างไว้ถือว่าไม่มีการหัก ณ ที่จ่ายสำหรับรายการนั้น —
         ตรวจสอบผลลัพธ์อีกครั้งได้ในหน้าตรวจสอบก่อนนำเข้าจริง
       </p>
 
@@ -210,7 +213,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-border bg-white/5 p-3 text-xs sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-border bg-white/5 p-3 text-xs sm:grid-cols-5">
             <div>
               <span className="text-text-sub">จะนำเข้า</span>{' '}
               <span className="font-numeric font-semibold text-text" data-testid="import-summary-count">
@@ -227,6 +230,12 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
               <span className="text-text-sub">VAT รวม</span>{' '}
               <span className="font-numeric font-semibold text-text" data-testid="import-summary-vat">
                 {summary.totalVat.toLocaleString('th-TH', THB2)} บาท
+              </span>
+            </div>
+            <div>
+              <span className="text-text-sub">หัก ณ ที่จ่ายรวม</span>{' '}
+              <span className="font-numeric font-semibold text-text" data-testid="import-summary-wht">
+                {summary.totalWht.toLocaleString('th-TH', THB2)} บาท
               </span>
             </div>
             <div>
@@ -247,6 +256,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
                   <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">วันที่</th>
                   <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">ยอดก่อน VAT</th>
                   <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">VAT</th>
+                  <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">หัก ณ ที่จ่าย</th>
                   <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">ยอดรวม</th>
                   <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">ประเภทที่ระบบตรวจพบ</th>
                   <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">สถานะตรวจสอบ</th>
@@ -257,6 +267,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
                 {displayedRows.map((r) => {
                   const amount = parseFloat(r.amount_excl_vat) || 0;
                   const vat = parseFloat(r.vat_amount) || 0;
+                  const wht = parseFloat(r.wht_amount) || 0;
                   const hasError = r.errors.length > 0;
                   const messages = [
                     ...r.errors,
@@ -290,6 +301,12 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
                         {r.vat_amount !== '' && Number.isFinite(parseFloat(r.vat_amount))
                           ? vat.toLocaleString('th-TH', THB2)
                           : r.vat_amount || '-'}
+                      </td>
+                      <td className="font-numeric px-3.5 py-2.5 text-right text-text-sub">
+                        {/* หัก ณ ที่จ่ายอ่านเป็นตัวเลขไม่ได้ (มี error) — โชว์ข้อความดิบที่กรอกมาแทน */}
+                        {r.wht_amount !== '' && Number.isFinite(parseFloat(r.wht_amount))
+                          ? wht.toLocaleString('th-TH', THB2)
+                          : r.wht_amount || '-'}
                       </td>
                       <td className="font-numeric px-3.5 py-2.5 text-right text-text-sub">
                         {r.amount_excl_vat || r.vat_amount ? (amount + vat).toLocaleString('th-TH', THB2) : '-'}
