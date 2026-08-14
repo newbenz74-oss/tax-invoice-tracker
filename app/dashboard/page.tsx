@@ -327,7 +327,10 @@ function ExpenseRecordContent({
   // pending/received/cancelled เดิมทุกประการ ไม่แตะ InvoiceStatus/deriveStatusForTaxType เลย) เป็นแค่แท็บ
   // กรองฝั่ง UI เพิ่มเติมที่แยกรายการ tax_type = no_vat ออกจากหมวด "ได้รับแล้ว" เดิม — ดู visibleInvoices
   // ด้านล่างสำหรับ logic การกรองจริง
-  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all' | 'no_vat'>(() =>
+  // เพิ่มค่า 'wht' เข้ามาอีกตัว (2026-08-14 ตามคำขอผู้ใช้) — เหมือน 'no_vat' คือไม่ใช่ค่า status จริงในฐานข้อมูล
+  // เช่นกัน เป็นแท็บกรองฝั่ง UI ที่คัดเฉพาะรายการที่มี wht_amount มากกว่า 0 (มีการหัก ณ ที่จ่ายจริง) ไม่สนใจ
+  // pending/received เดิม (ตัดขวางได้ทุกสถานะเหมือน 'no_vat')
+  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all' | 'no_vat' | 'wht'>(() =>
     initialIntent?.type === 'filter' ? initialIntent.status : 'pending'
   );
   const [search, setSearch] = useState('');
@@ -394,6 +397,13 @@ function ExpenseRecordContent({
       filtered = filterInvoices(invoices, { search }).filter(
         (i) => i.tax_type === 'no_vat' && i.status !== 'cancelled'
       );
+    } else if (statusFilter === 'wht') {
+      // แท็บใหม่ (2026-08-14 ตามคำขอผู้ใช้) — เหมือนแท็บ 'no_vat' คือกรองด้วยฟิลด์อื่นตรงๆ ที่ชั้นนี้แทน
+      // filterInvoices (ซึ่งกรองด้วย status เท่านั้น) คัดเฉพาะรายการที่มี wht_amount > 0 (มีการหัก ณ ที่จ่าย
+      // จริง) ไม่รวมรายการที่ถูกยกเลิกไปแล้วเช่นเดียวกับ 'no_vat' (ยังอยู่ในแท็บ "ยกเลิก" ตามเดิม)
+      filtered = filterInvoices(invoices, { search }).filter(
+        (i) => (i.wht_amount ?? 0) > 0 && i.status !== 'cancelled'
+      );
     } else if (statusFilter === 'received') {
       // หมวด "ได้รับแล้ว" ตอนนี้หมายถึงเฉพาะรายการที่เป็น VAT (claimable_vat/non_claimable_vat หรือ null
       // ของข้อมูลเก่าก่อนมีฟีเจอร์นี้) และได้รับเอกสารแล้วเท่านั้น ตามที่ผู้ใช้ระบุ ("หมวด ได้รับแล้ว จะเป็น
@@ -420,7 +430,7 @@ function ExpenseRecordContent({
     [visibleInvoices, safePage]
   );
 
-  function handleStatusFilterChange(status: InvoiceStatus | 'all' | 'no_vat') {
+  function handleStatusFilterChange(status: InvoiceStatus | 'all' | 'no_vat' | 'wht') {
     setStatusFilter(status);
     setPage(1);
   }
@@ -536,8 +546,10 @@ function ExpenseRecordContent({
               entrance-animate เมื่อครู่ ทำให้หลุดจากธีมเข้มไปชั่วคราว ใส่กลับให้ตรงกับไฟล์อื่นๆ ในระบบ */}
           <div className="entrance-animate entrance-delay-1 flex flex-wrap gap-2">
             {/* เพิ่มแท็บ 'no_vat' เข้ามาต่อจาก 'received' (2026-08-10 ตามคำขอผู้ใช้) — ดูคอมเมนต์ที่
-                ประกาศ statusFilter/visibleInvoices ด้านบนสำหรับ logic การกรองจริง */}
-            {(['all', 'pending', 'received', 'no_vat', 'cancelled'] as const).map((s) => (
+                ประกาศ statusFilter/visibleInvoices ด้านบนสำหรับ logic การกรองจริง
+                เพิ่มแท็บ 'wht' คั่นระหว่าง 'received' กับ 'no_vat' อีกตัว (2026-08-14 ตามคำขอผู้ใช้ — ลำดับ
+                ที่ต้องการคือ ทั้งหมด, รอรับ, ได้รับแล้ว, WHT, ไม่มี VAT, ยกเลิก) */}
+            {(['all', 'pending', 'received', 'wht', 'no_vat', 'cancelled'] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => handleStatusFilterChange(s)}
@@ -554,9 +566,11 @@ function ExpenseRecordContent({
                     ? 'รอรับ'
                     : s === 'received'
                       ? 'ได้รับแล้ว'
-                      : s === 'no_vat'
-                        ? 'ไม่มี VAT'
-                        : 'ยกเลิก'}
+                      : s === 'wht'
+                        ? 'WHT'
+                        : s === 'no_vat'
+                          ? 'ไม่มี VAT'
+                          : 'ยกเลิก'}
               </button>
             ))}
           </div>
