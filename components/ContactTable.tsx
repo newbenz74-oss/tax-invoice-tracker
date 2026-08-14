@@ -100,6 +100,10 @@ export default function ContactTable({ contacts, onView, onEdit, onToggleStatus,
           <tbody className="divide-y divide-border/60">
             {contacts.map((contact, index) => {
               const isBusy = busyId === contact.id;
+              // เมนู "จัดการ" ของ 2 แถวสุดท้ายเปิดขึ้นด้านบนแทนด้านล่าง (2026-08-14 ตามคำขอผู้ใช้ — เหมือนกับ
+              // ที่แก้ไปแล้วใน InvoiceTable.tsx ทุกประการ ดูคอมเมนต์เต็มที่นั่น) ป้องกันเมนูโผล่พ้นขอบจอตอน
+              // ตารางมีแถวน้อย (เช่นเหลือแค่แถวเดียว) เหมือนในสกรีนช็อตที่ผู้ใช้ส่งมา
+              const openUpward = index >= contacts.length - 2;
               return (
                 <tr
                   key={contact.id}
@@ -153,10 +157,12 @@ export default function ContactTable({ contacts, onView, onEdit, onToggleStatus,
                       </button>
 
                       <div
-                        className={`absolute right-0 top-full z-20 mt-1.5 w-40 rounded-[10px] border border-border bg-card-bg p-1.5 shadow-lg transition-all duration-200 ease-out ${
+                        className={`absolute right-0 z-20 w-40 rounded-[10px] border border-border bg-card-bg p-1.5 shadow-lg transition-all duration-200 ease-out ${
+                          openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                        } ${
                           expandedActionsId === contact.id
                             ? 'pointer-events-auto translate-y-0 opacity-100'
-                            : 'pointer-events-none -translate-y-2 opacity-0'
+                            : `pointer-events-none opacity-0 ${openUpward ? 'translate-y-2' : '-translate-y-2'}`
                         }`}
                       >
                         <div className="flex flex-col gap-1">
