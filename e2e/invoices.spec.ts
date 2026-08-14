@@ -75,46 +75,12 @@ test.describe('Invoice CRUD และ business logic', () => {
     expect(errors).toEqual([]);
   });
 
-  test('แสดง badge aging ตามวันที่คาดว่าจะได้รับเทียบกับวันนี้', async ({ page }) => {
-    const errors = attachConsoleErrorCollector(page);
-    await setupMockSupabase(page, {
-      loggedInAs: OWNER,
-      users: [{ email: OWNER, password: 'x' }],
-      invoices: [
-        {
-          id: 'inv-not-due',
-          vendor_name: 'ผู้ขาย ยังไม่ถึงกำหนด',
-          transaction_date: isoDaysFromNow(-5),
-          amount_excl_vat: 100,
-          vat_amount: 7,
-          expected_date: isoDaysFromNow(5),
-        },
-        {
-          id: 'inv-overdue-mid',
-          vendor_name: 'ผู้ขาย เกินกำหนด 10 วัน',
-          transaction_date: isoDaysFromNow(-20),
-          amount_excl_vat: 100,
-          vat_amount: 7,
-          expected_date: isoDaysFromNow(-10),
-        },
-        {
-          id: 'inv-overdue-far',
-          vendor_name: 'ผู้ขาย เกินกำหนดมาก',
-          transaction_date: isoDaysFromNow(-60),
-          amount_excl_vat: 100,
-          vat_amount: 7,
-          expected_date: isoDaysFromNow(-40),
-        },
-      ],
-    });
-    await gotoRecordExpense(page);
-    await page.getByTestId('filter-all').click();
-
-    await expect(page.getByTestId('aging-badge-inv-not-due')).toContainText('ยังไม่ถึงกำหนด');
-    await expect(page.getByTestId('aging-badge-inv-overdue-mid')).toContainText('เกินกำหนด 8-14 วัน');
-    await expect(page.getByTestId('aging-badge-inv-overdue-far')).toContainText('เกินกำหนดมากกว่า 30 วัน');
-    expect(errors).toEqual([]);
-  });
+  // หมายเหตุ: เดิมเทสต์นี้ชื่อ "แสดง badge aging ตามวันที่คาดว่าจะได้รับเทียบกับวันนี้" ตรวจป้าย Aging
+  // (aging-badge-*) ที่เคยอยู่ใต้ป้ายสถานะในคอลัมน์ "สถานะ / Aging" ของตาราง — ผู้ใช้ขอเอาป้ายนี้ออกทั้งหมด
+  // จากตารางบันทึกการจ่ายเงิน (2026-08-14, เห็นเป็นวงกลม "-" ใต้ป้ายสถานะ "รอรับใบกำกับภาษี" ในสกรีนช็อตจริง)
+  // ลบเทสต์นี้ทิ้งทั้งก้อนเพราะ element ที่ทดสอบไม่มีอยู่ในตารางนี้แล้ว — getAgingBucket/AGING_LABELS ใน
+  // lib/invoiceLogic.ts ยังอยู่และยังมีเทสต์ของตัวเองใน lib/invoiceLogic.test.ts เหมือนเดิม (ฟีเจอร์ Aging
+  // ยังใช้จริงที่หน้า "ภาษีซื้อที่ยังไม่ได้รับ" / OverdueInvoiceDetailModal ฯลฯ แค่ไม่โชว์ที่ตารางนี้อีกต่อไป)
 
   // หมายเหตุ: เดิมเทสต์นี้ยังตรวจการ์ดสถิติ "VAT ที่รอรับ" (stat-pending-vat) และสรุป VAT รายเดือน
   // (vat-pending-*/vat-received-*) ด้วย — ย้ายส่วนนั้นไปอยู่ e2e/dashboardOverview.spec.ts แล้ว

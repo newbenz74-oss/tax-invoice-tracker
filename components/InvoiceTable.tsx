@@ -4,10 +4,7 @@ import { useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { MarkReceivedInput, PendingTaxInvoice } from '@/types/invoice';
 import {
-  AGING_BADGE_CLASS,
-  AGING_LABELS,
   calcNetPayment,
-  getAgingBucket,
   getTaxInvoiceStatusBadgeClass,
   getTaxInvoiceStatusLabel,
   isWhtCertEligible,
@@ -166,13 +163,12 @@ export default function InvoiceTable({
                 คำนวณสด (total_amount - wht_amount) ไม่ใช่คอลัมน์ในฐานข้อมูล ดู lib/invoiceLogic.ts calcNetPayment */}
             <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">หัก ณ ที่จ่าย</th>
             <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">ยอดจ่ายสุทธิ</th>
-            <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">สถานะ / Aging</th>
+            <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">สถานะ</th>
             <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">การจัดการ</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
           {invoices.map((invoice, index) => {
-            const bucket = getAgingBucket(invoice.expected_date, invoice.status, today);
             const isReceiving = receivingId === invoice.id;
             const isBusy = busyId === invoice.id;
             return (
@@ -228,22 +224,15 @@ export default function InvoiceTable({
                   {THB.format(calcNetPayment(invoice.total_amount, invoice.wht_amount))}
                 </td>
                 <td className="px-[18px] py-[18px]">
-                  <div className="flex flex-col gap-1">
-                    <span
-                      className={`inline-block w-fit rounded-full px-3.5 py-2 text-xs font-medium ${getTaxInvoiceStatusBadgeClass(invoice)}`}
-                      data-testid={`tax-status-badge-${invoice.id}`}
-                    >
-                      {getTaxInvoiceStatusLabel(invoice)}
-                    </span>
-                    {invoice.status === 'pending' && (
-                      <span
-                        className={`inline-block w-fit rounded-full px-3.5 py-2 text-xs font-medium ${AGING_BADGE_CLASS[bucket]}`}
-                        data-testid={`aging-badge-${invoice.id}`}
-                      >
-                        {AGING_LABELS[bucket]}
-                      </span>
-                    )}
-                  </div>
+                  {/* เอาป้าย Aging (ช่อง "-" ใต้สถานะ) ออกทั้งหมด (2026-08-14 ตามคำขอผู้ใช้) — เดิมคอลัมน์นี้มี
+                      2 ป้ายซ้อนกัน (สถานะ + Aging) เหลือแค่ป้ายสถานะป้ายเดียว ไม่ต้องมี div ครอบ flex-col
+                      อีกต่อไปเพราะมีลูกแค่ตัวเดียว */}
+                  <span
+                    className={`inline-block w-fit rounded-full px-3.5 py-2 text-xs font-medium ${getTaxInvoiceStatusBadgeClass(invoice)}`}
+                    data-testid={`tax-status-badge-${invoice.id}`}
+                  >
+                    {getTaxInvoiceStatusLabel(invoice)}
+                  </span>
                 </td>
                 <td className="px-[18px] py-[18px]">
                   {isReceiving ? (
