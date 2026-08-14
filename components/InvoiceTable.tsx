@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import type { MarkReceivedInput, PendingTaxInvoice, SortDirection, SortField } from '@/types/invoice';
+import type { MarkReceivedInput, PendingTaxInvoice } from '@/types/invoice';
 import {
   AGING_BADGE_CLASS,
   AGING_LABELS,
@@ -25,9 +25,6 @@ function formatDate(iso: string | null): string {
 interface InvoiceTableProps {
   invoices: PendingTaxInvoice[];
   today: string;
-  sortField: SortField;
-  sortDirection: SortDirection;
-  onSortChange: (field: SortField) => void;
   onEdit: (invoice: PendingTaxInvoice) => void;
   onMarkReceived: (invoice: PendingTaxInvoice, input: MarkReceivedInput) => Promise<void>;
   onCancelInvoice: (invoice: PendingTaxInvoice) => Promise<void>;
@@ -46,22 +43,24 @@ interface InvoiceTableProps {
   whtCertificatesById?: Map<string, { cert_number: string; payee_name: string }>;
 }
 
-// เอาคอลัมน์ "คาดว่าจะได้รับ" ออกจากตารางแล้ว (2026-08-10 ตามคำขอผู้ใช้) — ยังคง 'expected_date' ไว้เป็น
-// ค่าเริ่มต้นของ sortField ใน app/dashboard/page.tsx เหมือนเดิม (ไม่กระทบ การเรียงลำดับข้อมูลยังทำงานปกติ
-// แค่ไม่มีคอลัมน์ให้กดเปลี่ยนการเรียงลำดับด้วยฟิลด์นี้ในตารางอีกต่อไปเท่านั้น) และ getAgingBucket ด้านล่างยัง
-// ใช้ invoice.expected_date คำนวณป้าย Aging (รอรับกี่วัน) อยู่เหมือนเดิมทุกประการ ไม่ได้ลบข้อมูลนี้ทิ้ง แค่ไม่
+// เอาคอลัมน์ "คาดว่าจะได้รับ" ออกจากตารางแล้ว (2026-08-10 ตามคำขอผู้ใช้) — getAgingBucket ด้านล่างยังใช้
+// invoice.expected_date คำนวณป้าย Aging (รอรับกี่วัน) อยู่เหมือนเดิมทุกประการ ไม่ได้ลบข้อมูลนี้ทิ้ง แค่ไม่
 // โชว์เป็นคอลัมน์แยกอีกต่อไป
 //
 // เอาคอลัมน์ "ยอดรวม" ออกจากตารางแล้วเช่นกัน (2026-08-10 ตามคำขอผู้ใช้ หลังเพิ่มฟีเจอร์หัก ณ ที่จ่าย) — ผู้ใช้
 // เห็นว่า "ยอดรวม" กับ "ยอดจ่ายสุทธิ" ที่เพิ่มเข้ามาใหม่ดูซ้ำซ้อนกัน (ส่วนใหญ่ไม่มี WHT ตัวเลขจึงเท่ากันพอดี)
 // จึงเหลือแสดงแค่ "ยอดจ่ายสุทธิ" คอลัมน์เดียว (= ยอดรวม - หัก ณ ที่จ่าย, เท่ากับยอดรวมเป๊ะๆ เมื่อไม่มี WHT)
 // total_amount ยังคงอยู่ในข้อมูล/ฐานข้อมูลเหมือนเดิมทุกประการ (ยังใช้คำนวณยอดจ่ายสุทธิ, ใช้ในรายงานภาษีซื้อ,
-// สรุปยอด ฯลฯ) แค่ไม่มีคอลัมน์ "ยอดรวม" แยกให้กดเรียงลำดับในตารางนี้อีกต่อไป (sortField เริ่มต้นเป็น
-// 'expected_date' อยู่แล้ว ไม่ใช่ 'total_amount' จึงไม่กระทบการเรียงลำดับเริ่มต้น)
-const COLUMNS: { field: SortField; label: string }[] = [
-  { field: 'vendor_name', label: 'ผู้ขาย' },
-  { field: 'transaction_date', label: 'วันที่ทำรายการ' },
-];
+// สรุปยอด ฯลฯ) แค่ไม่มีคอลัมน์ "ยอดรวม" แยกอีกต่อไป
+//
+// เอาการคลิกหัวตารางเพื่อเรียงลำดับออกทั้งหมดแล้ว (2026-08-14 ตามคำขอผู้ใช้ — เดิมหัวตาราง "ผู้ขาย"/
+// "วันที่ทำรายการ" กดแล้วสลับ asc/desc ได้ ผู้ใช้แจ้งว่ากดโดนแล้วเข้าใจผิดคิดว่าเป็นตัวกรอง ไม่ต้องการให้กดแล้ว
+// เปลี่ยนลำดับได้อีก) เดิมมี COLUMNS array วนสร้างหัวตารางที่คลิกได้ตรงนี้ ตอนนี้ลบทิ้งแล้ว หัวตารางทุกคอลัมน์
+// เป็น <th> ธรรมดาแบบเดียวกับคอลัมน์อื่นๆ ทั้งหมด (ดู thead ด้านล่าง) — ลำดับข้อมูลยังคงเดิมเสมอ กำหนดจาก
+// app/dashboard/page.tsx (sortField/sortDirection ค่าคงที่ ไม่มี UI ให้ผู้ใช้เปลี่ยนอีกต่อไป)
+//
+// จัดลำดับคอลัมน์ใหม่ตามคำขอผู้ใช้ (2026-08-14): วันที่ทำรายการ, เลขที่อ้างอิง, ผู้ขาย, ยอดก่อน VAT, VAT,
+// หัก ณ ที่จ่าย, ยอดจ่ายสุทธิ, สถานะ/Aging, การจัดการ (เดิมคือ ผู้ขาย, วันที่ทำรายการ, ..., เลขที่อ้างอิง, ...)
 
 // อินพุตในตาราง (แถบ "มาร์กว่าได้รับแล้ว") ตั้งใจให้กระชับกว่า input ทั่วไปของระบบ (สูง 48px)
 // เพราะอยู่ในเซลล์ตารางแคบๆ ที่มี 5 ฟิลด์เรียงต่อกัน ใช้ความสูงเต็ม 48px ตรงนี้จะทำให้แถวสูง
@@ -75,9 +74,6 @@ const inlineInputClass =
 export default function InvoiceTable({
   invoices,
   today,
-  sortField,
-  sortDirection,
-  onSortChange,
   onEdit,
   onMarkReceived,
   onCancelInvoice,
@@ -166,24 +162,15 @@ export default function InvoiceTable({
             {/* คอลัมน์ checkbox เลือกออกใบหัก ณ ที่จ่าย (2026-08-11) — แสดงหัวคอลัมน์เฉพาะตอนที่ parent
                 ส่ง selectedIds/onToggleSelect มาจริงๆ (ไม่บังคับ ดู props ด้านบน) */}
             {selectedIds && onToggleSelect && <th className="w-10 px-[18px] py-[18px]" />}
-            {COLUMNS.map((col) => (
-              <th
-                key={col.field}
-                onClick={() => onSortChange(col.field)}
-                className="cursor-pointer select-none px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub hover:text-primary"
-                data-testid={`sort-${col.field}`}
-              >
-                {col.label}
-                {sortField === col.field && (sortDirection === 'asc' ? ' ▲' : ' ▼')}
-              </th>
-            ))}
+            <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">วันที่ทำรายการ</th>
+            <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">เลขที่อ้างอิง</th>
+            <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">ผู้ขาย</th>
             <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">ยอดก่อน VAT</th>
             <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">VAT</th>
             {/* เพิ่มพร้อมฟีเจอร์ "หัก ณ ที่จ่าย" (2026-08-10) — wht_amount เป็น 0 = ไม่มีการหัก, ยอดจ่ายสุทธิ
                 คำนวณสด (total_amount - wht_amount) ไม่ใช่คอลัมน์ในฐานข้อมูล ดู lib/invoiceLogic.ts calcNetPayment */}
             <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">หัก ณ ที่จ่าย</th>
             <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">ยอดจ่ายสุทธิ</th>
-            <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">เลขที่อ้างอิง</th>
             <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">สถานะ / Aging</th>
             <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">การจัดการ</th>
           </tr>
@@ -215,6 +202,8 @@ export default function InvoiceTable({
                     )}
                   </td>
                 )}
+                <td className="px-[18px] py-[18px] text-text-sub">{formatDate(invoice.transaction_date)}</td>
+                <td className="px-[18px] py-[18px] text-text-sub">{invoice.reference_no || '-'}</td>
                 <td className="px-[18px] py-[18px] font-medium text-text">
                   {invoice.vendor_name}
                   {/* เลขที่ใบหัก ณ ที่จ่าย + ชื่อที่ออกใบให้ (2026-08-12) — แสดงเฉพาะแถวที่ผูกกับใบที่ยัง
@@ -233,7 +222,6 @@ export default function InvoiceTable({
                       );
                     })()}
                 </td>
-                <td className="px-[18px] py-[18px] text-text-sub">{formatDate(invoice.transaction_date)}</td>
                 <td
                   className="font-numeric px-[18px] py-[18px] text-right text-text-sub"
                   data-testid={`amount-excl-vat-${invoice.id}`}
@@ -258,7 +246,6 @@ export default function InvoiceTable({
                 >
                   {THB.format(calcNetPayment(invoice.total_amount, invoice.wht_amount))}
                 </td>
-                <td className="px-[18px] py-[18px] text-text-sub">{invoice.reference_no || '-'}</td>
                 <td className="px-[18px] py-[18px]">
                   <div className="flex flex-col gap-1">
                     <span

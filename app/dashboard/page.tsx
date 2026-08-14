@@ -331,8 +331,17 @@ function ExpenseRecordContent({
     initialIntent?.type === 'filter' ? initialIntent.status : 'pending'
   );
   const [search, setSearch] = useState('');
-  const [sortField, setSortField] = useState<SortField>('expected_date');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  // เอาการเรียงลำดับด้วยการคลิกหัวตารางออกแล้ว (2026-08-14 ตามคำขอผู้ใช้ — ผู้ใช้กดโดนหัวตาราง
+  // "วันที่ทำรายการ" แล้วเข้าใจว่าเป็นตัวกรอง ไม่ต้องการให้กดแล้วเปลี่ยนลำดับได้อีกต่อไป) เปลี่ยนจาก state
+  // (มี setter) เป็นค่าคงที่ตรงๆ แทน — ผู้ใช้แก้ไขลำดับเองจาก UI ไม่ได้อีกต่อไป
+  //
+  // ค่าเริ่มต้นเปลี่ยนเป็น "วันที่ทำรายการ ล่าสุดอยู่บนสุด" (2026-08-14 คำขอถัดมา — ยืนยันชัดเจนด้วยตัวอย่าง
+  // 12/08/2569 → 11/08/2569 → 05/08/2569 → 31/07/2569 → 15/07/2569 เรียงจากมากไปน้อย ไม่มีตัวช่วยจัดลำดับรอง
+  // อื่นตามที่เคยถามไว้ก่อนหน้า — เดิมเป็น 'expected_date' asc ซึ่งเป็นค่าตกค้างจากตอนที่ยังมีคอลัมน์
+  // "คาดว่าจะได้รับ" อยู่ในตาราง) sortInvoices() (lib/invoiceLogic.ts) เทียบสตริง ISO date ('YYYY-MM-DD')
+  // ตรงๆ อยู่แล้ว เรียงถูกต้องตามลำดับเวลาจริงโดยไม่ต้องแปลงเป็น Date object
+  const sortField: SortField = 'transaction_date';
+  const sortDirection: SortDirection = 'desc';
 
   // รายการที่ตรงกับ invoiceId ของ NavIntent ชนิด 'edit-invoice' (ปุ่ม "แก้ไข" จากหน้า "ภาษีซื้อที่ยังไม่
   // ได้รับ" — ดู components/OverduePurchaseTaxReport.tsx) — คำนวณสดทุก render (ไม่ใช้ useMemo/useEffect
@@ -428,16 +437,6 @@ function ExpenseRecordContent({
     () => visibleInvoices.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
     [visibleInvoices, safePage]
   );
-
-  function handleSortChange(field: SortField) {
-    if (field === sortField) {
-      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-    setPage(1);
-  }
 
   function handleStatusFilterChange(status: InvoiceStatus | 'all' | 'no_vat') {
     setStatusFilter(status);
@@ -665,9 +664,6 @@ function ExpenseRecordContent({
           <InvoiceTable
             invoices={paginatedInvoices}
             today={today}
-            sortField={sortField}
-            sortDirection={sortDirection}
-            onSortChange={handleSortChange}
             onEdit={(invoice) => {
               setEditingInvoice(invoice);
               setShowForm(true);

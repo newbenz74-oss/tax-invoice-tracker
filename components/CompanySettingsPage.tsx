@@ -253,7 +253,7 @@ export default function CompanySettingsPage() {
                   type="button"
                   disabled={logoBusy}
                   onClick={() => logoFileInputRef.current?.click()}
-                  className="btn-press inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-white px-3.5 py-2 text-xs font-semibold text-text hover:bg-page-bg disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn-press inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-xs font-semibold text-text-sub hover:bg-page-bg hover:text-text disabled:cursor-not-allowed disabled:opacity-60"
                   data-testid="upload-company-logo"
                 >
                   {logoBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Upload className="h-3.5 w-3.5" aria-hidden="true" />}
