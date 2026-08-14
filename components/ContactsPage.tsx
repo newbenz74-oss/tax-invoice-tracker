@@ -3,7 +3,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -129,50 +128,19 @@ export default function ContactsPage() {
   const discardDialogRef = useRef<HTMLDivElement>(null);
   const wasOpenRef = useRef(false);
 
-  // Segmented Control — Sliding Pill Indicator: เก็บ ref ของ container/แต่ละปุ่ม/ตัว indicator เอง แล้ว
-  // "วาง" ตำแหน่ง/ความกว้างของ indicator ด้วยการเขียน DOM style ตรงๆ ผ่าน ref (ไม่ใช้ React state) ตั้งใจ
-  // ไม่ใช้ setState ใน useEffect เพราะจะชนกฎ react-hooks/set-state-in-effect ของโปรเจกต์นี้ (severity
-  // error, ดู eslint.config.mjs) — การขยับ pill เป็นแค่ภาพล้วนๆ ไม่มีความหมายเชิง state ที่ต้อง re-render
-  // ตาม จึงเหมาะกับการจัดการนอก React แบบนี้อยู่แล้วด้วย (เบากว่า re-render ทั้ง component ทุกครั้งที่ขยับ)
-  const segmentedListRef = useRef<HTMLDivElement>(null);
-  const indicatorRef = useRef<HTMLSpanElement>(null);
+  // Segmented Control (2026-08-14 ตัดระบบ "Sliding Pill Indicator" ที่วางตำแหน่ง/ความกว้างด้วย
+  // getBoundingClientRect() ผ่าน ref ออกทั้งหมด — ผู้ใช้ยืนยันด้วยสกรีนช็อตจริงว่าแท็บไฮไลต์สีฟ้าเลื่อนไปอยู่
+  // ผิดตำแหน่ง ไม่ตรงกับตัวหนังสือปุ่มที่เลือกจริง (คาดว่าเกี่ยวกับ html { zoom: 70% } ใน globals.css ทำให้ค่า
+  // ตำแหน่ง/ขนาดที่วัดได้จาก getBoundingClientRect ไม่ตรงกับที่ควรจะเป็นในบางจังหวะ) แทนที่จะไล่แก้ปัญหา
+  // timing/zoom ที่วัดผลจริงไม่ได้ในสภาพแวดล้อมนี้ เปลี่ยนมาใช้ pattern เดียวกับแท็บกรองสถานะในหน้า
+  // "บันทึกการจ่ายเงิน" (app/dashboard/page.tsx) ที่ใช้อยู่แล้วในระบบนี้เหมือนกัน — ใส่สี bg-primary ตรงๆ ที่
+  // ปุ่ม active ผ่าน conditional className แทน ไม่ต้องวัด DOM เลย ตัดปัญหาการเลื่อนผิดตำแหน่งได้ที่ต้นตอ
   const tabRefs = useRef<Partial<Record<(typeof PARTNER_TABS)[number], HTMLButtonElement | null>>>({});
   // wrapper รอบตาราง+pagination — ใช้เล่น animation "dip" ซ้ำทุกครั้งที่เปลี่ยน Segmented Control ผ่าน
   // classList โดยตรง (ดู handlePartnerFilterChange) ไม่ใช้ React state/useEffect เช่นกัน
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
   const counts = useMemo(() => computeContactCounts(contacts), [contacts]);
-
-  // วางตำแหน่ง/ความกว้างของ indicator ให้ตรงกับปุ่มที่ active อยู่จริง (อ่านตำแหน่งจริงจาก DOM เพราะความ
-  // กว้างของแต่ละปุ่มไม่เท่ากัน ขึ้นกับความยาวข้อความ+ตัวเลขจำนวนที่เปลี่ยนได้) — เขียนผ่าน ref ตรงๆ ไม่
-  // setState จึงเรียกจาก useLayoutEffect ตรงๆ ได้โดยไม่ชนกฎ set-state-in-effect (ไม่มี setState เลยในนี้)
-  const positionIndicator = useCallback(() => {
-    const activeTab = tabRefs.current[partnerFilter];
-    const container = segmentedListRef.current;
-    const indicator = indicatorRef.current;
-    if (!activeTab || !container || !indicator) return;
-    const containerRect = container.getBoundingClientRect();
-    const tabRect = activeTab.getBoundingClientRect();
-    // ใช้ translate(x, y) + width/height (ไม่ใช่แค่ x/width) เผื่อกรณีจอแคบมากจนปุ่มตกลงไปคนละแถว
-    // (flex-wrap) — indicator จะยังคงอยู่ตำแหน่ง/ขนาดที่ตรงกับปุ่ม active จริงเสมอไม่ว่าจะอยู่แถวไหน
-    indicator.style.transform = `translate(${tabRect.left - containerRect.left}px, ${tabRect.top - containerRect.top}px)`;
-    indicator.style.width = `${tabRect.width}px`;
-    indicator.style.height = `${tabRect.height}px`;
-  }, [partnerFilter]);
-
-  // วางตำแหน่งใหม่ก่อน paint เสมอทุกครั้งที่ partnerFilter เปลี่ยน (สลับปุ่ม active) หรือจำนวนนับในแต่ละ
-  // ปุ่มเปลี่ยน (ความกว้างข้อความเปลี่ยนตาม เช่น "(1)" เทียบกับ "(12)") — useLayoutEffect เพื่อไม่ให้เห็น
-  // indicator "กระตุก" ไปตำแหน่งเดิมแวบหนึ่งก่อนขยับ
-  useLayoutEffect(() => {
-    positionIndicator();
-  }, [positionIndicator, counts.all, counts.customer, counts.vendor]);
-
-  // วางตำแหน่งใหม่ตอนหน้าต่างเบราว์เซอร์ปรับขนาด (เช่น ข้อความปุ่มตกบรรทัด/ความกว้างเปลี่ยนที่ breakpoint
-  // ต่างๆ) — สมัคร/ยกเลิก listener ปกติ ไม่มี setState ในนี้เลย (positionIndicator เขียน DOM ตรงๆ)
-  useEffect(() => {
-    window.addEventListener('resize', positionIndicator);
-    return () => window.removeEventListener('resize', positionIndicator);
-  }, [positionIndicator]);
 
   // บันทึกตัวเลือก Segmented Control ล่าสุดไว้ทุกครั้งที่เปลี่ยน เพื่อให้จำได้ข้าม refresh (ตามสเปก —
   // เลียนแบบ pattern เดียวกับ expanded/activeId ที่มีอยู่แล้วในระบบทุกประการ)
@@ -427,15 +395,17 @@ export default function ContactsPage() {
   const modalSubtitle = modalMode ? MODAL_SUBTITLES[modalMode] : '';
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-8">
+    // ขยายจาก max-w-6xl (1152px) เป็น max-w-[1400px] (2026-08-14 ตามคำขอผู้ใช้ "ตารางขยับซ้ายและขวาเพิ่มให้
+    // กว้างหน่อย") ให้ตารางมีที่ว่างซ้าย-ขวาเพิ่มขึ้น — ใช้ค่าเดียวกับ WhtCertificateHistoryPage.tsx (หน้า
+    // ตาราง/รายการที่กว้างกว่าค่าเริ่มต้น max-w-6xl/max-w-4xl ของหน้าฟอร์ม/ตั้งค่าทั่วไปในระบบนี้อยู่แล้ว)
+    <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-8 sm:px-8">
       <div className="mb-8 flex flex-col gap-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Segmented Control — role=tablist/tab + aria-selected ตามสเปก Accessibility, รองรับ
               ArrowLeft/ArrowRight/Home/End (handleSegmentedKeyDown) นอกเหนือจาก Tab+Enter/Space ที่
-              <button> รองรับเองอยู่แล้ว ตัว indicator (span ตัวแรก) เลื่อน/ปรับขนาดด้วย DOM ref ตรงๆ
-              (positionIndicator) ไม่ใช่ React state — ดูคอมเมนต์ที่ประกาศ ref ด้านบน */}
+              <button> รองรับเองอยู่แล้ว ไฮไลต์ปุ่ม active ใช้ bg-primary ตรงๆ ผ่าน conditional className
+              ไม่มีกลไก sliding indicator/DOM measurement แล้ว (ดูคอมเมนต์ที่ประกาศ tabRefs ด้านบน) */}
           <div
-            ref={segmentedListRef}
             role="tablist"
             aria-label="กรองประเภทรายชื่อ"
             onKeyDown={handleSegmentedKeyDown}
@@ -446,16 +416,9 @@ export default function ContactsPage() {
             // การ์ด/โมดัลที่ติดคลาส .card-surface (พื้นกระจกเข้มเสมอ ชนะ bg-white ตาม CSS Cascade Layers ดู
             // app/globals.css) องค์ประกอบที่วางตรงบนพื้นนั้น (ไม่มีกล่องขาวของตัวเองอีกชั้น) ต้องใช้สีอ่อน
             // text-text/text-text-sub เท่านั้น (เช่น dialog "ยังไม่ได้บันทึกข้อมูล" ด้านล่าง)
-            className="entrance-animate entrance-delay-1 relative flex flex-wrap gap-1 rounded-full border border-border bg-white p-1"
+            className="entrance-animate entrance-delay-1 flex flex-wrap gap-1 rounded-full border border-border bg-white p-1"
             data-testid="contact-segmented-control"
           >
-            <span
-              ref={indicatorRef}
-              aria-hidden="true"
-              className="pointer-events-none absolute top-0 left-0 rounded-full bg-primary shadow-sm transition-[transform,width,height] duration-[240ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
-              style={{ width: 0, height: 0, transform: 'translate(0px, 0px)' }}
-              data-testid="contact-segmented-indicator"
-            />
             {PARTNER_TABS.map((pt) => {
               const isActive = partnerFilter === pt;
               return (
@@ -469,8 +432,8 @@ export default function ContactsPage() {
                   aria-selected={isActive}
                   tabIndex={isActive ? 0 : -1}
                   onClick={() => handlePartnerFilterChange(pt)}
-                  className={`btn-press relative z-10 rounded-full px-4 py-2 text-sm font-medium transition-colors duration-[220ms] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-                    isActive ? 'text-white' : 'text-gray-500 hover:text-primary'
+                  className={`btn-press rounded-full px-4 py-2 text-sm font-medium transition-colors duration-[220ms] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+                    isActive ? 'bg-primary text-white shadow-sm' : 'text-gray-500 hover:text-primary'
                   }`}
                   data-testid={`contact-filter-${pt}`}
                 >

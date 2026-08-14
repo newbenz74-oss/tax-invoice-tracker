@@ -171,6 +171,13 @@ export default function InvoiceTable({
           {invoices.map((invoice, index) => {
             const isReceiving = receivingId === invoice.id;
             const isBusy = busyId === invoice.id;
+            // เมนู "จัดการเอกสาร" ของ 2 แถวสุดท้ายในหน้านี้เปิดขึ้นด้านบนแทนด้านล่าง (2026-08-14 ตามคำขอ
+            // ผู้ใช้ — เดิมเปิดลงด้านล่างเสมอ ทำให้แถวใกล้ท้ายตาราง/ท้ายหน้าเมนูโผล่พ้นขอบจอ มองไม่เห็นตัวเลือก
+            // ที่อยู่ล่างๆ ของเมนู) ใช้ index เทียบกับความยาว invoices (จำนวนแถวจริงของหน้านี้หลัง pagination
+            // ไม่ใช่ PAGE_SIZE คงที่ เพราะหน้าสุดท้ายอาจมีน้อยกว่านั้น) แทนการวัดตำแหน่งจริงด้วย
+            // getBoundingClientRect ซึ่งเพิ่งพบว่าให้ค่าที่เพี้ยนได้ (ดู components/ContactsPage.tsx ที่เพิ่งตัด
+            // การวัด DOM แบบนี้ออกไปเพราะปัญหาเดียวกัน) — วิธีนี้ไม่ต้องวัด DOM เลย ทำนายทิศทางได้แน่นอนเสมอ
+            const openUpward = index >= invoices.length - 2;
             return (
               <tr
                 key={invoice.id}
@@ -344,10 +351,12 @@ export default function InvoiceTable({
                         />
                       </button>
                       <div
-                        className={`absolute right-0 top-full z-20 mt-1.5 w-44 rounded-[10px] border border-border bg-card-bg p-1.5 shadow-lg transition-all duration-200 ease-out ${
+                        className={`absolute right-0 z-20 w-44 rounded-[10px] border border-border bg-card-bg p-1.5 shadow-lg transition-all duration-200 ease-out ${
+                          openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                        } ${
                           expandedActionsId === invoice.id
                             ? 'pointer-events-auto translate-y-0 opacity-100'
-                            : 'pointer-events-none -translate-y-2 opacity-0'
+                            : `pointer-events-none opacity-0 ${openUpward ? 'translate-y-2' : '-translate-y-2'}`
                         }`}
                       >
                         <div className="flex flex-col gap-1">

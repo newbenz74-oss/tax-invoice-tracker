@@ -703,7 +703,13 @@ test.describe('สมุดรายชื่อ: Animation เปิดหน�
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
 
-  test('Segmented Control: role=tablist/tab + aria-selected ถูกต้อง และ Indicator เลื่อนไปยังตัวเลือกที่ active จริง', async ({
+  // เดิมชื่อเทสต์นี้ยังตรวจ "Indicator เลื่อนไปยังตัวเลือกที่ active จริง" ด้วย (แถบไฮไลต์สีฟ้าแบบ sliding pill
+  // ที่วางตำแหน่ง/ความกว้างด้วย getBoundingClientRect() ผ่าน ref) — ผู้ใช้แจ้งด้วยสกรีนช็อตจริงว่าแท็บไฮไลต์
+  // เลื่อนไปอยู่ผิดตำแหน่งไม่ตรงกับปุ่มที่เลือกจริง (2026-08-14, สงสัยว่าเกี่ยวกับ html { zoom: 70% } ทำให้ค่า
+  // ที่วัดได้จาก DOM ไม่ตรง) จึงตัดกลไก sliding indicator ออกทั้งหมดจาก components/ContactsPage.tsx เปลี่ยนไป
+  // ใส่สี bg-primary ตรงๆ ที่ปุ่ม active แทน (เหมือนแท็บกรองสถานะหน้า "บันทึกการจ่ายเงิน") ไม่ต้องวัด DOM เลย —
+  // เทสต์นี้เปลี่ยนมาตรวจว่าปุ่ม active มีคลาส bg-primary ตรงๆ แทนการเช็คตำแหน่ง/ขนาดของ indicator เดิม
+  test('Segmented Control: role=tablist/tab + aria-selected ถูกต้อง และปุ่มที่ active มีไฮไลต์ตรงตัว', async ({
     page,
   }) => {
     const errors = attachConsoleErrorCollector(page);
@@ -722,27 +728,19 @@ test.describe('สมุดรายชื่อ: Animation เปิดหน�
     await expect(page.getByTestId('contact-filter-all')).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByTestId('contact-filter-vendor')).toHaveAttribute('aria-selected', 'false');
 
-    async function indicatorAlignsWith(testId: string) {
-      const tabBox = await page.getByTestId(testId).boundingBox();
-      await expect
-        .poll(async () => {
-          const indicatorBox = await page.getByTestId('contact-segmented-indicator').boundingBox();
-          if (!tabBox || !indicatorBox) return null;
-          return Math.abs(indicatorBox.x - tabBox.x) < 2 && Math.abs(indicatorBox.width - tabBox.width) < 2;
-        })
-        .toBe(true);
-    }
-
-    // เริ่มต้นที่ "ทั้งหมด" — indicator ต้องอยู่ตรงปุ่มนี้ตั้งแต่แรกโดยไม่ต้องคลิกก่อน
-    await indicatorAlignsWith('contact-filter-all');
+    // เริ่มต้นที่ "ทั้งหมด" — ต้องมีไฮไลต์ตั้งแต่แรกโดยไม่ต้องคลิกก่อน ปุ่มอื่นต้องไม่มี
+    await expect(page.getByTestId('contact-filter-all')).toHaveClass(/bg-primary/);
+    await expect(page.getByTestId('contact-filter-vendor')).not.toHaveClass(/bg-primary/);
 
     await page.getByTestId('contact-filter-vendor').click();
     await expect(page.getByTestId('contact-filter-vendor')).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByTestId('contact-filter-all')).toHaveAttribute('aria-selected', 'false');
-    await indicatorAlignsWith('contact-filter-vendor');
+    await expect(page.getByTestId('contact-filter-vendor')).toHaveClass(/bg-primary/);
+    await expect(page.getByTestId('contact-filter-all')).not.toHaveClass(/bg-primary/);
 
     await page.getByTestId('contact-filter-customer').click();
-    await indicatorAlignsWith('contact-filter-customer');
+    await expect(page.getByTestId('contact-filter-customer')).toHaveClass(/bg-primary/);
+    await expect(page.getByTestId('contact-filter-vendor')).not.toHaveClass(/bg-primary/);
 
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);
   });
