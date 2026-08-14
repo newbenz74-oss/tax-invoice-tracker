@@ -36,7 +36,7 @@ import {
   updateInvoice,
   type InvoiceWriteInput,
 } from '@/lib/invoiceApi';
-import { deriveStatusForTaxType, filterInvoices, isWhtCertEligible, sortInvoices } from '@/lib/invoiceLogic';
+import { deriveStatusForTaxType, filterInvoices, sortInvoices } from '@/lib/invoiceLogic';
 import { excelRowToWriteInput, type ExcelImportRow } from '@/lib/excelImport';
 import { CONTACTS_SWR_KEY, fetchContacts } from '@/lib/contactApi';
 import { fetchWhtCertificates, WHT_CERTIFICATES_SWR_KEY } from '@/lib/whtCertificateApi';
@@ -362,38 +362,20 @@ function ExpenseRecordContent({
   // ล้วนๆ ฝั่ง client (slice array ก่อน render) ไม่แตะ lib/invoiceLogic.ts หรือการเรียก API ใดๆ เลย
   const [page, setPage] = useState(1);
 
-  // เลือกรายการไว้ออกใบหัก ณ ที่จ่ายรวมกัน (เพิ่มพร้อมฟีเจอร์นี้ 2026-08-11) — เก็บเป็น Set ของ invoice id
-  // อยู่ที่ชั้นนี้ (ไม่ใช่ใน InvoiceTable) เพราะแถบปุ่ม "ออกใบหัก ณ ที่จ่าย (N รายการ)" ลอยอยู่นอกตาราง
-  // (เหนือ pagination) และคงอยู่ข้ามหน้า pagination ได้เองโดยธรรมชาติ (เก็บด้วย id ไม่ใช่ index)
-  const [selectedWhtIds, setSelectedWhtIds] = useState<Set<string>>(new Set());
-  const [showWhtModal, setShowWhtModal] = useState(false);
+  // ออกใบหัก ณ ที่จ่ายทีละรายการจากเมนู "จัดการเอกสาร" ของแต่ละแถวในตาราง (2026-08-14 ตามคำขอผู้ใช้ — เดิม
+  // ติ๊กเลือกได้หลายรายการ (ผู้ขายเดียวกัน) ผ่าน checkbox + แถบปุ่มลอยด้านล่างจอ ผู้ใช้ขอเปลี่ยนใจให้ย้ายเข้าไป
+  // เป็นตัวเลือกหนึ่งในเมนู "จัดการเอกสาร" แทน ("จัดการใบหัก ณ ที่จ่าย" อยู่ระหว่าง "ได้รับแล้ว"/"ยกเลิกรายการ"
+  // — ดู components/InvoiceTable.tsx) เอา checkbox/แถบปุ่มลอย/การรวมหลายรายการเป็นใบเดียวออกทั้งหมด เก็บแค่
+  // invoice เดียวที่กำลังจะออกใบอยู่ (null = ไม่ได้เปิด modal อยู่) แทน Set ของ id เดิม
+  const [whtIssueInvoice, setWhtIssueInvoice] = useState<PendingTaxInvoice | null>(null);
 
-  function toggleWhtSelect(id: string) {
-    setSelectedWhtIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  const selectedWhtInvoices = useMemo(
-    () => invoices.filter((inv) => selectedWhtIds.has(inv.id) && isWhtCertEligible(inv)),
-    [invoices, selectedWhtIds]
-  );
-  const selectedWhtVendorMismatch =
-    selectedWhtInvoices.length > 1 &&
-    selectedWhtInvoices.some((inv) => inv.vendor_name.trim() !== selectedWhtInvoices[0].vendor_name.trim());
-
-  // ออกใบสำเร็จ -> ดาวน์โหลด PDF ให้ทันที (เพิ่มพร้อม lib/whtCertificatePdf.ts) ใช้ selectedWhtInvoices ที่
-  // ยัง capture ไว้ก่อนล้างการเลือก (invoices ต้นทางที่ประกอบเป็นใบนี้ ไม่ใช่ invoices ทั้งหมดในตาราง) —
-  // ห่อ downloadBlob ด้วย try/catch แยกต่างหากจาก mutate() เพราะการสร้าง PDF ไม่สำเร็จ (เช่น browser
-  // บล็อก popup การดาวน์โหลด) ไม่ควรทำให้ผู้ใช้เข้าใจผิดว่าออกใบไม่สำเร็จ — ใบถูกบันทึกลงฐานข้อมูลแล้วจริง
-  // เสมอ ณ จุดนี้ (ผู้ใช้ยังไปดาวน์โหลดซ้ำได้ทีหลังจากหน้าประวัติ #55)
+  // ออกใบสำเร็จ -> ดาวน์โหลด PDF ให้ทันที (เพิ่มพร้อม lib/whtCertificatePdf.ts) ใช้ invoice ที่ capture ไว้ตอน
+  // เปิด modal (whtIssueInvoice ก่อนถูกล้างเป็น null) — ห่อ downloadBlob ด้วย try/catch แยกต่างหากจาก mutate()
+  // เพราะการสร้าง PDF ไม่สำเร็จ (เช่น browser บล็อก popup การดาวน์โหลด) ไม่ควรทำให้ผู้ใช้เข้าใจผิดว่าออกใบไม่
+  // สำเร็จ — ใบถูกบันทึกลงฐานข้อมูลแล้วจริงเสมอ ณ จุดนี้ (ผู้ใช้ยังไปดาวน์โหลดซ้ำได้ทีหลังจากหน้าประวัติ #55)
   async function handleWhtIssued(cert: WhtCertificate) {
-    const issuedInvoices = selectedWhtInvoices;
-    setSelectedWhtIds(new Set());
-    setShowWhtModal(false);
+    const issuedInvoices = whtIssueInvoice ? [whtIssueInvoice] : [];
+    setWhtIssueInvoice(null);
     await Promise.all([mutate(), mutateWhtCertificates()]);
     try {
       const blob = buildWhtCertificatePdf(cert, issuedInvoices);
@@ -672,56 +654,21 @@ function ExpenseRecordContent({
             onMarkReceived={handleMarkReceived}
             onCancelInvoice={handleCancelInvoice}
             onDelete={handleDelete}
-            selectedIds={selectedWhtIds}
-            onToggleSelect={toggleWhtSelect}
+            onIssueWht={setWhtIssueInvoice}
             whtCertificatesById={whtCertificatesById}
           />
 
-          {/* แถบปุ่ม "ออกใบหัก ณ ที่จ่าย" ลอยอยู่เหนือ pagination (เพิ่มพร้อมฟีเจอร์นี้ 2026-08-11) — แสดงเฉพาะ
-              ตอนมีรายการที่เลือกไว้อย่างน้อย 1 รายการเท่านั้น เตือนถ้าเลือกข้ามผู้ขายกัน (บล็อกปุ่มยืนยัน แต่
-              ยังกดล้างที่เลือกได้เสมอ) */}
-          {selectedWhtIds.size > 0 && (
-            <div
-              className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary-light px-4 py-3"
-              data-testid="wht-selection-bar"
-            >
-              <p className="text-sm font-medium text-text">
-                เลือกไว้ {selectedWhtInvoices.length} รายการ
-                {selectedWhtVendorMismatch && (
-                  <span className="ml-2 text-xs font-normal text-danger">
-                    (เลือกได้เฉพาะผู้ขายเดียวกันเท่านั้น — กรุณาเลือกใหม่)
-                  </span>
-                )}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedWhtIds(new Set())}
-                  className="btn-press rounded-[10px] border border-border bg-white px-3.5 py-2 text-xs font-medium text-text-sub hover:bg-page-bg"
-                >
-                  ล้างที่เลือก
-                </button>
-                <button
-                  type="button"
-                  disabled={selectedWhtVendorMismatch || selectedWhtInvoices.length === 0}
-                  onClick={() => setShowWhtModal(true)}
-                  className="btn-press rounded-[10px] bg-primary px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
-                  data-testid="open-issue-wht-cert"
-                >
-                  ออกใบหัก ณ ที่จ่าย
-                </button>
-              </div>
-            </div>
-          )}
-
-          {showWhtModal && selectedCompany && selectedWhtInvoices.length > 0 && !selectedWhtVendorMismatch && (
+          {/* modal ออกใบหัก ณ ที่จ่าย — เปิดทีละรายการจากเมนู "จัดการเอกสาร" > "จัดการใบหัก ณ ที่จ่าย" ของแต่ละ
+              แถว (2026-08-14 ตามคำขอผู้ใช้ — เอา checkbox + แถบปุ่มลอยเลือกหลายรายการออกทั้งหมดแล้ว ดู
+              components/InvoiceTable.tsx) */}
+          {whtIssueInvoice && selectedCompany && (
             <IssueWhtCertificateModal
-              invoices={selectedWhtInvoices}
+              invoices={[whtIssueInvoice]}
               contacts={contacts}
               company={selectedCompany}
               companyId={selectedCompanyId!}
               createdByEmail={session?.user?.email ?? null}
-              onClose={() => setShowWhtModal(false)}
+              onClose={() => setWhtIssueInvoice(null)}
               onIssued={handleWhtIssued}
               onGoToContacts={onNavigate ? () => onNavigate('address-book') : undefined}
             />

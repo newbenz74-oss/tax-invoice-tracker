@@ -29,13 +29,12 @@ interface InvoiceTableProps {
   onMarkReceived: (invoice: PendingTaxInvoice, input: MarkReceivedInput) => Promise<void>;
   onCancelInvoice: (invoice: PendingTaxInvoice) => Promise<void>;
   onDelete: (invoice: PendingTaxInvoice) => Promise<void>;
-  // เพิ่มพร้อมฟีเจอร์ "ออกใบหัก ณ ที่จ่าย" (2026-08-11) — selection state ยกไปเก็บที่ parent
-  // (ExpenseRecordContent) แทนเก็บใน component นี้เอง เพราะแถบปุ่ม "ออกใบหัก ณ ที่จ่าย (N รายการ)" ลอยอยู่
-  // นอกตาราง (เหนือ pagination) ต้องอ่านค่าเดียวกันได้ ไม่บังคับส่งมา (optional) เพื่อไม่กระทบจุดอื่นที่อาจ
-  // เรียกใช้ InvoiceTable โดยไม่ต้องรองรับฟีเจอร์นี้ (ปัจจุบันมีจุดเรียกจุดเดียวคือ ExpenseRecordContent แต่กัน
-  // ไว้เผื่ออนาคต) — checkbox แสดงเฉพาะแถวที่ isWhtCertEligible() เป็น true เท่านั้น
-  selectedIds?: Set<string>;
-  onToggleSelect?: (id: string) => void;
+  // เพิ่มพร้อมฟีเจอร์ "ออกใบหัก ณ ที่จ่าย" (2026-08-11) — เดิมเลือกได้หลายรายการผ่าน checkbox + แถบปุ่มลอย
+  // นอกตาราง เปลี่ยนเป็นออกทีละรายการจากเมนู "จัดการเอกสาร" ของแต่ละแถวแทน (2026-08-14 ตามคำขอผู้ใช้ — ดู
+  // ตัวเลือก "จัดการใบหัก ณ ที่จ่าย" ในเมนูด้านล่าง) เรียกเมื่อกดเลือกแถวใดแถวหนึ่งที่ isWhtCertEligible() เป็น
+  // true เท่านั้น (ตัวเลือกในเมนูก็แสดงเฉพาะแถวที่เข้าเงื่อนไขนี้เช่นกัน) ไม่บังคับส่งมา (optional) เพื่อไม่กระทบ
+  // จุดอื่นที่อาจเรียกใช้ InvoiceTable โดยไม่ต้องรองรับฟีเจอร์นี้
+  onIssueWht?: (invoice: PendingTaxInvoice) => void;
   // เพิ่มเข้ามาตามคำขอผู้ใช้ (2026-08-12) — แสดงเลขที่ใบหัก ณ ที่จ่าย + ชื่อที่ออกใบให้ เป็นตัวเล็กๆ ใต้ชื่อ
   // ผู้ขายของแถวที่ออกใบไปแล้ว (invoice.wht_certificate_id ไม่เป็น null) เก็บเป็น Map คีย์ด้วย cert id เพราะ
   // parent (ExpenseRecordContent) ดึงใบหัก ณ ที่จ่ายทั้งหมดของบริษัทมาแล้ว แค่ต้อง lookup ตรงๆ ไม่ query ซ้ำ
@@ -78,8 +77,7 @@ export default function InvoiceTable({
   onMarkReceived,
   onCancelInvoice,
   onDelete,
-  selectedIds,
-  onToggleSelect,
+  onIssueWht,
   whtCertificatesById,
 }: InvoiceTableProps) {
   const [receivingId, setReceivingId] = useState<string | null>(null);
@@ -159,9 +157,6 @@ export default function InvoiceTable({
       <table className="min-w-full divide-y divide-border text-sm">
         <thead className="bg-table-header">
           <tr>
-            {/* คอลัมน์ checkbox เลือกออกใบหัก ณ ที่จ่าย (2026-08-11) — แสดงหัวคอลัมน์เฉพาะตอนที่ parent
-                ส่ง selectedIds/onToggleSelect มาจริงๆ (ไม่บังคับ ดู props ด้านบน) */}
-            {selectedIds && onToggleSelect && <th className="w-10 px-[18px] py-[18px]" />}
             <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">วันที่ทำรายการ</th>
             <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">เลขที่อ้างอิง</th>
             <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">ผู้ขาย</th>
@@ -188,20 +183,6 @@ export default function InvoiceTable({
                   index % 2 === 1 ? 'bg-table-row-zebra' : ''
                 }`}
               >
-                {selectedIds && onToggleSelect && (
-                  <td className="px-[18px] py-[18px]">
-                    {isWhtCertEligible(invoice) && (
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(invoice.id)}
-                        onChange={() => onToggleSelect(invoice.id)}
-                        className="h-4 w-4 rounded border-border accent-primary"
-                        aria-label={`เลือกออกใบหัก ณ ที่จ่าย ${invoice.vendor_name}`}
-                        data-testid={`select-wht-${invoice.id}`}
-                      />
-                    )}
-                  </td>
-                )}
                 <td className="px-[18px] py-[18px] text-text-sub">{formatDate(invoice.transaction_date)}</td>
                 <td className="px-[18px] py-[18px] text-text-sub">{invoice.reference_no || '-'}</td>
                 <td className="px-[18px] py-[18px] font-medium text-text">
@@ -384,7 +365,6 @@ export default function InvoiceTable({
                           {invoice.status === 'pending' &&
                             invoice.tax_type !== 'no_vat' &&
                             invoice.tax_type !== 'non_claimable_vat' && (
-                            <>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -403,6 +383,28 @@ export default function InvoiceTable({
                               >
                                 ได้รับแล้ว
                               </button>
+                            )}
+                          {/* "จัดการใบหัก ณ ที่จ่าย" — ย้ายเข้ามาในเมนูนี้แทน checkbox + แถบปุ่มลอยเดิม
+                              (2026-08-14 ตามคำขอผู้ใช้ — วางระหว่าง "ได้รับแล้ว" กับ "ยกเลิกรายการ" ตามที่ระบุ)
+                              เงื่อนไขแสดงตรงกับที่ checkbox เดิมเคยใช้ (isWhtCertEligible เท่านั้น ไม่ผูกกับ
+                              status/tax_type แบบ "ได้รับแล้ว"/"ยกเลิกรายการ" เพราะรายการที่ "ได้รับแล้ว" ก็ยัง
+                              ออกใบหัก ณ ที่จ่ายได้ถ้ายังไม่เคยออก) */}
+                          {onIssueWht && isWhtCertEligible(invoice) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpandedActionsId(null);
+                                onIssueWht(invoice);
+                              }}
+                              className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-text-sub hover:bg-page-bg"
+                              data-testid={`issue-wht-${invoice.id}`}
+                            >
+                              จัดการใบหัก ณ ที่จ่าย
+                            </button>
+                          )}
+                          {invoice.status === 'pending' &&
+                            invoice.tax_type !== 'no_vat' &&
+                            invoice.tax_type !== 'non_claimable_vat' && (
                               <button
                                 type="button"
                                 disabled={isBusy}
@@ -414,8 +416,7 @@ export default function InvoiceTable({
                               >
                                 ยกเลิกรายการ
                               </button>
-                            </>
-                          )}
+                            )}
                           <button
                             type="button"
                             onClick={() => {
