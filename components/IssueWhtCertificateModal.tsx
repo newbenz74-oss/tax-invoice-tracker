@@ -28,6 +28,17 @@ function todayISO(): string {
   return `${y}-${m}-${d}`;
 }
 
+/** วันที่จ่ายเงินล่าสุดในบรรดารายการที่เลือกออกใบ — ใช้เป็นค่าเริ่มต้นของ "วันที่ออกใบ" (ตามคำขอผู้ใช้
+ * 2026-08-13: "วันที่ที่ออกหนังสือรับรองหัก ณ ที่จ่าย ตั้งเอาเป็นวันเดียวกันกับวันที่จ่ายเงินไปเลย") ใช้ max(...)
+ * ไม่ใช่แค่ invoices[0] เพราะถ้าเลือกหลายรายการวันจ่ายต่างกัน ต้องตรงกับตรรกะเดียวกับ v_payment_date (max
+ * (transaction_date)) ที่ RPC create_wht_certificate() คำนวณเก็บลง payment_date ฝั่งฐานข้อมูล (ดู
+ * supabase/migration_015_wht_certificates.sql) — transaction_date เป็น ISO string (YYYY-MM-DD) เทียบ string
+ * ตรงๆ ได้ผลเหมือนเทียบวันที่จริงอยู่แล้ว ผู้ใช้ยังแก้ไขเองได้ทุกครั้งถ้าต้องการวันอื่น (ไม่ใช่ค่าบังคับตายตัว) */
+function latestTransactionDate(invoices: PendingTaxInvoice[]): string {
+  if (invoices.length === 0) return todayISO();
+  return invoices.reduce((latest, inv) => (inv.transaction_date > latest ? inv.transaction_date : latest), invoices[0].transaction_date);
+}
+
 /** ค่าเริ่มต้นของฟอร์ม ใช้ตอนแก้ไขใบเดิม (mode="reissue") — พรีฟิลด้วยข้อมูลจากใบที่ถูกยกเลิกไปแล้ว เพื่อให้
  * ผู้ใช้แก้เฉพาะจุดที่ผิดแล้วออกใบใหม่ ไม่ต้องกรอกซ้ำทั้งหมด */
 export interface WhtCertificateFormPrefill {
@@ -111,7 +122,7 @@ export default function IssueWhtCertificateModal({
   const [deductionType, setDeductionType] = useState<WhtDeductionType>(prefill?.deductionType ?? 'withholding');
   const [deductionTypeNote, setDeductionTypeNote] = useState(prefill?.deductionTypeNote ?? '');
   const [signerName, setSignerName] = useState(prefill?.signerName ?? company.default_signer_name ?? '');
-  const [issuedDate, setIssuedDate] = useState(prefill?.issuedDate ?? todayISO());
+  const [issuedDate, setIssuedDate] = useState(prefill?.issuedDate ?? latestTransactionDate(invoices));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

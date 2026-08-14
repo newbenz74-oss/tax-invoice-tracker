@@ -3,6 +3,7 @@ import { autoTable } from 'jspdf-autotable';
 import { registerThaiFont, THAI_FONT_NAME, drawThaiText, fixAutoTableCellThaiText, getTextWidthMm } from './pdfThaiFont';
 import { formatBranchLabel } from './contactLogic';
 import { thaiBahtText } from './thaiBahtText';
+import { thaiMonthName } from './thaiDate';
 import type { PendingTaxInvoice } from '@/types/invoice';
 import type { WhtCertificate } from '@/types/whtCertificate';
 
@@ -144,6 +145,16 @@ function shortBuddhistDate(iso: string | null): string {
   const [y, m, d] = iso.split('-').map(Number);
   const buddhistYear2 = (y + 543) % 100;
   return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${String(buddhistYear2).padStart(2, '0')}`;
+}
+
+/** วันที่แบบเต็ม "วัน / ชื่อเดือนไทย / ปี พ.ศ. 4 หลัก" (เช่น "11 / สิงหาคม / 2569") — ใช้เติมลงเส้นวันที่ใต้
+ * "ลงชื่อ" (ช่อง "(วัน เดือน ปี ที่ออกหนังสือรับรองฯ)") ตามคำขอผู้ใช้ 2026-08-13 ("วันที่ไม่ขึ้นอะ") เดิมเป็น
+ * เส้นประว่างเปล่าเสมอ ตอนนี้ใช้ cert.issued_date จริง (ค่าเริ่มต้นตั้งเป็นวันที่จ่ายเงินอยู่แล้ว — ดู
+ * latestTransactionDate ใน components/IssueWhtCertificateModal.tsx) ต่างจาก shortBuddhistDate ที่ใช้ในตาราง
+ * (ปี พ.ศ. 2 หลัก ตัวเลขล้วน) เพราะช่องนี้เป็นบรรทัดยาวพอให้เขียนชื่อเดือนเต็มได้ */
+function fullBuddhistDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${d} / ${thaiMonthName(m)} / ${y + 543}`;
 }
 
 // เนื้อหาแต่ละหมวดในตาราง — ยืนยันตรงตามข้อความเต็มจากไฟล์ตัวอย่างจริงที่กรอกข้อมูลแล้ว (คงไว้จากเวอร์ชันก่อน
@@ -618,13 +629,50 @@ function drawCertificateCopy(
 
   const sealRadius = 8;
   const sealCenterX = rightColX + rightColWidth - sealRadius - 1;
-  drawThaiText(doc, 'ลงชื่อ.....................................................ผู้จ่ายเงิน', rightColX, ry);
+  // เส้นลงชื่อต้องจบก่อนถึงวงกลมประทับตรา (ไม่ใช่ที่ขอบขวาสุดของคอลัมน์ ซึ่งจะทับวงกลม) เว้นช่องไฟกันชนไว้นิดหน่อย
+  const sigLineRightEdge = sealCenterX - sealRadius - 2;
+  doc.setFont(THAI_FONT_NAME, 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...COLOR_TEXT);
+  // 2026-08-13 (แก้ตามคำขอผู้ใช้หลายรอบ — ลองพิมพ์ชื่อในวงเล็บใต้เส้นเซ็นก่อน ไม่เอา, ลองชิดซ้ายต่อจาก "ลงชื่อ"
+  // ตรงๆ ก็ไม่กึ่งกลาง สุดท้ายวางชื่อ+วันที่ไว้กึ่งกลางพื้นที่เดียวกัน (lineCenterX) ระหว่าง "ลงชื่อ" กับ
+  // "ผู้จ่ายเงิน" ให้แนวตรงกันทั้งคู่) พร้อมขีดเส้นใต้ชื่อเอง (แทนเส้นประเดิมที่หายไปตอนมีชื่อ) ไม่มีชื่อก็ยังเป็น
+  // เส้นว่าง "ลงชื่อ....." ให้เซ็นสดตามต้นฉบับราชการเหมือนเดิม — lineCenterX คำนวณแบบเดียวกันไม่ว่าจะมีชื่อหรือ
+  // ไม่ก็ตาม เพื่อให้วันที่ข้างล่างอยู่กึ่งกลางแนวเดียวกับเส้นลงชื่อเสมอ
+  const prefixLabel = 'ลงชื่อ';
+  const suffixLabel = 'ผู้จ่ายเงิน';
+  const prefixWidth = getTextWidthMm(doc, prefixLabel);
+  const suffixWidth = getTextWidthMm(doc, suffixLabel);
+  const lineStartX = rightColX + prefixWidth + 2;
+  const lineEndX = sigLineRightEdge - suffixWidth - 2;
+  const lineCenterX = (lineStartX + lineEndX) / 2;
+
+  const signerName = cert.signer_name?.trim();
+  if (signerName) {
+    drawThaiText(doc, prefixLabel, rightColX, ry);
+    drawThaiText(doc, suffixLabel, sigLineRightEdge, ry, { align: 'right' });
+    drawThaiText(doc, signerName, lineCenterX, ry, { align: 'center' });
+
+    // เส้นทึบยาวๆ ดูไม่สวย (ตามที่ผู้ใช้ทักท้วง 2026-08-13) เปลี่ยนเป็นเส้นประจุดๆ ".............." แทน ให้
+    // หน้าตาเหมือนเส้นว่างแบบเดิม (ตอนไม่มีชื่อ) มากขึ้น
+    doc.setDrawColor(...COLOR_TEXT);
+    doc.setLineWidth(0.2);
+    doc.setLineDashPattern([0.4, 0.7], 0);
+    doc.line(lineStartX, ry + 0.9, lineEndX, ry + 0.9);
+    doc.setLineDashPattern([], 0);
+  } else {
+    drawThaiText(doc, 'ลงชื่อ.....................................................ผู้จ่ายเงิน', rightColX, ry);
+  }
   ry += 6;
-  drawThaiText(doc, '............... / ............... / ...............', rightColX + 8, ry);
+  // เดิมเป็นเส้นประว่างเปล่าเสมอ ("วันที่ไม่ขึ้นอะ" ตามที่ผู้ใช้ทักท้วง) ตอนนี้เติมวันที่ออกใบจริง (issued_date
+  // — ค่าเริ่มต้นตั้งเป็นวันที่จ่ายเงินอยู่แล้ว ดู latestTransactionDate ใน IssueWhtCertificateModal.tsx) จัด
+  // กึ่งกลางที่ lineCenterX เดียวกับเส้นใต้ชื่อด้านบนเป๊ะๆ (ผู้ใช้ขอให้ตรงแนวกับเส้นใต้ชื่อ) คำอธิบายใต้วันที่
+  // ก็จัดกึ่งกลางเดียวกันเพื่อความสมดุลของบล็อกนี้
+  drawThaiText(doc, fullBuddhistDate(cert.issued_date), lineCenterX, ry, { align: 'center' });
   doc.setFontSize(6.3);
   doc.setTextColor(...COLOR_MUTED);
   ry += 3.4;
-  drawThaiText(doc, '(วัน เดือน ปี ที่ออกหนังสือรับรองฯ)', rightColX + 8, ry);
+  drawThaiText(doc, '(วัน เดือน ปี ที่ออกหนังสือรับรองฯ)', lineCenterX, ry, { align: 'center' });
 
   // วงกลมประทับตรานิติบุคคล — เส้นประ ตามต้นฉบับ
   const sealCenterY = bottomTop + 8;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { Mail, Receipt, Search } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
@@ -51,6 +51,39 @@ const STATUS_BADGE_CLASS: Record<WhtCertificate['status'], string> = {
   issued: 'bg-green-100 text-green-700',
   voided: 'bg-gray-200 text-gray-600',
 };
+
+// 2026-08-13: จำตัวกรองค้นหา (ประเภท/เดือน/ปี/คำค้น) ไว้ใน sessionStorage ตามคำขอผู้ใช้ — เดิมเป็น useState
+// ธรรมดา พอสลับไปเมนูอื่นแล้วกลับมาหน้านี้ (component unmount/remount ใหม่ตาม switch-case ใน
+// app/dashboard/page.tsx) ค่าที่เคยเลือกไว้หายหมดต้องมากรอกใหม่ทุกครั้ง ใช้ sessionStorage แบบเดียวกับ
+// selectedCompanyId ใน lib/CompanyContext.tsx (จำได้ข้ามการนำทาง/รีเฟรชหน้าภายในแท็บเดียวกัน แต่ล้างทิ้งตอน
+// ปิดแท็บ/ออกจากระบบ) แยก key ตาม companyId กันค่ากรองของบริษัทหนึ่งเผลอไปติดค้างตอนสลับไปดูอีกบริษัท
+const FILTERS_STORAGE_KEY_PREFIX = 'benz_wht_history_filters_';
+
+interface StoredWhtHistoryFilters {
+  search: string;
+  formType: WhtFormType | '';
+  month: number | '';
+  year: number | '';
+}
+
+const EMPTY_STORED_FILTERS: StoredWhtHistoryFilters = { search: '', formType: '', month: '', year: '' };
+
+function readStoredFilters(companyId: string | null): StoredWhtHistoryFilters {
+  if (typeof window === 'undefined' || !companyId) return EMPTY_STORED_FILTERS;
+  try {
+    const raw = sessionStorage.getItem(FILTERS_STORAGE_KEY_PREFIX + companyId);
+    if (!raw) return EMPTY_STORED_FILTERS;
+    const parsed = JSON.parse(raw) as Partial<StoredWhtHistoryFilters>;
+    return {
+      search: typeof parsed.search === 'string' ? parsed.search : '',
+      formType: parsed.formType === '53' || parsed.formType === '03' ? parsed.formType : '',
+      month: typeof parsed.month === 'number' ? parsed.month : '',
+      year: typeof parsed.year === 'number' ? parsed.year : '',
+    };
+  } catch {
+    return EMPTY_STORED_FILTERS;
+  }
+}
 
 /**
  * หน้า "ประวัติใบหัก ณ ที่จ่าย" (เพิ่มเข้ามา 2026-08-11 — ส่วนสุดท้ายของฟีเจอร์นี้) แสดงรายการใบที่เคยออกไป
@@ -109,7 +142,9 @@ export default function WhtCertificateHistoryPage() {
     () => fetchContacts(selectedCompanyId!)
   );
 
-  const [search, setSearch] = useState('');
+  // ค่าเริ่มต้นดึงจาก sessionStorage ถ้าเคยกรองไว้แล้วก่อนหน้านี้ในเซสชันเดียวกัน (ดู readStoredFilters/
+  // FILTERS_STORAGE_KEY_PREFIX ด้านบน) — lazy initializer เรียกครั้งเดียวตอน mount เท่านั้น
+  const [search, setSearch] = useState(() => readStoredFilters(selectedCompanyId).search);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
@@ -118,10 +153,25 @@ export default function WhtCertificateHistoryPage() {
   // เดือน/ปีปัจจุบัน — ที่นี่ผู้ใช้ระบุชัดว่า "ต้องเลือกก่อน") กรองด้วย form_type + period_month/period_year
   // (คือเดือน/ปีที่ใช้ "รันเลขที่ใบ" ตรงกับที่ผู้ใช้เลือกตอนออกใบ ไม่ใช่ issued_date เพราะสองค่านี้อาจต่างเดือน
   // กันได้ถ้าออกใบย้อนหลัง — ดู lib/whtCertificateLogic.ts/supabase/migration_015_wht_certificates.sql)
-  const [formTypeFilter, setFormTypeFilter] = useState<WhtFormType | ''>('');
-  const [monthFilter, setMonthFilter] = useState<number | ''>('');
-  const [yearFilter, setYearFilter] = useState<number | ''>('');
+  const [formTypeFilter, setFormTypeFilter] = useState<WhtFormType | ''>(() => readStoredFilters(selectedCompanyId).formType);
+  const [monthFilter, setMonthFilter] = useState<number | ''>(() => readStoredFilters(selectedCompanyId).month);
+  const [yearFilter, setYearFilter] = useState<number | ''>(() => readStoredFilters(selectedCompanyId).year);
   const filtersComplete = formTypeFilter !== '' && monthFilter !== '' && yearFilter !== '';
+
+  // บันทึกตัวกรองปัจจุบันลง sessionStorage ทุกครั้งที่เปลี่ยน — ตามคำขอผู้ใช้ 2026-08-13 ("ไปทำงานที่หน้าอื่น
+  // แล้วกลับมา มันรีเฟรชใหม่ ต้องกรอกซ้ำทุกครั้ง") ไม่ใช่การ setState ของ component นี้เอง (แค่เขียนลง
+  // sessionStorage) จึงไม่ติดกฎ react-hooks/set-state-in-effect ไม่ต้องห่อ Promise.resolve().then()
+  useEffect(() => {
+    if (!selectedCompanyId) return;
+    try {
+      sessionStorage.setItem(
+        FILTERS_STORAGE_KEY_PREFIX + selectedCompanyId,
+        JSON.stringify({ search, formType: formTypeFilter, month: monthFilter, year: yearFilter })
+      );
+    } catch {
+      // sessionStorage ใช้ไม่ได้ (private mode ฯลฯ) — ไม่กระทบการใช้งานปกติ แค่ไม่จำข้ามการนำทาง
+    }
+  }, [selectedCompanyId, search, formTypeFilter, monthFilter, yearFilter]);
 
   // ปุ่ม "ส่งอีเมล" (เพิ่มเข้ามา 2026-08-11 ตามที่ผู้ใช้ขอ "มีอีเมลของผู้รับแล้ว อยากให้มีปุ่มส่งเมลไปเลย") —
   // sendSuccess เก็บแยกจาก sendError เพื่อโชว์ข้อความ "ส่งแล้ว" สั้นๆ ต่อแถวโดยไม่ต้องรีเฟรชทั้งตาราง
@@ -141,8 +191,12 @@ export default function WhtCertificateHistoryPage() {
 
   const periodFilteredCertificates = useMemo(() => {
     if (!filtersComplete) return [];
+    // 2026-08-13: ตามคำขอผู้ใช้ — กด "ลบ"/"แก้ไข" แล้วแถวควรหายไปจากตารางเลย ไม่ใช่ค้างอยู่พร้อมสถานะ
+    // "ยกเลิกแล้ว" (เดิมแสดงทุกสถานะรวม voided) ข้อมูลจริงยังเก็บไว้ในฐานข้อมูลเหมือนเดิมเพื่อไม่ให้เลขที่ใบ
+    // ถูกใช้ซ้ำ (ดู voidWhtCertificate/migration_016) แค่กรองไม่ให้แสดงในตารางนี้เท่านั้น
     return certificates.filter(
-      (c) => c.form_type === formTypeFilter && c.period_month === monthFilter && c.period_year === yearFilter
+      (c) =>
+        c.status === 'issued' && c.form_type === formTypeFilter && c.period_month === monthFilter && c.period_year === yearFilter
     );
   }, [certificates, filtersComplete, formTypeFilter, monthFilter, yearFilter]);
 

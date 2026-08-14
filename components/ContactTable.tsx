@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { BookUser } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { BookUser, ChevronDown } from 'lucide-react';
 import type { BusinessPartner } from '@/types/contact';
 import {
   CONTACT_STATUS_BADGE_CLASS,
@@ -25,6 +25,22 @@ export default function ContactTable({ contacts, onView, onEdit, onToggleStatus,
   // ลบต้องมี Confirmation Dialog ตามสเปก (ไม่ใช่แค่ปุ่มกดสองครั้งแบบ InvoiceTable เดิม) — ใช้ modal
   // แยกต่างหากเพื่อให้ชัดเจนว่าเป็นการกระทำที่ย้อนกลับไม่ได้
   const [deletingContact, setDeletingContact] = useState<BusinessPartner | null>(null);
+  // รวมปุ่ม "ดูรายละเอียด/แก้ไข/เปิด-ปิดใช้งาน/ลบ" เป็นปุ่มเดียว "จัดการ" ที่กดแล้วมีเมนูลอยแสดงตัวเลือกแทน —
+  // ปรับให้ตรงกับ pattern ของ InvoiceTable.tsx (หน้า "บันทึกการจ่ายเงิน" ตามคำขอผู้ใช้ 2026-08-14) เดิมโชว์ปุ่ม
+  // ทั้ง 4 พร้อมกันทำให้คอลัมน์ดูรก/ล้นบรรทัดในตารางแคบ — คัดลอกโครงสร้าง state/effect มาเป๊ะๆ จากไฟล์นั้น
+  const [expandedActionsId, setExpandedActionsId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!expandedActionsId) return;
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-row-actions-menu]')) {
+        setExpandedActionsId(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [expandedActionsId]);
 
   async function handleToggleStatus(contact: BusinessPartner) {
     setBusyId(contact.id);
@@ -115,41 +131,82 @@ export default function ContactTable({ contacts, onView, onEdit, onToggleStatus,
                       {CONTACT_STATUS_LABELS[contact.status]}
                     </span>
                   </td>
-                  <td className="px-[18px] py-[18px]">
-                    <div className="flex flex-wrap justify-end gap-1.5">
+                  <td className="px-[18px] py-[18px] text-right">
+                    <div className="relative inline-block text-left" data-row-actions-menu>
                       <button
                         type="button"
-                        onClick={() => onView(contact)}
-                        className="btn-press rounded-[10px] border border-border px-2 py-1 text-xs font-medium text-text-sub hover:bg-page-bg"
-                        data-testid={`view-${contact.id}`}
+                        onClick={() =>
+                          setExpandedActionsId((id) => (id === contact.id ? null : contact.id))
+                        }
+                        className="btn-press flex items-center gap-1 rounded-[10px] border border-border px-2.5 py-1.5 text-xs font-medium text-text-sub hover:bg-page-bg"
+                        aria-expanded={expandedActionsId === contact.id}
+                        data-testid={`manage-actions-${contact.id}`}
                       >
-                        ดูรายละเอียด
+                        จัดการ
+                        <ChevronDown
+                          size={14}
+                          className={`transition-transform duration-200 ${
+                            expandedActionsId === contact.id ? 'rotate-180' : ''
+                          }`}
+                          aria-hidden="true"
+                        />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => onEdit(contact)}
-                        className="btn-press rounded-[10px] border border-border px-2 py-1 text-xs font-medium text-text-sub hover:bg-page-bg"
-                        data-testid={`edit-${contact.id}`}
+
+                      <div
+                        className={`absolute right-0 top-full z-20 mt-1.5 w-40 rounded-[10px] border border-border bg-card-bg p-1.5 shadow-lg transition-all duration-200 ease-out ${
+                          expandedActionsId === contact.id
+                            ? 'pointer-events-auto translate-y-0 opacity-100'
+                            : 'pointer-events-none -translate-y-2 opacity-0'
+                        }`}
                       >
-                        แก้ไข
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => handleToggleStatus(contact)}
-                        className="btn-press rounded-[10px] border border-border px-2 py-1 text-xs font-medium text-text-sub hover:bg-page-bg disabled:opacity-50"
-                        data-testid={`toggle-status-${contact.id}`}
-                      >
-                        {contact.status === 'active' ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeletingContact(contact)}
-                        className="btn-press rounded-[10px] border border-danger/40 px-2 py-1 text-xs font-medium text-danger hover:bg-danger/10"
-                        data-testid={`delete-${contact.id}`}
-                      >
-                        ลบ
-                      </button>
+                        <div className="flex flex-col gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpandedActionsId(null);
+                              onView(contact);
+                            }}
+                            className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-text-sub hover:bg-page-bg"
+                            data-testid={`view-${contact.id}`}
+                          >
+                            ดูรายละเอียด
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpandedActionsId(null);
+                              onEdit(contact);
+                            }}
+                            className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-text-sub hover:bg-page-bg"
+                            data-testid={`edit-${contact.id}`}
+                          >
+                            แก้ไข
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => {
+                              setExpandedActionsId(null);
+                              handleToggleStatus(contact);
+                            }}
+                            className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-text-sub hover:bg-page-bg disabled:opacity-50"
+                            data-testid={`toggle-status-${contact.id}`}
+                          >
+                            {contact.status === 'active' ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpandedActionsId(null);
+                              setDeletingContact(contact);
+                            }}
+                            className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-danger hover:bg-danger/10"
+                            data-testid={`delete-${contact.id}`}
+                          >
+                            ลบ
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </td>
                 </tr>

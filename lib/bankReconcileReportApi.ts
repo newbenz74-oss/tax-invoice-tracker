@@ -248,3 +248,16 @@ export async function saveReconcileReport(
   if (error) throw error;
   return (data as ReconcileReportRow).id;
 }
+
+/** ลบรายการประวัติการกระทบยอด 1 รายการแบบถาวร (hard delete — ตามคำขอผู้ใช้ 2026-08-13 ไม่ใช่ soft delete/void
+ * แบบ WHT certificate เพราะรายการนี้ไม่มีข้อกำหนดเรื่องเลขที่ต่อเนื่องต้องตรวจสอบย้อนหลังแบบเอกสารทางการ) ไม่ต้อง
+ * ผ่าน RPC เหมือน saveReconcileReport เพราะลบแค่ตารางเดียว (bank_reconcile_reports) ตารางลูกทั้ง 3
+ * (match_groups/bank_rows/gl_rows) มี "on delete cascade" ผูกกับ report_id อยู่แล้วที่ฐานข้อมูล (ดู
+ * supabase/migration_006_bank_reconcile_history.sql) ลบแถวแม่แถวเดียวก็ลบลูกตามให้อัตโนมัติ ไม่มีข้อมูลค้าง
+ * RLS policy "company_member_delete" (migration_007_multi_company.sql) เช็คสิทธิ์ตาม company_id ให้แล้วที่
+ * ฐานข้อมูล ไม่ต้อง filter ซ้ำฝั่ง client */
+export async function deleteReconcileReport(id: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from(REPORTS_TABLE).delete().eq('id', id);
+  if (error) throw error;
+}

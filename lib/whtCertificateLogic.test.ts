@@ -21,6 +21,7 @@ const testCompany: Company = {
   province: 'จังหวัดนนทบุรี',
   postal_code: '11140',
   default_signer_name: 'SAKKARIN',
+  logo_url: null,
 };
 
 function makePartner(overrides: Partial<BusinessPartner>): BusinessPartner {

@@ -257,6 +257,29 @@ body {
    การ์ดเข้มอีกที ไม่ติด .card-surface โดยตรง) ยังคงใช้ text-gray-800/500/400 ตามเดิมได้ถูกต้องอยู่แล้ว เพราะ
    ตัวมันเองเป็นกล่องขาวทึบจริง ไม่ได้โดนปัญหา cascade layer นี้เลย (ดูการแก้ไขรายไฟล์ที่ตามมา) */
 
+/* ซ่อนแถบเลื่อน (scrollbar) ทุกทิศทางทั้งระบบ (2026-08-14 ตามคำขอผู้ใช้ "เอาแท็บสไลซ้าย-ขวา,บน-ล่างออก
+   ไม่สวย") — รอบแรกที่ทำไว้ครอบคลุมแค่ .overflow-x-auto (กล่องตาราง) แต่ผู้ใช้แจ้งว่ายังเห็นแถบเลื่อนแนวตั้ง
+   ค้างอยู่ด้วย (ทั้งแถบเลื่อนของหน้าเว็บทั้งหน้า html/body และกล่องที่ scroll แนวตั้งภายใน เช่น เมนู Sidebar,
+   เนื้อหา modal ต่างๆ) รอบนี้ขยายให้ครอบคลุมทุก element ที่ scroll ได้ในระบบทั้งหมด ไม่ใช่แค่ตาราง — ยังคง
+   เลื่อน/scroll ด้วยการลาก/touch/shift+scroll/ปุ่มลูกศรบนคีย์บอร์ดได้ตามปกติทุกประการ แค่ไม่วาดแถบเลื่อนให้
+   เห็นเท่านั้น (unlayered เหมือน .card-surface ด้านบน จึงชนะ @layer utilities ของ Tailwind เองเสมอโดยไม่ต้อง
+   พึ่ง !important) */
+html,
+body,
+.overflow-x-auto,
+.overflow-y-auto,
+.overflow-auto {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* เบราว์เซอร์ตระกูล IE/Edge รุ่นเก่า */
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar,
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-auto::-webkit-scrollbar {
+  display: none; /* Chrome/Edge/Safari (Blink/WebKit) — ตัวที่เห็นในภาพจริงของผู้ใช้ */
+}
+
 .card-hover-lift {
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }

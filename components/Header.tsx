@@ -129,7 +129,12 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
         <div className="flex shrink-0 items-center gap-3">
           {selectedCompany && (
             <div className="hidden items-center gap-1.5 rounded-[10px] border border-border bg-white/8 px-3 py-2 text-sm text-text sm:flex">
-              <Building2 size={15} className="text-text-sub" aria-hidden="true" />
+              {selectedCompany.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element -- URL มาจาก Supabase Storage (โดเมนไม่คงที่ล่วงหน้า) และเป็นไอคอนเล็กมาก ไม่คุ้ม next/image
+                <img src={selectedCompany.logo_url} alt="" className="h-[15px] w-[15px] shrink-0 object-contain" aria-hidden="true" />
+              ) : (
+                <Building2 size={15} className="text-text-sub" aria-hidden="true" />
+              )}
               <span className="max-w-[160px] truncate">{selectedCompany.name}</span>
               {companies.length > 1 && (
                 <button

@@ -3,6 +3,7 @@
 import { useEffect, useState, type TouchEvent } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 import { NAV_STRUCTURE, allSectionIds, isNavSection, type NavEntry, type NavLeaf } from '@/lib/navigation';
+import { useCompany } from '@/lib/CompanyContext';
 // หมายเหตุ: NavItem ด้านล่างเรียกตัวเองซ้ำ (recursive) เพื่อรองรับเมนูซ้อนได้ไม่จำกัดระดับ
 // (ดู lib/navigation.ts — NavSection.children เป็น NavEntry[] แล้ว ไม่ใช่ NavLeaf[] เหมือนเดิม)
 
@@ -41,6 +42,12 @@ function readInitialExpanded(): Record<string, boolean> {
 export default function Sidebar({ activeId, onSelect, isOpen, onClose, isAdmin = false }: SidebarProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(readInitialExpanded);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  // แสดงโลโก้/ชื่อบริษัทที่เลือกอยู่แทนคำว่า "BENZ" ตายตัว (เพิ่มเข้ามา 2026-08-14 คู่กับฟีเจอร์อัปโหลดโลโก้ —
+  // ดู CompanySettingsPage.tsx) selectedCompany เป็น null ได้ตอนกำลังโหลด/ยังไม่ได้เลือกบริษัท จึง fallback
+  // กลับไปที่ "BENZ" + ตัวอักษร B แบบเดิมในกรณีนั้น กันไม่ให้หัว sidebar ว่างเปล่าระหว่างรอข้อมูล
+  const { selectedCompany } = useCompany();
+  const sidebarTitle = selectedCompany?.name ?? 'BENZ';
+  const sidebarInitial = sidebarTitle.replace('บริษัท', '').replace('ห้างหุ้นส่วน', '').trim().charAt(0) || 'B';
 
   // บันทึกสถานะ expand/collapse ไว้ทุกครั้งที่เปลี่ยน เพื่อให้จำได้ข้าม refresh
   useEffect(() => {
@@ -106,11 +113,21 @@ export default function Sidebar({ activeId, onSelect, isOpen, onClose, isAdmin =
       >
         <div className="flex items-center justify-between gap-2 px-4 py-6">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-primary to-brand text-base font-bold text-white shadow-[0_4px_14px_-2px_rgba(47,167,226,0.55)]">
-              B
-            </div>
+            {selectedCompany?.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element -- URL มาจาก Supabase Storage (โดเมนไม่คงที่ล่วงหน้า) และเป็นไอคอนเล็กมาก ไม่คุ้ม next/image
+              <img
+                src={selectedCompany.logo_url}
+                alt=""
+                aria-hidden="true"
+                className="h-10 w-10 shrink-0 rounded-xl bg-white object-contain p-1 shadow-[0_4px_14px_-2px_rgba(47,167,226,0.55)]"
+              />
+            ) : (
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-primary to-brand text-base font-bold text-white shadow-[0_4px_14px_-2px_rgba(47,167,226,0.55)]">
+                {sidebarInitial}
+              </div>
+            )}
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold tracking-wide text-white">BENZ</p>
+              <p className="truncate text-sm font-bold tracking-wide text-white">{sidebarTitle}</p>
               <p className="truncate text-[11px] text-gray-400">ระบบบัญชีและกระทบยอด</p>
             </div>
           </div>

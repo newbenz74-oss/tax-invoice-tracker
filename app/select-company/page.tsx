@@ -15,7 +15,9 @@ import { createCompany } from '@/lib/companyApi';
  *
  * ดีไซน์ปรับใหม่ 2026-08-10 ตามภาพตัวอย่างที่ผู้ใช้ส่งมา (สไตล์ dark hero เต็มจอ + กริดการ์ดโลโก้ + แถบบนสุด) —
  * ปรับรายละเอียดบางจุดจากภาพต้นฉบับให้ทนทานต่อ layout จริง:
- *  - ไม่มีโลโก้บริษัทจริง (ระบบยังไม่มีฟีเจอร์อัปโหลดโลโก้) ใช้ตัวอักษรย่อ + สีพื้นหลังแทนเหมือนเดิม
+ *  - ตอนนั้นยังไม่มีโลโก้บริษัทจริง ใช้ตัวอักษรย่อ + สีพื้นหลังแทน — ตั้งแต่ฟีเจอร์อัปโหลดโลโก้ (2026-08-14 ดู
+ *    CompanySettingsPage.tsx/migration_017_company_logo.sql) ถ้าบริษัทมี logo_url จะแสดงรูปจริงแทนตัวอักษรย่อ
+ *    ทันที ตัวอักษรย่อยังเป็น fallback สำหรับบริษัทที่ยังไม่ได้อัปโหลดโลโก้อยู่เหมือนเดิม
  *  - ป้าย "เลือกบริษัทนี้ / คลิกเพื่อเข้าใช้งาน" ในภาพต้นฉบับลอยอยู่ใต้การ์ด (absolute tooltip) — ที่นี่ทำเป็น
  *    ส่วนขยายภายในตัวการ์ดเองแทน (การ์ดสูงขึ้นเวลาถูกเลือก) กัน tooltip ไปทับการ์ดแถวถัดไปเวลาบริษัทมีเยอะ
  *  - ปุ่ม "เพิ่มบริษัทใหม่" ทำเป็นการ์ดเส้นประในกริดเดียวกัน กดแล้วเด้งเป็น modal กรอกชื่อ (แทนฟอร์มขยายในที่เดิม)
@@ -223,11 +225,20 @@ function SelectCompanyContent() {
                     }`}
                     data-testid={`select-company-option-${company.id}`}
                   >
-                    <div
-                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-semibold text-white ${avatarColor(index)}`}
-                    >
-                      {company.name.replace('บริษัท', '').replace('ห้างหุ้นส่วน', '').trim().charAt(0) || '?'}
-                    </div>
+                    {company.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- URL มาจาก Supabase Storage (โดเมนไม่คงที่ล่วงหน้า) และเป็นไอคอนเล็ก ไม่คุ้ม next/image
+                      <img
+                        src={company.logo_url}
+                        alt={company.name}
+                        className="h-12 w-12 shrink-0 rounded-full border border-gray-100 object-contain p-1"
+                      />
+                    ) : (
+                      <div
+                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-semibold text-white ${avatarColor(index)}`}
+                      >
+                        {company.name.replace('บริษัท', '').replace('ห้างหุ้นส่วน', '').trim().charAt(0) || '?'}
+                      </div>
+                    )}
                     <p className="mt-3 line-clamp-2 text-sm font-medium text-gray-800">{company.name}</p>
 
                     {isHighlighted && (

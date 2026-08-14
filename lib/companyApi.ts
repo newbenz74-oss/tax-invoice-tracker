@@ -25,6 +25,7 @@ export interface Company {
   province: string | null;
   postal_code: string | null;
   default_signer_name: string | null;
+  logo_url: string | null;
 }
 
 /** ค่าฟอร์มหน้า "ตั้งค่าบริษัท" — ทุกฟิลด์เป็น string (แม้แต่ select) เหมือน pattern ContactFormInput เดิม
@@ -42,7 +43,15 @@ export interface CompanySettingsInput {
 }
 
 const COMPANY_COLUMNS =
-  'id, name, tax_id, branch_type, branch_number, address, subdistrict, district, province, postal_code, default_signer_name';
+  'id, name, tax_id, branch_type, branch_number, address, subdistrict, district, province, postal_code, default_signer_name, logo_url';
+
+/** bucket โลโก้บริษัท (ดู supabase/migration_017_company_logo.sql) — public bucket, path เก็บตายตัวเป็น
+ * "{company_id}/logo.png" เสมอ (ไฟล์เดียวต่อบริษัท อัปโหลดใหม่ทับของเดิม ไม่มีสะสมไฟล์เก่าค้าง) */
+const LOGO_BUCKET = 'company-logos';
+
+function logoStoragePath(companyId: string): string {
+  return `${companyId}/logo.png`;
+}
 
 interface CompanyMemberRow {
   companies: Company | Company[] | null;
@@ -100,4 +109,43 @@ export async function createCompany(name: string): Promise<Company> {
   const { data, error } = await supabase.rpc('create_company', { p_name: name });
   if (error) throw error;
   return data as Company;
+}
+
+/**
+ * อัปโหลดโลโก้บริษัท (เพิ่มเข้ามา 2026-08-14) — รับ Blob ที่ผ่านการตัดพื้นหลังสีขาวออกแล้วจากฝั่ง client
+ * (lib/logoBackgroundRemoval.ts ผ่าน canvas.toBlob('image/png')) เท่านั้น ไม่ได้ทำ image processing ใดๆ
+ * ที่นี่ — อัปโหลดทับ path เดิมเสมอ ("{company_id}/logo.png", upsert: true) ไม่มีไฟล์เก่าค้างสะสม แล้วอัปเดต
+ * companies.logo_url ต่อทันทีในคำเรียกเดียวกัน (2 ขั้นตอนนี้ไม่ atomic ในระดับ DB แต่ยอมรับความเสี่ยงได้เพราะ
+ * ถ้าอัปโหลด storage สำเร็จแต่ update ตารางล้มเหลว ผู้ใช้แค่กดบันทึกซ้ำ — ไม่ทำให้ข้อมูลเสียหายถาวร)
+ *
+ * เติม query string `?v=timestamp` ท้าย public URL เสมอ (แก้ปัญหา browser/CDN cache: path ไฟล์เดิมทุกครั้ง
+ * ที่อัปโหลดใหม่ ถ้าไม่มี cache-busting โลโก้เก่าจะค้างแสดงอยู่จนกว่าจะ hard refresh)
+ */
+export async function uploadCompanyLogo(companyId: string, logoBlob: Blob): Promise<string> {
+  const supabase = getSupabaseClient();
+  const path = logoStoragePath(companyId);
+
+  const { error: uploadError } = await supabase.storage
+    .from(LOGO_BUCKET)
+    .upload(path, logoBlob, { contentType: 'image/png', upsert: true, cacheControl: '3600' });
+  if (uploadError) throw uploadError;
+
+  const { data: publicUrlData } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
+  const logoUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`;
+
+  const { error: updateError } = await supabase.from('companies').update({ logo_url: logoUrl }).eq('id', companyId);
+  if (updateError) throw updateError;
+
+  return logoUrl;
+}
+
+/** ลบโลโก้บริษัท — ลบไฟล์ใน storage ก่อนแล้วค่อยล้าง companies.logo_url เป็น null (ถ้าลบไฟล์ไม่สำเร็จจะไม่ล้าง
+ * ค่าในตาราง กันกรณี URL ชี้ไปยังไฟล์ที่ยังอยู่จริงถูกลบทิ้งจากหน้าจอไปเฉยๆ ทั้งที่ไฟล์ยังอยู่) */
+export async function removeCompanyLogo(companyId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error: removeError } = await supabase.storage.from(LOGO_BUCKET).remove([logoStoragePath(companyId)]);
+  if (removeError) throw removeError;
+
+  const { error: updateError } = await supabase.from('companies').update({ logo_url: null }).eq('id', companyId);
+  if (updateError) throw updateError;
 }

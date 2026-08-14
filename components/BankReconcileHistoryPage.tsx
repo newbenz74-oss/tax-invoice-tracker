@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
 import {
+  deleteReconcileReport,
   fetchReconcileReports,
   RECONCILE_REPORTS_SWR_KEY,
   type ReconcileReportSummary,
@@ -48,11 +49,34 @@ export default function BankReconcileHistoryPage({ onNavigate }: BankReconcileHi
     data: reports = [],
     error: loadErrorObj,
     isLoading: loading,
+    mutate: mutateReports,
   } = useSWR<ReconcileReportSummary[]>(
     session && selectedCompanyId ? [RECONCILE_REPORTS_SWR_KEY, selectedCompanyId] : null,
     () => fetchReconcileReports(selectedCompanyId!)
   );
   const loadError = loadErrorObj instanceof Error ? loadErrorObj.message : loadErrorObj ? 'โหลดข้อมูลไม่สำเร็จ' : null;
+
+  // ปุ่ม "ลบ" + dialog ยืนยัน (เพิ่มเข้ามา 2026-08-13 ตามคำขอผู้ใช้) — เป็น hard delete จริง (ไม่ใช่ soft
+  // delete/void แบบ WHT certificate) ใช้ pattern เดียวกับ dialog ยืนยันใน WhtCertificateHistoryPage.tsx/
+  // ContactTable.tsx (การ์ดกระจกเข้ม + ปุ่มแดง disabled ระหว่างกำลังลบ)
+  const [deletingReport, setDeletingReport] = useState<ReconcileReportSummary | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleConfirmDelete() {
+    if (!deletingReport) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteReconcileReport(deletingReport.id);
+      setDeletingReport(null);
+      await mutateReports();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'ลบไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
 
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(reports.length / PAGE_SIZE));
@@ -159,14 +183,27 @@ export default function BankReconcileHistoryPage({ onNavigate }: BankReconcileHi
                       {report.gl_unmatched_count.toLocaleString('th-TH')}
                     </td>
                     <td className="px-[18px] py-[18px] text-right">
-                      <button
-                        type="button"
-                        onClick={() => setViewingReportId(report.id)}
-                        className="btn-press rounded-[10px] border border-primary/50 bg-primary-light px-3.5 py-2 text-xs font-semibold text-primary hover:bg-primary/20"
-                        data-testid={`reconcile-history-open-${report.id}`}
-                      >
-                        ดูรายละเอียด
-                      </button>
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setViewingReportId(report.id)}
+                          className="btn-press rounded-[10px] border border-primary/50 bg-primary-light px-3.5 py-2 text-xs font-semibold text-primary hover:bg-primary/20"
+                          data-testid={`reconcile-history-open-${report.id}`}
+                        >
+                          ดูรายละเอียด
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setDeletingReport(report);
+                          }}
+                          className="btn-press rounded-[10px] border border-danger/30 px-3.5 py-2 text-xs font-semibold text-danger hover:bg-danger/10"
+                          data-testid={`reconcile-history-delete-${report.id}`}
+                        >
+                          ลบ
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -182,6 +219,54 @@ export default function BankReconcileHistoryPage({ onNavigate }: BankReconcileHi
             onPrev={() => setPage(safePage - 1)}
             onNext={() => setPage(safePage + 1)}
           />
+        </div>
+      )}
+
+      {/* dialog ยืนยันลบ (เพิ่มเข้ามา 2026-08-13) — pattern เดียวกับ WhtCertificateHistoryPage.tsx/
+          ContactTable.tsx (การ์ดกระจกเข้ม + ปุ่มแดง disabled ระหว่างกำลังลบ) เป็น hard delete จริง ไม่ใช่
+          soft delete จึงเตือนว่า "ไม่สามารถย้อนกลับได้" ชัดเจน */}
+      {deletingReport && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => (deleteBusy ? null : setDeletingReport(null))}
+          role="dialog"
+          aria-modal="true"
+          aria-label="ยืนยันลบรายการกระทบยอด"
+          data-testid="reconcile-history-delete-confirm-dialog"
+        >
+          <div
+            className="card-surface card-surface-modal w-full max-w-sm rounded-2xl bg-white p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-bold text-text">ยืนยันลบรายการกระทบยอด</h3>
+            <p className="mt-2 text-sm text-text-sub">
+              &quot;{deletingReport.report_name}&quot; จะถูกลบถาวร (การลบไม่สามารถย้อนกลับได้) ต้องการดำเนินการต่อหรือไม่?
+            </p>
+            {deleteError && (
+              <p role="alert" className="mt-3 rounded-[10px] border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {deleteError}
+              </p>
+            )}
+            <div className="mt-5 flex justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={deleteBusy}
+                onClick={() => setDeletingReport(null)}
+                className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-gray-500 hover:bg-page-bg disabled:opacity-60"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                disabled={deleteBusy}
+                onClick={handleConfirmDelete}
+                className="btn-press rounded-[10px] bg-danger px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-danger/90 disabled:opacity-60"
+                data-testid="confirm-reconcile-history-delete"
+              >
+                {deleteBusy ? 'กำลังลบ...' : 'ยืนยันลบ'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>
