@@ -126,7 +126,8 @@ function SelectCompanyContent() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--login-primary)]/20">
             <Building2 className="h-4.5 w-4.5 text-[var(--login-primary)]" strokeWidth={2.2} />
           </div>
-          <span className="text-sm font-semibold tracking-wide text-white">BENZ</span>
+          {/* เอาข้อความ "BENZ" ออก (2026-08-14 ตามคำขอผู้ใช้ — หน้านี้แสดงก่อนเลือกบริษัทจึงยังไม่มีชื่อบริษัท
+              ให้ใช้แทน) เหลือแค่ไอคอนตึกเฉยๆ ไม่มีข้อความชื่อระบบกำกับไว้ข้างๆ อีกต่อไป */}
         </div>
 
         {session?.user?.email && (
@@ -155,7 +156,7 @@ function SelectCompanyContent() {
           <h1 className="bg-gradient-to-r from-white to-[var(--login-primary)] bg-clip-text text-3xl font-semibold text-transparent sm:text-4xl">
             เลือกบริษัท
           </h1>
-          <p className="mt-2 text-sm text-white/50">เลือกบริษัทที่ต้องการเข้าใช้งานบน BENZ</p>
+          <p className="mt-2 text-sm text-white/50">เลือกบริษัทที่ต้องการเข้าใช้งาน</p>
         </div>
 
         <div className="w-full max-w-4xl">

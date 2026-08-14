@@ -283,6 +283,21 @@ function ExpenseRecordContent({
   const { selectedCompanyId, selectedCompany } = useCompany();
   const today = useMemo(() => todayISO(), []);
 
+  // เปลี่ยนหัวแท็บเบราว์เซอร์ (document.title) ให้เป็นชื่อบริษัทที่กำลังใช้งานอยู่แทนค่าเริ่มต้นตายตัว
+  // (2026-08-14 ตามคำขอผู้ใช้) — ค่าเริ่มต้น "เว็บติดตามใบกำกับภาษี" ใน app/layout.tsx (Metadata API
+  // ฝั่ง server, ไม่มีคำว่า "BENZ" อีกต่อไปตามคำขอถัดมา) ยังคงไว้เป็นค่าเริ่มต้นก่อน login/เลือกบริษัท
+  // (เช่นหน้า /login, /select-company) เพราะ
+  // Metadata API เป็นค่า static ตอน build/server-render เท่านั้น ไม่รู้จักชื่อบริษัทที่เลือกฝั่ง client —
+  // ตั้งค่าที่นี่แทนหลังรู้ selectedCompany แล้ว (DashboardShell คือจุดเดียวที่มีข้อมูลนี้ + mount ค้างตลอด
+  // การใช้งานเมนูต่างๆ ในแอป เพราะไม่มี route แยกต่อเมนู) ไม่ต้อง cleanup ตอน unmount เพราะจุดเดียวที่
+  // DashboardShell unmount จริงคือตอน logout ซึ่งจะ redirect กลับไปหน้า /login แบบ full navigation อยู่แล้ว
+  // (เบราว์เซอร์อ่านค่า title จาก Metadata API ใหม่จากศูนย์เองโดยอัตโนมัติ)
+  useEffect(() => {
+    if (selectedCompany) {
+      document.title = `${selectedCompany.name} | เว็บติดตามใบกำกับภาษี`;
+    }
+  }, [selectedCompany]);
+
   // ดึงสมุดรายชื่อมาด้วย (เพิ่มพร้อมฟีเจอร์ "ออกใบหัก ณ ที่จ่าย" 2026-08-11) — ใช้จับคู่ผู้ขายตอนเปิด modal
   // ออกใบ (ดู lib/whtCertificateLogic.ts findPayeeCandidates) SWR key เดียวกับ ContactsPage.tsx ทุกประการ
   // จึงใช้ cache ร่วมกันได้เลยถ้าผู้ใช้เคยเปิดหน้าสมุดรายชื่อมาก่อนแล้วในเซสชันเดียวกัน

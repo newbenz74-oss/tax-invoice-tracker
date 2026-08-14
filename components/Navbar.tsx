@@ -19,7 +19,7 @@ export default function Navbar() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">ใบกำกับภาษี</h1>
-          <p className="text-xs text-gray-400">BENZ</p>
+          <p className="text-xs text-gray-400">เว็บติดตามใบกำกับภาษี</p>
         </div>
         <div className="flex items-center gap-3">
           {session?.user?.email && (

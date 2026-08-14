@@ -43,11 +43,15 @@ export default function Sidebar({ activeId, onSelect, isOpen, onClose, isAdmin =
   const [expanded, setExpanded] = useState<Record<string, boolean>>(readInitialExpanded);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   // แสดงโลโก้/ชื่อบริษัทที่เลือกอยู่แทนคำว่า "BENZ" ตายตัว (เพิ่มเข้ามา 2026-08-14 คู่กับฟีเจอร์อัปโหลดโลโก้ —
-  // ดู CompanySettingsPage.tsx) selectedCompany เป็น null ได้ตอนกำลังโหลด/ยังไม่ได้เลือกบริษัท จึง fallback
-  // กลับไปที่ "BENZ" + ตัวอักษร B แบบเดิมในกรณีนั้น กันไม่ให้หัว sidebar ว่างเปล่าระหว่างรอข้อมูล
+  // ดู CompanySettingsPage.tsx) selectedCompany เป็น null ได้ตอนกำลังโหลด/ยังไม่ได้เลือกบริษัท เดิม fallback
+  // กลับไปที่ "BENZ" + ตัวอักษร B ในกรณีนั้น — ผู้ใช้ขอเอาคำว่า "BENZ" ออกจากทั้งระบบ (2026-08-14 คำขอถัดมา)
+  // เปลี่ยน fallback เป็น "กำลังโหลด..." (ไม่มีตราสินค้าเดิมติดอยู่เลย) แทน ตัวอักษรในกล่องโลโก้ก็ไม่ fallback
+  // เป็น "B" อีกต่อไป ปล่อยว่างไว้เฉยๆ ระหว่างรอข้อมูล (ไม่มีความหมายอะไรให้แสดงแทนตอนยังไม่รู้ชื่อบริษัทจริง)
   const { selectedCompany } = useCompany();
-  const sidebarTitle = selectedCompany?.name ?? 'BENZ';
-  const sidebarInitial = sidebarTitle.replace('บริษัท', '').replace('ห้างหุ้นส่วน', '').trim().charAt(0) || 'B';
+  const sidebarTitle = selectedCompany?.name ?? 'กำลังโหลด...';
+  const sidebarInitial = selectedCompany
+    ? sidebarTitle.replace('บริษัท', '').replace('ห้างหุ้นส่วน', '').trim().charAt(0)
+    : '';
 
   // บันทึกสถานะ expand/collapse ไว้ทุกครั้งที่เปลี่ยน เพื่อให้จำได้ข้าม refresh
   useEffect(() => {
