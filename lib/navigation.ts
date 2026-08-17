@@ -13,6 +13,7 @@ import {
   Send,
   Settings,
   UserCheck,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import type { InvoiceStatus } from '@/types/invoice';
@@ -158,6 +159,11 @@ export const NAV_STRUCTURE: NavEntry[] = [
   // การกรองใน components/Sidebar.tsx) ไม่ซ้อนใต้หมวดใดๆ เพราะไม่เกี่ยวกับข้อมูลบัญชี/ข้อมูลหลักเลย เป็นเรื่อง
   // จัดการสิทธิ์เข้าใช้งานล้วนๆ
   { id: 'manage-members', label: 'อนุมัติสมาชิกใหม่', icon: UserCheck, implemented: true, adminOnly: true },
+  // เมนูใหม่ (2026-08-15) พร้อมพอร์ทัลผู้ใช้ภายนอกดูใบหัก ณ ที่จ่าย — ดู
+  // supabase/migration_018_external_wht_viewers.sql, components/ManageExternalViewersPage.tsx สำหรับ
+  // รายละเอียดเต็ม วางต่อจาก 'manage-members' (adminOnly เหมือนกัน) เพราะเป็นเรื่องจัดการสิทธิ์เข้าใช้งาน
+  // ล้วนๆ เหมือนกัน แค่คนละกลุ่มผู้ใช้ (บุคคลภายนอก ไม่ใช่สมาชิกภายใน)
+  { id: 'manage-external-viewers', label: 'ผู้ใช้ภายนอก (ใบ WHT)', icon: Users, implemented: true, adminOnly: true },
   // ตั้งแต่บรรทัดนี้ลงไปคือ 3 เมนูที่ผู้ใช้ขอให้ "เอาออกจาก Sidebar" (hidden: true) — ไม่ได้ลบทิ้ง ไม่ได้
   // แก้ id/label/icon/implemented ใดๆ เลยแม้แต่ค่าเดียว อยู่ตรงไหนของอาร์เรย์นี้ก็ได้เพราะไม่ถูก render
   // อยู่แล้ว (จัดกลุ่มไว้ท้ายสุดเพื่อให้อ่านง่ายว่านี่คือ "เมนูที่ซ่อนอยู่" ทั้งหมด)

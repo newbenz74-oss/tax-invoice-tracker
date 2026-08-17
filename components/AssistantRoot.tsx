@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { usePathname } from 'next/navigation';
 import AssistantBubble from './AssistantBubble';
 import AssistantPanel from './AssistantPanel';
 import { useAssistantNavBridge } from '@/lib/assistantNavBridge';
@@ -59,6 +60,14 @@ function getOpenServerSnapshot(): boolean {
  * (null ตอนอยู่หน้า /login ที่ยังไม่ผ่าน ProtectedRoute — ดู lib/assistantNavBridge.ts)
  */
 export default function AssistantRoot() {
+  // ซ่อนผู้ช่วย AI ทั้งหมดในระบบภายนอก (เพิ่มเข้ามา 2026-08-15 ตามคำขอผู้ใช้ — "เอาผู้ช่วย AI ออก ในระบบ
+  // ภายนอก") ผู้ช่วยนี้ผูกกับเมนู/ข้อมูลของระบบภายในทั้งหมด (ดู lib/assistantNavBridge.ts) ไม่มีความหมายและ
+  // ไม่ควรให้บุคคลภายนอกเห็นเลย — เช็คด้วย usePathname() ในนี้แทนที่จะย้ายจุด mount ออกจาก root layout เพราะ
+  // AssistantRoot ถูก mount ที่ app/layout.tsx เป็น sibling ของ {children} จุดเดียวครอบคลุมทุก route (ไม่มี
+  // layout แยกของ /external) — ต้องเรียก hook อื่นๆ ทั้งหมดด้านล่างให้ครบก่อนเสมอ (React Rules of Hooks ห้าม
+  // return ก่อนเรียก hook) แล้วค่อย early return null ทีหลังสุดก่อน JSX แทน ไม่กระทบอะไร เพราะ state/effect
+  // ภายในที่ยังทำงานต่อ (เช่นจำสถานะเปิด/ปิดใน localStorage) เป็นแค่ของผู้ช่วยเองที่ไม่ถูก render ออกมาอยู่แล้ว
+  const pathname = usePathname();
   const navBridge = useAssistantNavBridge();
   const bubbleRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(false);
@@ -222,6 +231,10 @@ export default function AssistantRoot() {
       // ไม่ใช่การ swallow error ตั้งใจ — ยังไม่เคยเจอ error จริงจากจุดนี้เลยตลอดการทดสอบ)
       setPending(false);
     }
+  }
+
+  if (pathname?.startsWith('/external')) {
+    return null;
   }
 
   return (

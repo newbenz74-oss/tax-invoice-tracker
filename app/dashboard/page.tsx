@@ -19,6 +19,7 @@ import ContactsPage from '@/components/ContactsPage';
 import BankReconcilePage from '@/components/BankReconcilePage';
 import BankReconcileHistoryPage from '@/components/BankReconcileHistoryPage';
 import ManageMembersPage from '@/components/ManageMembersPage';
+import ManageExternalViewersPage from '@/components/ManageExternalViewersPage';
 import CompanySettingsPage from '@/components/CompanySettingsPage';
 import WhtCertificateHistoryPage from '@/components/WhtCertificateHistoryPage';
 import { useAuth } from '@/lib/AuthContext';
@@ -260,6 +261,11 @@ function renderActiveContent(
     // useCompany()/SWR ภายในตัวเอง เหมือน ContactsPage.tsx)
     case 'manage-members':
       return <ManageMembersPage />;
+    // เมนูใหม่ (2026-08-15) พร้อมพอร์ทัลผู้ใช้ภายนอกดูใบหัก ณ ที่จ่าย — ดู lib/navigation.ts
+    // (id: 'manage-external-viewers') และ components/ManageExternalViewersPage.tsx สำหรับรายละเอียดเต็ม
+    // ไม่รับ prop ใดๆ เพิ่ม (ดึงข้อมูลเองผ่าน useCompany()/SWR ภายในตัวเอง เหมือน ManageMembersPage.tsx)
+    case 'manage-external-viewers':
+      return <ManageExternalViewersPage />;
     default:
       return <ComingSoon label={title} />;
   }
