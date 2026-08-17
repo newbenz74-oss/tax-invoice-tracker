@@ -206,7 +206,10 @@ export default function ContactImportPanel({ onImport, onClose, existingContacts
             </div>
           </div>
 
-          <div className="card-surface max-h-[28rem] overflow-auto rounded-2xl">
+          {/* overscroll-contain (2026-08-17 ตามคำขอผู้ใช้) — กัน scroll ไหลทะลุออกไปเลื่อนหน้าเว็บต่อ
+              (scroll chaining) ตอนเลื่อนถึงขอบบน/ล่างของกล่องตารางนี้แล้ว ต้องเอาเมาส์ออกจากตารางก่อนถึงจะ
+              เลื่อนหน้าเว็บต่อได้ */}
+          <div className="card-surface max-h-[28rem] overflow-auto overscroll-contain rounded-2xl">
             <table className="min-w-full divide-y divide-border text-sm">
               <thead className="sticky top-0 z-10 bg-card-bg/90 backdrop-blur-sm">
                 <tr>

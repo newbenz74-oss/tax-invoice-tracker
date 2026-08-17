@@ -61,7 +61,10 @@ const ACTIVE_NAV_STORAGE_KEY = 'benz_sidebar_active';
 // Navigation/Layout (2026-07-15) ตามสเปกที่ขอ Pagination ไว้หลังย้าย KPI/สรุป VAT รายเดือนออกไป
 // หน้า Dashboard แล้ว เป็น UI state ล้วนๆ (slice array ฝั่ง client) ไม่แตะ lib/invoiceLogic.ts
 // หรือการเรียก API ใดๆ เลย ปรับตัวเลขนี้ได้อิสระในอนาคตถ้าต้องการ
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
+// ตัวเลือก "แสดงผลกี่รายการต่อหน้า" (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ — ทุกตารางในระบบเลือกได้
+// 10/20/30/40/50 ต่อหน้า ไม่เลือกก็ยังแสดงผลแบบเดิมปกติ)
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 
 function todayISO(): string {
   const now = new Date();
@@ -385,6 +388,14 @@ function ExpenseRecordContent({
   // Pagination (เพิ่มเข้ามาในรอบปรับโครงสร้าง Navigation/Layout 2026-07-15 ตามสเปก) — page state
   // ล้วนๆ ฝั่ง client (slice array ก่อน render) ไม่แตะ lib/invoiceLogic.ts หรือการเรียก API ใดๆ เลย
   const [page, setPage] = useState(1);
+  // จำนวนรายการต่อหน้า (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้) — เดิมเป็นค่าคงที่ PAGE_SIZE = 10 ตายตัว
+  // เปลี่ยนเป็น state ในนี้แทน ให้เลือกได้ 10/20/30/40/50 ผ่าน dropdown ในแถบ pagination ด้านล่าง
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+
+  function handlePageSizeChange(size: number) {
+    setPageSize(size);
+    setPage(1);
+  }
 
   // ออกใบหัก ณ ที่จ่ายทีละรายการจากเมนู "จัดการเอกสาร" ของแต่ละแถวในตาราง (2026-08-14 ตามคำขอผู้ใช้ — เดิม
   // ติ๊กเลือกได้หลายรายการ (ผู้ขายเดียวกัน) ผ่าน checkbox + แถบปุ่มลอยด้านล่างจอ ผู้ใช้ขอเปลี่ยนใจให้ย้ายเข้าไป
@@ -444,11 +455,11 @@ function ExpenseRecordContent({
   // ค้างอยู่) เพื่อเลี่ยง eslint rule react-hooks/set-state-in-effect เดิมของโปรเจกต์นี้ไปในตัว —
   // ฟังก์ชัน handle*Change ด้านล่างรีเซ็ตกลับหน้า 1 ให้ทันทีตอนเปลี่ยน filter/ค้นหา/เรียงอยู่แล้วด้วย
   // (ประสบการณ์ใช้งานที่ดีกว่าแค่ clamp เฉยๆ) แต่การ clamp ตรงนี้ยังจำเป็นไว้เป็นตัวกันสำรอง
-  const totalPages = Math.max(1, Math.ceil(visibleInvoices.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(visibleInvoices.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paginatedInvoices = useMemo(
-    () => visibleInvoices.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [visibleInvoices, safePage]
+    () => visibleInvoices.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [visibleInvoices, safePage, pageSize]
   );
 
   function handleStatusFilterChange(status: InvoiceStatus | 'all' | 'no_vat' | 'wht') {
@@ -713,11 +724,29 @@ function ExpenseRecordContent({
               หลังย้าย KPI Cards/Summary VAT รายเดือนออกไปหน้า Dashboard แล้ว ซ่อนไปเลยถ้าไม่มีรายการ
               (visibleInvoices.length === 0) เพราะไม่มีอะไรให้เปลี่ยนหน้า */}
           {visibleInvoices.length > 0 && (
-            <div className="mt-4 flex items-center justify-between gap-3" data-testid="pagination">
-              <p className="text-xs text-text-sub">
-                แสดง {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, visibleInvoices.length)} จาก{' '}
-                {visibleInvoices.length} รายการ
-              </p>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3" data-testid="pagination">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-xs text-text-sub">
+                  แสดง {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, visibleInvoices.length)} จาก{' '}
+                  {visibleInvoices.length} รายการ
+                </p>
+                <label className="flex items-center gap-1.5 text-xs text-text-sub">
+                  แสดง
+                  <select
+                    value={pageSize}
+                    onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                    className="rounded-[8px] border border-border bg-white/8 px-2 py-1 text-xs text-text focus:outline-none"
+                    data-testid="pagination-page-size"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                  รายการ/หน้า
+                </label>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"

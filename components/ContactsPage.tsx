@@ -30,7 +30,8 @@ import { contactRowToWriteInput, type ContactImportRow } from '@/lib/contactExce
 import { buildContactExportBlob, downloadContactBlob } from '@/lib/contactExport';
 import type { BusinessPartner, ContactFormInput, EntityType, PartnerType } from '@/types/contact';
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 
 type ModalMode = 'add' | 'edit' | 'view';
 
@@ -108,6 +109,14 @@ export default function ContactsPage() {
   const [partnerFilter, setPartnerFilter] = useState<PartnerType | 'all'>(readInitialPartnerFilter);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  // จำนวนรายการต่อหน้า (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ — เลือกได้ 10/20/30/40/50 ต่อหน้า ไม่เลือกก็ใช้
+  // ค่าเดิมปกติ 10 เหมือนก่อนหน้านี้)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+
+  function handlePageSizeChange(size: number) {
+    setPageSize(size);
+    setPage(1);
+  }
 
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [selectedContact, setSelectedContact] = useState<BusinessPartner | null>(null);
@@ -157,11 +166,11 @@ export default function ContactsPage() {
     [contacts, partnerFilter, search]
   );
 
-  const totalPages = Math.max(1, Math.ceil(visibleContacts.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(visibleContacts.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paginatedContacts = useMemo(
-    () => visibleContacts.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [visibleContacts, safePage]
+    () => visibleContacts.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [visibleContacts, safePage, pageSize]
   );
 
   function handlePartnerFilterChange(value: PartnerType | 'all') {
@@ -528,11 +537,29 @@ export default function ContactsPage() {
           />
 
           {visibleContacts.length > 0 && (
-            <div className="mt-4 flex items-center justify-between gap-3" data-testid="contact-pagination">
-              <p className="text-xs text-text-sub">
-                แสดง {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, visibleContacts.length)} จาก{' '}
-                {visibleContacts.length} รายการ
-              </p>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3" data-testid="contact-pagination">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-xs text-text-sub">
+                  แสดง {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, visibleContacts.length)} จาก{' '}
+                  {visibleContacts.length} รายการ
+                </p>
+                <label className="flex items-center gap-1.5 text-xs text-text-sub">
+                  แสดง
+                  <select
+                    value={pageSize}
+                    onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                    className="rounded-[8px] border border-border bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                    data-testid="contact-page-size"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                  รายการ/หน้า
+                </label>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"

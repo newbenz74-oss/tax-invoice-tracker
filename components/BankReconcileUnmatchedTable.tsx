@@ -7,7 +7,7 @@ import { buildUnmatchedTableExcelBlob } from '@/lib/bankReconcileHistoryExport';
 import { downloadBlob } from '@/lib/reportExport';
 
 const THB2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
 
 function formatDateDisplay(iso: string): string {
   const [y, m, d] = iso.split('-');
@@ -75,9 +75,19 @@ export default function BankReconcileUnmatchedTable({
   onToggleAll,
 }: BankReconcileUnmatchedTableProps) {
   const [page, setPage] = useState(1);
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  // จำนวนรายการต่อหน้า (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ — เลือกได้ 10/20/30/40/50 ต่อหน้า ไม่เลือกก็ใช้
+  // ค่าเดิมปกติ 20 เหมือนก่อนหน้านี้) เปลี่ยนจาก PAGE_SIZE ค่าคงที่มาเป็น state ในนี้ — component นี้ถูก mount
+  // แยก 2 instance (Bank Statement ไม่สำเร็จ / GL ไม่สำเร็จ) จึงมี state pageSize เป็นอิสระต่อกันเองอยู่แล้ว
+  // โดยธรรมชาติของ React (คนละ instance คนละ state) ไม่ต้องทำอะไรเพิ่มเพื่อแยกสองตารางนี้ออกจากกัน
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const paged = useMemo(() => rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE), [rows, safePage]);
+  const paged = useMemo(() => rows.slice((safePage - 1) * pageSize, safePage * pageSize), [rows, safePage, pageSize]);
+
+  function handlePageSizeChange(size: number) {
+    setPageSize(size);
+    setPage(1);
+  }
 
   // ผลรวมรับ/จ่าย ของทั้งตารางนี้ (เพิ่มเข้ามา 2026-08-05 ตามคำขอผู้ใช้ — จะเอาไปชนยอดกับเอกสารจริง) คำนวณ
   // จาก "rows" ทั้งก้อน (ทุกหน้า ไม่ใช่แค่ paged ที่กำลังแสดงอยู่หน้าปัจจุบัน) เพราะเป้าหมายคือยอดรวมของทั้ง
@@ -150,7 +160,10 @@ export default function BankReconcileUnmatchedTable({
         </div>
       ) : (
         <>
-          <div className="card-surface max-h-[28rem] overflow-auto rounded-2xl">
+          {/* overscroll-contain (2026-08-17 ตามคำขอผู้ใช้) — กัน scroll ไหลทะลุออกไปเลื่อนหน้าเว็บต่อ
+              (scroll chaining) ตอนเลื่อนถึงขอบบน/ล่างของกล่องตารางนี้แล้ว ต้องเอาเมาส์ออกจากตารางก่อนถึงจะ
+              เลื่อนหน้าเว็บต่อได้ */}
+          <div className="card-surface max-h-[28rem] overflow-auto overscroll-contain rounded-2xl">
             <table className="min-w-full divide-y divide-border text-sm">
               <thead className="sticky top-0 z-10 bg-card-bg/90 backdrop-blur-sm">
                 <tr>
@@ -265,9 +278,10 @@ export default function BankReconcileUnmatchedTable({
             page={safePage}
             totalPages={totalPages}
             totalItems={rows.length}
-            pageSize={PAGE_SIZE}
+            pageSize={pageSize}
             onPrev={() => setPage(safePage - 1)}
             onNext={() => setPage(safePage + 1)}
+            onPageSizeChange={handlePageSizeChange}
           />
         </>
       )}

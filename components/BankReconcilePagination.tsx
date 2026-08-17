@@ -1,5 +1,7 @@
 'use client';
 
+const DEFAULT_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
+
 interface BankReconcilePaginationProps {
   testIdPrefix: string;
   page: number;
@@ -8,6 +10,13 @@ interface BankReconcilePaginationProps {
   pageSize: number;
   onPrev: () => void;
   onNext: () => void;
+  /** ตัวเลือก "แสดงผลกี่รายการต่อหน้า" (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ — "อยากให้มีปุ่มเลือกจำนวนการ
+   * แสดงผลในตาราง 10/20/30/40/50 ทุกตาราง") — เป็น prop เสริม (optional) ไม่ใส่มาก็ยังทำงานได้ปกติเหมือนเดิม
+   * ทุกประการ (ไม่ render dropdown นี้เลย) เพื่อไม่ให้กระทบจุดอื่นที่อาจยังไม่ทันอัปเดตมาส่ง prop นี้ — ผู้เรียก
+   * เป็นเจ้าของ state pageSize เอง (ไม่ได้ยึดอยู่ใน component นี้) และต้องรีเซ็ต page กลับเป็น 1 เองตอนเปลี่ยน
+   * ค่า (ดู handlePageSizeChange ในแต่ละตารางที่เรียกใช้) */
+  onPageSizeChange?: (size: number) => void;
+  pageSizeOptions?: number[];
 }
 
 /** แถบ pagination ที่ใช้ร่วมกันในทั้ง 3 ตารางของหน้ากระทบยอด Bank Reconcile — ดีไซน์/testid pattern
@@ -21,16 +30,38 @@ export default function BankReconcilePagination({
   pageSize,
   onPrev,
   onNext,
+  onPageSizeChange,
+  pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
 }: BankReconcilePaginationProps) {
   if (totalItems === 0) return null;
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, totalItems);
 
   return (
-    <div className="mt-3 flex items-center justify-between gap-3" data-testid={`${testIdPrefix}-pagination`}>
-      <p className="text-xs text-text-sub">
-        แสดง {from}–{to} จาก {totalItems} รายการ
-      </p>
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-3" data-testid={`${testIdPrefix}-pagination`}>
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-xs text-text-sub">
+          แสดง {from}–{to} จาก {totalItems} รายการ
+        </p>
+        {onPageSizeChange && (
+          <label className="flex items-center gap-1.5 text-xs text-text-sub">
+            แสดง
+            <select
+              value={pageSize}
+              onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              className="rounded-[8px] border border-border bg-white/8 px-2 py-1 text-xs text-text focus:outline-none"
+              data-testid={`${testIdPrefix}-page-size`}
+            >
+              {pageSizeOptions.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+            รายการ/หน้า
+          </label>
+        )}
+      </div>
       <div className="flex items-center gap-2">
         <button
           type="button"

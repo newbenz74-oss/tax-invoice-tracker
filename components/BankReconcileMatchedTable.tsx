@@ -6,7 +6,7 @@ import type { MatchGroup } from '@/types/bankReconcileMatch';
 import BankReconcilePagination from './BankReconcilePagination';
 
 const THB2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
 
 function formatDateDisplay(iso: string): string {
   const [y, m, d] = iso.split('-');
@@ -49,10 +49,18 @@ interface BankReconcileMatchedTableProps {
  * (ไม่มีแถวรายละเอียดเพิ่มสำหรับกลุ่มที่ไม่ใช่ N:M) จึงไม่กระทบ e2e assertion เดิมที่นับจำนวนแถวในตารางนี้ */
 export default function BankReconcileMatchedTable({ groups }: BankReconcileMatchedTableProps) {
   const [page, setPage] = useState(1);
+  // จำนวนรายการต่อหน้า (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ — เลือกได้ 10/20/30/40/50 ต่อหน้า ไม่เลือกก็ใช้
+  // ค่าเดิมปกติ 20 เหมือนก่อนหน้านี้) เปลี่ยนจาก PAGE_SIZE ค่าคงที่มาเป็น state ในนี้
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
-  const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(groups.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const paged = useMemo(() => groups.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE), [groups, safePage]);
+  const paged = useMemo(() => groups.slice((safePage - 1) * pageSize, safePage * pageSize), [groups, safePage, pageSize]);
+
+  function handlePageSizeChange(size: number) {
+    setPageSize(size);
+    setPage(1);
+  }
 
   // ผลรวมรับ/จ่าย ทั้งฝั่ง Bank Statement และฝั่ง GL (เพิ่มเข้ามา 2026-08-05 ตามคำขอผู้ใช้ — จะเอาไปชนยอด
   // กับเอกสารจริง) แก้ไข 2026-08-06: เปลี่ยนจากคำนวณจาก "groups" ทั้งก้อนทุกหน้า มาเป็นคำนวณจาก "paged"
@@ -89,7 +97,10 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
         </div>
       ) : (
         <>
-          <div className="card-surface max-h-[32rem] overflow-auto rounded-2xl">
+          {/* overscroll-contain (2026-08-17 ตามคำขอผู้ใช้) — กัน scroll ไหลทะลุออกไปเลื่อนหน้าเว็บต่อ
+              (scroll chaining) ตอนเลื่อนถึงขอบบน/ล่างของกล่องตารางนี้แล้ว ต้องเอาเมาส์ออกจากตารางก่อนถึงจะ
+              เลื่อนหน้าเว็บต่อได้ */}
+          <div className="card-surface max-h-[32rem] overflow-auto overscroll-contain rounded-2xl">
             <table className="min-w-full divide-y divide-border text-sm">
               <thead className="sticky top-0 z-10 bg-card-bg/90 backdrop-blur-sm">
                 <tr>
@@ -300,9 +311,10 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
             page={safePage}
             totalPages={totalPages}
             totalItems={groups.length}
-            pageSize={PAGE_SIZE}
+            pageSize={pageSize}
             onPrev={() => setPage(safePage - 1)}
             onNext={() => setPage(safePage + 1)}
+            onPageSizeChange={handlePageSizeChange}
           />
         </>
       )}

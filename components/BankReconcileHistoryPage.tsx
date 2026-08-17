@@ -15,7 +15,7 @@ import BankReconcilePagination from './BankReconcilePagination';
 import BankReconcileHistoryDetail from './BankReconcileHistoryDetail';
 import type { NavIntent } from '@/lib/navigation';
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
 
 interface BankReconcileHistoryPageProps {
   // ยังรับ onNavigate ไว้เหมือนเดิม (pattern เดียวกับ DashboardOverview/OverduePurchaseTaxReport) — ไม่ได้
@@ -79,12 +79,20 @@ export default function BankReconcileHistoryPage({ onNavigate }: BankReconcileHi
   }
 
   const [page, setPage] = useState(1);
-  const totalPages = Math.max(1, Math.ceil(reports.length / PAGE_SIZE));
+  // จำนวนรายการต่อหน้า (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ — เลือกได้ 10/20/30/40/50 ต่อหน้า ไม่เลือกก็ใช้
+  // ค่าเดิมปกติ 10 เหมือนก่อนหน้านี้)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(reports.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const visibleReports = useMemo(
-    () => reports.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [reports, safePage]
+    () => reports.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [reports, safePage, pageSize]
   );
+
+  function handlePageSizeChange(size: number) {
+    setPageSize(size);
+    setPage(1);
+  }
 
   // id ของรายการที่กำลังเปิดดูรายละเอียดอยู่ (ไม่ null = แสดง BankReconcileHistoryDetail แทน list ทั้งหมด)
   const [viewingReportId, setViewingReportId] = useState<string | null>(null);
@@ -215,9 +223,10 @@ export default function BankReconcileHistoryPage({ onNavigate }: BankReconcileHi
             page={safePage}
             totalPages={totalPages}
             totalItems={reports.length}
-            pageSize={PAGE_SIZE}
+            pageSize={pageSize}
             onPrev={() => setPage(safePage - 1)}
             onNext={() => setPage(safePage + 1)}
+            onPageSizeChange={handlePageSizeChange}
           />
         </div>
       )}
