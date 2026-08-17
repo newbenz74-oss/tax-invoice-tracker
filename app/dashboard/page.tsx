@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { Search } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -362,8 +362,20 @@ function ExpenseRecordContent({
   // filtersComplete) ที่ต้องเลือกครบก่อนถึงจะแสดงตาราง — ที่นี่ไม่เลือก (ค่า '') = แสดงทุกเดือน/ทุกปีตามปกติ
   // yearFilter เก็บเป็นปี พ.ศ. (ตรงกับ dropdown ที่ผู้ใช้เห็น ผ่าน buddhistYearOptions) แปลงกลับเป็น ค.ศ.
   // (ลบ 543) ตอนเทียบกับ transaction_date ซึ่งเป็น ISO string ค.ศ. เท่านั้น (ดู lib/thaiDate.ts บรรทัด 26-28)
+  //
+  // เพิ่มปุ่ม "ตกลง" (2026-08-17 คำขอถัดมา) — เดิมเปลี่ยน dropdown ปุ๊บกรองทันที ผู้ใช้ขอให้เลือกเดือน/ปีเสร็จ
+  // แล้วต้องกดยืนยันก่อนถึงจะกรองจริง จึงแยก state เป็น 2 ชุด: *Draft = ค่าที่ dropdown แสดง/ผู้ใช้กำลังเลือก
+  // (เปลี่ยนได้อิสระ ไม่กระทบตารางจนกว่าจะกด "ตกลง") ส่วน monthFilter/yearFilter ด้านล่าง (ไม่มีคำว่า Draft)
+  // คือค่าที่ "ใช้กรองจริง" ที่ visibleInvoices ผูกอยู่ — อัปเดตเฉพาะตอนกด "ตกลง" เท่านั้น (handleApplyDateFilter)
+  const [monthFilterDraft, setMonthFilterDraft] = useState<number | ''>('');
+  const [yearFilterDraft, setYearFilterDraft] = useState<number | ''>('');
   const [monthFilter, setMonthFilter] = useState<number | ''>('');
   const [yearFilter, setYearFilter] = useState<number | ''>('');
+  // wrapper รอบตาราง+pagination — เล่น animation "dip" ซ้ำทุกครั้งที่กด "ตกลง" ผ่าน classList โดยตรง (ไม่ใช้
+  // React state/useEffect) ยึด pattern เดียวกับ ContactsPage.tsx tableWrapperRef/handlePartnerFilterChange
+  // ทุกประการ (ดูคอมเมนต์เต็มที่นั่น + .table-filter-transition ใน app/globals.css) ให้ผลลัพธ์ "แสดงข้อมูล
+  // อย่างสวยงาม" เหมือนหน้าสมุดรายชื่อตามที่ผู้ใช้ขอ แทนที่จะสลับข้อมูลดิบๆ ไม่มี transition เลย
+  const tableWrapperRef = useRef<HTMLDivElement>(null);
   // เอาการเรียงลำดับด้วยการคลิกหัวตารางออกแล้ว (2026-08-14 ตามคำขอผู้ใช้ — ผู้ใช้กดโดนหัวตาราง
   // "วันที่ทำรายการ" แล้วเข้าใจว่าเป็นตัวกรอง ไม่ต้องการให้กดแล้วเปลี่ยนลำดับได้อีกต่อไป) เปลี่ยนจาก state
   // (มี setter) เป็นค่าคงที่ตรงๆ แทน — ผู้ใช้แก้ไขลำดับเองจาก UI ไม่ได้อีกต่อไป
@@ -481,14 +493,31 @@ function ExpenseRecordContent({
     setPage(1);
   }
 
+  // เปลี่ยน dropdown แค่ปรับค่า Draft (ยังไม่กรองจริง) — ต้องกด "ตกลง" (handleApplyDateFilter ด้านล่าง)
+  // ก่อนถึงจะนำไปกรองตารางจริง ตามคำขอผู้ใช้
   function handleMonthFilterChange(value: number | '') {
-    setMonthFilter(value);
-    setPage(1);
+    setMonthFilterDraft(value);
   }
 
   function handleYearFilterChange(value: number | '') {
-    setYearFilter(value);
+    setYearFilterDraft(value);
+  }
+
+  // กด "ตกลง" — ยืนยัน Draft ปัจจุบันเป็นตัวกรองจริง (monthFilter/yearFilter) แล้วเล่น animation "dip" กับ
+  // ตาราง+pagination ทั้งก้อนซ้ำ ด้วยเทคนิคเดียวกับ ContactsPage.tsx handlePartnerFilterChange (remove class
+  // → บังคับ reflow ผ่าน offsetWidth → add class กลับ) แทนการสลับข้อมูลดิบๆ ไม่มี transition
+  function handleApplyDateFilter() {
+    setMonthFilter(monthFilterDraft);
+    setYearFilter(yearFilterDraft);
     setPage(1);
+
+    const el = tableWrapperRef.current;
+    if (el) {
+      el.classList.remove('table-filter-transition');
+      if (el.offsetWidth >= 0) {
+        el.classList.add('table-filter-transition');
+      }
+    }
   }
 
   async function handleFormSubmit(input: InvoiceFormInput) {
@@ -642,9 +671,11 @@ function ExpenseRecordContent({
               />
             </div>
             {/* ตัวกรองเดือน/ปี (2026-08-17 ตามคำขอผู้ใช้) — ไม่บังคับเลือกเหมือนหน้าประวัติใบหัก ณ ที่จ่าย
-                ค่าเริ่มต้น "ทั้งหมด" ทั้งสองช่อง = ไม่กรอง แสดงทุกรายการตามปกติ (ดู visibleInvoices ด้านบน) */}
+                ค่าเริ่มต้น "ทั้งหมด" ทั้งสองช่อง = ไม่กรอง แสดงทุกรายการตามปกติ (ดู visibleInvoices ด้านบน)
+                ผูกกับ *Draft state เท่านั้น (ยังไม่กรองจริงตอนเปลี่ยน dropdown) ต้องกดปุ่ม "ตกลง" ทางขวา
+                ก่อนถึงจะกรองจริง (ดู handleApplyDateFilter ด้านบน) */}
             <select
-              value={monthFilter}
+              value={monthFilterDraft}
               onChange={(e) => handleMonthFilterChange(e.target.value ? Number(e.target.value) : '')}
               className="focus-ring-primary h-12 rounded-xl border border-border bg-white/8 px-3.5 text-sm text-text"
               data-testid="month-filter"
@@ -657,7 +688,7 @@ function ExpenseRecordContent({
               ))}
             </select>
             <select
-              value={yearFilter}
+              value={yearFilterDraft}
               onChange={(e) => handleYearFilterChange(e.target.value ? Number(e.target.value) : '')}
               className="focus-ring-primary h-12 rounded-xl border border-border bg-white/8 px-3.5 text-sm text-text"
               data-testid="year-filter"
@@ -669,6 +700,13 @@ function ExpenseRecordContent({
                 </option>
               ))}
             </select>
+            <button
+              onClick={handleApplyDateFilter}
+              className="btn-press h-12 rounded-[10px] bg-primary/90 px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary"
+              data-testid="apply-date-filter"
+            >
+              ตกลง
+            </button>
             <button
               onClick={() => {
                 setShowImportPanel(true);
@@ -735,7 +773,17 @@ function ExpenseRecordContent({
         // entrance-delay-3 (2026-07-18 — ให้ตรงกับหน้า "สมุดรายชื่อ" ที่ผู้ใช้ขอ) ไม่กระทบ layout เดิมเลย
         // เพราะ <main> ไม่มี flex/grid/space-y ควบคุมระยะห่างระหว่าง element ลูกโดยตรงอยู่แล้ว (InvoiceTable
         // กับ pagination จัดการ margin ของตัวเองด้วย mt-4 ที่ pagination อยู่แล้ว)
+        //
+        // แยก tableWrapperRef (table-filter-transition) ออกมาเป็น div ชั้นในต่างหาก ไม่ใช้ element เดียวกับ
+        // entrance-animate อีกต่อไป (2026-08-17 แก้บั๊ก "กระพริบ" ที่ผู้ใช้รายงาน) — สาเหตุคือทั้งสองคลาสตั้งค่า
+        // CSS property `animation` (shorthand) ตัวเดียวกันบน element เดียวกัน ตอนกด "ตกลง" แล้ว JS ลบ+ใส่คลาส
+        // table-filter-transition กลับเข้าไปใหม่ (บังคับ reflow ให้ animation restart) มีช่วงเสี้ยววินาทีที่
+        // element เหลือแค่ entrance-animate ควบคุมอยู่ ทำให้ browser คำนวณ animation ใหม่ทั้งคู่สลับกันจริงๆ
+        // (เห็นเป็นวูบจาง/ทึบสลับกันเร็วๆ แทนที่จะ dip นุ่มๆ ครั้งเดียว) — แก้โดยให้ entrance-animate (เล่นครั้ง
+        // เดียวตอน mount หน้า ไม่ถูกแตะอีกเลย) อยู่ที่ div ชั้นนอก ส่วน table-filter-transition (ถูก toggle ซ้ำๆ
+        // ทุกครั้งที่กด "ตกลง") อยู่ที่ div ชั้นในแยกต่างหาก ไม่มี property ชนกันอีกต่อไป
         <div className="entrance-animate entrance-delay-3">
+        <div ref={tableWrapperRef}>
           <InvoiceTable
             invoices={paginatedInvoices}
             today={today}
@@ -819,6 +867,7 @@ function ExpenseRecordContent({
               </div>
             </div>
           )}
+        </div>
         </div>
       )}
     </main>
