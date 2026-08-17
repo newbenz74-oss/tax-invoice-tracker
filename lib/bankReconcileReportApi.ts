@@ -85,6 +85,9 @@ interface BankRowRecord {
   transaction_date: string;
   type: TransactionType;
   amount: string | number;
+  // เพิ่มเข้ามา 2026-08-17 พร้อม migration_019_bank_reconcile_row_description.sql — ดูคอมเมนต์เต็มที่
+  // BankTransaction.description ใน types/bankReconcile.ts
+  description: string | null;
 }
 
 interface GlRowRecord {
@@ -95,14 +98,31 @@ interface GlRowRecord {
   transaction_date: string;
   type: TransactionType;
   amount: string | number;
+  // แก้บั๊ก 2026-08-17 (ดู migration_019_bank_reconcile_row_description.sql) — เดิมตาราง
+  // bank_reconcile_gl_rows ไม่มีคอลัมน์นี้เลย ทำให้ description หายไปทุกครั้งที่บันทึกแล้วเปิดแก้ไขใหม่
+  // แม้ parseGLRows จะอ่านค่ามาให้ถูกต้องตั้งแต่ตอนอัปโหลดไฟล์ก็ตาม
+  description: string | null;
 }
 
 function toBankTransaction(row: BankRowRecord): BankTransaction {
-  return { id: row.id, date: row.transaction_date, type: row.type, amount: Number(row.amount) };
+  return {
+    id: row.id,
+    date: row.transaction_date,
+    type: row.type,
+    amount: Number(row.amount),
+    description: row.description ?? undefined,
+  };
 }
 
 function toGLTransaction(row: GlRowRecord): GLTransaction {
-  return { id: row.id, documentNo: row.document_no, date: row.transaction_date, type: row.type, amount: Number(row.amount) };
+  return {
+    id: row.id,
+    documentNo: row.document_no,
+    date: row.transaction_date,
+    type: row.type,
+    amount: Number(row.amount),
+    description: row.description ?? undefined,
+  };
 }
 
 // รับ companyId เข้ามาบังคับ (เพิ่มเข้ามา 2026-08-07 พร้อมฟีเจอร์รองรับหลายบริษัท) — เหตุผลเดียวกับ
@@ -209,6 +229,7 @@ export async function saveReconcileReport(
     transaction_date: row.date,
     type: row.type,
     amount: row.amount,
+    description: row.description ?? null,
   }));
   const glPayload = input.allGlRows.map((row, index) => ({
     match_group_id: glGroupById.get(row.id) ?? null,
@@ -217,6 +238,7 @@ export async function saveReconcileReport(
     transaction_date: row.date,
     type: row.type,
     amount: row.amount,
+    description: row.description ?? null,
   }));
   const groupsPayload = input.matchGroups.map((group) => ({
     id: group.groupId,

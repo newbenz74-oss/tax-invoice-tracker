@@ -465,6 +465,10 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
             statusText="ไม่พบข้อมูลใน GL"
             emptyText="ไม่มีรายการ Bank Statement ที่ไม่พบข้อมูลใน GL"
             rows={bankUnmatched}
+            // เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ — เดิมมีคอลัมน์คำอธิบายแค่ฝั่ง GL เท่านั้น (showDescription
+            // ด้านล่างของตาราง "GL ไม่สำเร็จ") ตอนนี้ parseBankRows อ่านคำอธิบายจากไฟล์ Bank Statement มาให้
+            // ด้วยแล้ว (ดู lib/bankReconcileParse.ts) จึงเปิดคอลัมน์นี้ให้ตารางฝั่งนี้ได้เหมือนกัน
+            showDescription
             selectedIds={selectedBankIds}
             onToggleRow={toggleBankRow}
             onToggleAll={toggleAllBank}

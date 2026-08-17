@@ -20,6 +20,10 @@ export interface BankTransaction {
   date: string; // ISO YYYY-MM-DD เสมอ (แปลงจากค่าดิบในไฟล์ตอน parse)
   type: TransactionType;
   amount: number; // ปัดเศษ 2 ตำแหน่งเสมอ เป็นค่าบวกเสมอ (ประเภทรับ/จ่ายบ่งบอกทิศทางอยู่แล้วในฟิลด์ type)
+  /** คำอธิบายรายการ ดึงมาจากคอลัมน์ "คำอธิบาย"/"รายละเอียด"/description ของไฟล์ Bank Statement ต้นฉบับ
+   * (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ — เดิมมีแค่ฝั่ง GLTransaction เท่านั้น ดูคอมเมนต์ที่นั่นประกอบ)
+   * เป็น optional เพราะไฟล์ Bank Statement บางไฟล์ไม่มีคอลัมน์นี้เลย ไม่บังคับต้องมี */
+  description?: string;
 }
 
 /** 1 แถวจากไฟล์ GL หลัง parse แล้ว — เหมือน BankTransaction ทุกประการ บวกเลขที่เอกสาร (แสดงเฉพาะใน

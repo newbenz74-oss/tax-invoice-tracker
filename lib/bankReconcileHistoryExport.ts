@@ -163,8 +163,8 @@ export interface UnmatchedTableExportRow {
   type: TransactionType;
   amount: number;
   documentNo?: string;
-  /** คำอธิบายรายการ (เพิ่มเข้ามา 2026-08-07) — มีเฉพาะฝั่ง GL เท่านั้น ใช้คู่กับพารามิเตอร์ showDescription
-   * ของ buildUnmatchedTableExcelBlob ด้านล่าง */
+  /** คำอธิบายรายการ (เพิ่มเข้ามา 2026-08-07 — เดิมมีเฉพาะฝั่ง GL เท่านั้น ขยายมาใช้กับฝั่ง Bank Statement
+   * ด้วย 2026-08-17) ใช้คู่กับพารามิเตอร์ showDescription ของ buildUnmatchedTableExcelBlob ด้านล่าง */
   description?: string;
 }
 

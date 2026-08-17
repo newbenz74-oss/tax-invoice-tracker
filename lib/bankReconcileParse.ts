@@ -97,8 +97,9 @@ const DOC_NO_ALIASES = [
   'referenceno',
 ].map(normalizeHeader);
 
-// คอลัมน์คำอธิบาย (เพิ่มเข้ามา 2026-08-07 ตามคำขอผู้ใช้ — ใช้เฉพาะฝั่ง GL เท่านั้น) ไม่ใช่คอลัมน์บังคับ
-// (optional) — ไฟล์ GL ที่ไม่มีคอลัมน์นี้เลยยังอ่านได้ปกติ แค่ description จะเป็น undefined
+// คอลัมน์คำอธิบาย (เพิ่มเข้ามา 2026-08-07 ตามคำขอผู้ใช้ — เดิมใช้เฉพาะฝั่ง GL, ขยายมาใช้กับฝั่ง Bank
+// Statement ด้วย 2026-08-17) ไม่ใช่คอลัมน์บังคับ (optional) — ไฟล์ที่ไม่มีคอลัมน์นี้เลยยังอ่านได้ปกติ
+// แค่ description จะเป็น undefined
 const DESCRIPTION_ALIASES = [
   'คำอธิบาย',
   'รายละเอียด',
@@ -186,9 +187,9 @@ interface DetectedTableColumns {
   receiveIdx: number;
   paymentIdx: number;
   docNoIdx: number | null;
-  /** ตำแหน่งคอลัมน์คำอธิบาย ถ้ามีในไฟล์ (เพิ่มเข้ามา 2026-08-07) — ตรวจหาเสมอไม่ว่าจะเรียกจาก parseBankRows
-   * หรือ parseGLRows ก็ตาม (ไม่ใช่คอลัมน์บังคับ ไม่กระทบ requiredFound) แต่ปัจจุบันใช้จริงเฉพาะ parseGLRows
-   * เท่านั้น — null = ไม่พบคอลัมน์นี้ในไฟล์ */
+  /** ตำแหน่งคอลัมน์คำอธิบาย ถ้ามีในไฟล์ (เพิ่มเข้ามา 2026-08-07, ใช้จริงกับทั้ง parseBankRows และ parseGLRows
+   * ตั้งแต่ 2026-08-17) — ตรวจหาเสมอไม่ว่าจะเรียกจากฟังก์ชันไหน (ไม่ใช่คอลัมน์บังคับ ไม่กระทบ requiredFound)
+   * null = ไม่พบคอลัมน์นี้ในไฟล์ */
   descIdx: number | null;
 }
 
@@ -238,7 +239,11 @@ export function parseBankRows(rows: unknown[][]): ParsedTransactionFile<BankTran
     if (isRowBlank(raw)) continue;
     const tx = buildTransaction(raw[columns.dateIdx], raw[columns.receiveIdx], raw[columns.paymentIdx], `แถวที่ ${i + 1}`, warnings);
     if (!tx) continue;
-    result.push({ id: `bank-${i}`, date: tx.date, type: tx.type, amount: tx.amount });
+    // ดึงคำอธิบายมาด้วยถ้าไฟล์ Bank Statement มีคอลัมน์นี้ (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ — เดิม
+    // detectHeaderRow หา descIdx ให้อยู่แล้วทุกครั้งไม่ว่าจะเรียกจากฟังก์ชันไหน แต่ก่อนหน้านี้ฟังก์ชันนี้ไม่เคย
+    // นำค่าไปใช้เลย ทิ้งไปเงียบๆ — mirror กับ parseGLRows ด้านล่างทุกประการ)
+    const descriptionRaw = columns.descIdx !== null ? String(raw[columns.descIdx] ?? '').trim() : '';
+    result.push({ id: `bank-${i}`, date: tx.date, type: tx.type, amount: tx.amount, description: descriptionRaw || undefined });
   }
   return { rows: result, errors: [], warnings };
 }
