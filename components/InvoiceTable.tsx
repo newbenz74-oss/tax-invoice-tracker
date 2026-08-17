@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import type { MarkReceivedInput, PendingTaxInvoice } from '@/types/invoice';
 import {
   calcNetPayment,
@@ -57,15 +57,6 @@ interface InvoiceTableProps {
 //
 // จัดลำดับคอลัมน์ใหม่ตามคำขอผู้ใช้ (2026-08-14): วันที่ทำรายการ, เลขที่อ้างอิง, ผู้ขาย, ยอดก่อน VAT, VAT,
 // หัก ณ ที่จ่าย, ยอดจ่ายสุทธิ, สถานะ/Aging, การจัดการ (เดิมคือ ผู้ขาย, วันที่ทำรายการ, ..., เลขที่อ้างอิง, ...)
-
-// อินพุตในตาราง (แถบ "มาร์กว่าได้รับแล้ว") ตั้งใจให้กระชับกว่า input ทั่วไปของระบบ (สูง 48px)
-// เพราะอยู่ในเซลล์ตารางแคบๆ ที่มี 5 ฟิลด์เรียงต่อกัน ใช้ความสูงเต็ม 48px ตรงนี้จะทำให้แถวสูง
-// เกินไปจนตารางดูอึดอัด — คงขนาดกระชับเดิมไว้ แต่ปรับสี/ขอบ/โฟกัสให้เป็นชุดสีใหม่ทั้งหมด
-// แก้บั๊กตัวหนังสือมองไม่เห็น (2026-08-11) — ช่องนี้เป็นกล่องขาวเฉพาะตัว (bg-white) วางอยู่ในแถวตารางที่เป็น
-// การ์ดกระจกเข้ม (card-surface) เดิมใช้ text-text (สีเกือบขาว ออกแบบมาสำหรับพื้นกระจกเข้มเท่านั้น) ทำให้
-// ตัวหนังสือที่พิมพ์ (เช่น เลขที่ใบกำกับภาษี) มองไม่เห็นบนพื้นขาวของกล่องนี้เอง — เปลี่ยนเป็น text-gray-800
-const inlineInputClass =
-  'w-40 rounded-[10px] border border-border bg-white px-2.5 py-1.5 text-xs text-gray-800 focus-ring-primary';
 
 export default function InvoiceTable({
   invoices,
@@ -141,6 +132,11 @@ export default function InvoiceTable({
     }
   }
 
+  // แถวที่กำลังเปิด modal "ได้รับแล้ว" อยู่ (ถ้ามี) — หาแบบนี้แทนเก็บ invoice object เต็มไว้ใน state
+  // เพราะ invoices มาจาก SWR cache ที่อาจอัปเดตสดระหว่างเปิด modal อยู่ (เช่น mutate() จากที่อื่น) ทำให้
+  // modal เห็นข้อมูลล่าสุดเสมอแทนที่จะค้างข้อมูลเก่า ณ ตอนกดเปิด
+  const receivingInvoice = receivingId ? (invoices.find((inv) => inv.id === receivingId) ?? null) : null;
+
   if (invoices.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-card-bg p-12 text-center text-sm text-text-sub">
@@ -169,7 +165,6 @@ export default function InvoiceTable({
         </thead>
         <tbody className="divide-y divide-border/60">
           {invoices.map((invoice, index) => {
-            const isReceiving = receivingId === invoice.id;
             const isBusy = busyId === invoice.id;
             // เมนู "จัดการเอกสาร" ของ 2 แถวสุดท้ายในหน้านี้เปิดขึ้นด้านบนแทนด้านล่าง (2026-08-14 ตามคำขอ
             // ผู้ใช้ — เดิมเปิดลงด้านล่างเสมอ ทำให้แถวใกล้ท้ายตาราง/ท้ายหน้าเมนูโผล่พ้นขอบจอ มองไม่เห็นตัวเลือก
@@ -242,95 +237,18 @@ export default function InvoiceTable({
                   </span>
                 </td>
                 <td className="px-[18px] py-[18px]">
-                  {isReceiving ? (
-                    <div className="flex flex-col items-end gap-1.5">
-                      <input
-                        placeholder="เลขที่ใบกำกับภาษี"
-                        value={taxInvoiceNumber}
-                        onChange={(e) => setTaxInvoiceNumber(e.target.value)}
-                        className={inlineInputClass}
-                        data-testid={`tax-invoice-number-input-${invoice.id}`}
-                      />
-                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-text-sub">
-                        วันที่ได้รับเอกสาร
-                        <input
-                          type="date"
-                          value={receivedDate}
-                          onChange={(e) => setReceivedDate(e.target.value)}
-                          className={inlineInputClass}
-                        />
-                      </label>
-                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-text-sub">
-                        วันที่ใบกำกับภาษี *
-                        <input
-                          type="date"
-                          value={taxInvoiceDate}
-                          onChange={(e) => setTaxInvoiceDate(e.target.value)}
-                          className={inlineInputClass}
-                          data-testid={`tax-invoice-date-input-${invoice.id}`}
-                        />
-                      </label>
-                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-text-sub">
-                        เดือนที่ใช้เครดิต VAT *
-                        <select
-                          value={vatClaimMonth}
-                          onChange={(e) => setVatClaimMonth(e.target.value ? Number(e.target.value) : '')}
-                          className={inlineInputClass}
-                          data-testid={`vat-claim-month-select-${invoice.id}`}
-                        >
-                          <option value="">เลือกเดือน</option>
-                          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                            <option key={m} value={m}>
-                              {thaiMonthName(m)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="flex w-40 flex-col gap-0.5 text-[10px] text-text-sub">
-                        ปีที่ใช้เครดิต VAT *
-                        <select
-                          value={vatClaimYear}
-                          onChange={(e) => setVatClaimYear(e.target.value ? Number(e.target.value) : '')}
-                          className={inlineInputClass}
-                          data-testid={`vat-claim-year-select-${invoice.id}`}
-                        >
-                          <option value="">เลือกปี</option>
-                          {buddhistYearOptions().map((y) => (
-                            <option key={y} value={y}>
-                              {y}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <div className="flex gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReceivingId(null);
-                            setTaxInvoiceNumber('');
-                          }}
-                          className="btn-press rounded-[10px] border border-border px-2 py-1 text-xs text-text-sub hover:bg-page-bg"
-                        >
-                          ยกเลิก
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!taxInvoiceNumber.trim() || !taxInvoiceDate || !vatClaimMonth || !vatClaimYear || isBusy}
-                          onClick={() => handleConfirmReceived(invoice)}
-                          className="btn-press rounded-[10px] bg-success px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
-                          data-testid={`confirm-received-${invoice.id}`}
-                        >
-                          ยืนยัน
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
+                  {
                     // เมนูลอย (dropdown) ที่สไลด์ลงมาจริงๆ (2026-08-12 — เดิมลองใช้เทคนิค accordion แบบ
                     // grid-template-rows เหมือน .month-detail-panel แต่เพราะอยู่ในแถวตาราง (tr/td) ความสูง
                     // แถวเปลี่ยนแบบไม่ลื่นไหล ดูเหมือน "โผล่มาทันที" ไม่ใช่ "สไลด์" ตามที่ผู้ใช้ต้องการ — เปลี่ยน
                     // มาใช้ position: absolute ลอยทับแถวถัดไปแทน (ไม่ดันความสูงแถวตารางเลย) แล้ว animate
                     // opacity + translateY ตรงๆ ด้วย Tailwind transition ได้ลื่นไหลแน่นอนไม่ว่าจะอยู่ในบริบท
                     // ตารางหรือไม่ก็ตาม — ปิดอัตโนมัติเมื่อคลิกนอกเมนู (ดู useEffect handleClickOutside ด้านบน)
+                    //
+                    // เดิมกด "ได้รับแล้ว" แล้วเซลล์นี้เปลี่ยนไปแสดงฟอร์มกรอกเลขที่ใบกำกับภาษีแบบยัดอยู่ในเซลล์
+                    // แคบๆ (5 ช่องเรียงต่อกัน) — เปลี่ยนเป็น modal กลางจอแทน (2026-08-17 ตามคำขอผู้ใช้) ดู
+                    // ReceiveInvoiceModal ท้ายไฟล์นี้ ที่นี่จึงแสดงเมนู "จัดการเอกสาร" เสมอ ไม่มีเงื่อนไข isReceiving
+                    // สลับ UI ในเซลล์นี้อีกต่อไป (receivingId ยังคงใช้ควบคุมว่า modal เปิดอยู่สำหรับแถวไหน)
                     <div className="relative inline-block text-left" data-row-actions-menu>
                       <button
                         type="button"
@@ -443,13 +361,194 @@ export default function InvoiceTable({
                         </div>
                       </div>
                     </div>
-                  )}
+                  }
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+      {receivingInvoice && (
+        <ReceiveInvoiceModal
+          invoice={receivingInvoice}
+          taxInvoiceNumber={taxInvoiceNumber}
+          setTaxInvoiceNumber={setTaxInvoiceNumber}
+          receivedDate={receivedDate}
+          setReceivedDate={setReceivedDate}
+          taxInvoiceDate={taxInvoiceDate}
+          setTaxInvoiceDate={setTaxInvoiceDate}
+          vatClaimMonth={vatClaimMonth}
+          setVatClaimMonth={setVatClaimMonth}
+          vatClaimYear={vatClaimYear}
+          setVatClaimYear={setVatClaimYear}
+          busy={busyId === receivingInvoice.id}
+          onClose={() => {
+            setReceivingId(null);
+            setTaxInvoiceNumber('');
+          }}
+          onConfirm={() => handleConfirmReceived(receivingInvoice)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Modal กรอกข้อมูล "ได้รับแล้ว" (เลขที่ใบกำกับภาษี/วันที่/เดือน-ปีที่ใช้เครดิต VAT) — เพิ่มเข้ามาแทนฟอร์ม
+ * inline เดิมที่ยัดอยู่ในเซลล์ตาราง "การจัดการ" แคบๆ (2026-08-17 ตามคำขอผู้ใช้ "อยากให้การกรอกเลขที่
+ * ใบกำกับภาษี เด้งขึ้นมาเป็นหน้าต่างกลางจอ") state ทั้งหมดยังคงอยู่ที่ InvoiceTable (ตัว parent) เหมือนเดิม
+ * ไม่ย้ายเข้ามาในนี้ ที่นี่เป็นแค่ presentational component รับ props ล้วนๆ ตามสไตล์เดียวกับที่ modal อื่นๆ
+ * ในระบบทำ (ดู IssueWhtCertificateModal.tsx) — วางไว้ท้ายไฟล์นี้แทนแยกไฟล์ใหม่ เพราะใช้เฉพาะใน
+ * InvoiceTable.tsx จุดเดียวเท่านั้น ไม่มีจุดอื่นเรียกใช้ */
+interface ReceiveInvoiceModalProps {
+  invoice: PendingTaxInvoice;
+  taxInvoiceNumber: string;
+  setTaxInvoiceNumber: (v: string) => void;
+  receivedDate: string;
+  setReceivedDate: (v: string) => void;
+  taxInvoiceDate: string;
+  setTaxInvoiceDate: (v: string) => void;
+  vatClaimMonth: number | '';
+  setVatClaimMonth: (v: number | '') => void;
+  vatClaimYear: number | '';
+  setVatClaimYear: (v: number | '') => void;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}
+
+function ReceiveInvoiceModal({
+  invoice,
+  taxInvoiceNumber,
+  setTaxInvoiceNumber,
+  receivedDate,
+  setReceivedDate,
+  taxInvoiceDate,
+  setTaxInvoiceDate,
+  vatClaimMonth,
+  setVatClaimMonth,
+  vatClaimYear,
+  setVatClaimYear,
+  busy,
+  onClose,
+  onConfirm,
+}: ReceiveInvoiceModalProps) {
+  const canConfirm = taxInvoiceNumber.trim() !== '' && taxInvoiceDate !== '' && vatClaimMonth !== '' && vatClaimYear !== '';
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="บันทึกว่าได้รับเอกสารแล้ว"
+      data-testid="receive-invoice-modal"
+    >
+      {/* การ์ด/โมดัลทั้งระบบเป็นกระจกเข้มเสมอ (card-surface ชนะ bg-white เสมอตาม CSS Cascade Layers — ดู
+          คอมเมนต์เต็มใน app/globals.css) ใช้ตัวเลือกสี/โครงเดียวกับ IssueWhtCertificateModal.tsx ทุกประการ
+          เพื่อความสม่ำเสมอของ modal ทั้งระบบ */}
+      <div
+        className="card-surface card-surface-modal max-h-[calc(100vh-48px)] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-bold text-text">บันทึกว่าได้รับเอกสารแล้ว</h3>
+            <p className="mt-0.5 text-sm text-text-sub">{invoice.vendor_name}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-md p-1 text-text-sub hover:bg-page-bg"
+            aria-label="ปิด"
+            data-testid="receive-invoice-close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-3.5">
+          <label className="flex flex-col gap-1 text-xs font-medium text-text-sub">
+            เลขที่ใบกำกับภาษี *
+            <input
+              placeholder="เลขที่ใบกำกับภาษี"
+              value={taxInvoiceNumber}
+              onChange={(e) => setTaxInvoiceNumber(e.target.value)}
+              className="w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary"
+              data-testid={`tax-invoice-number-input-${invoice.id}`}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-text-sub">
+            วันที่ได้รับเอกสาร
+            <input
+              type="date"
+              value={receivedDate}
+              onChange={(e) => setReceivedDate(e.target.value)}
+              className="w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-text-sub">
+            วันที่ใบกำกับภาษี *
+            <input
+              type="date"
+              value={taxInvoiceDate}
+              onChange={(e) => setTaxInvoiceDate(e.target.value)}
+              className="w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary"
+              data-testid={`tax-invoice-date-input-${invoice.id}`}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-text-sub">
+            เดือนที่ใช้เครดิต VAT *
+            <select
+              value={vatClaimMonth}
+              onChange={(e) => setVatClaimMonth(e.target.value ? Number(e.target.value) : '')}
+              className="w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary"
+              data-testid={`vat-claim-month-select-${invoice.id}`}
+            >
+              <option value="">เลือกเดือน</option>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>
+                  {thaiMonthName(m)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-text-sub">
+            ปีที่ใช้เครดิต VAT *
+            <select
+              value={vatClaimYear}
+              onChange={(e) => setVatClaimYear(e.target.value ? Number(e.target.value) : '')}
+              className="w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary"
+              data-testid={`vat-claim-year-select-${invoice.id}`}
+            >
+              <option value="">เลือกปี</option>
+              {buddhistYearOptions().map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn-press rounded-[10px] border border-border px-3.5 py-2 text-sm text-text-sub hover:bg-page-bg"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            disabled={!canConfirm || busy}
+            onClick={onConfirm}
+            className="btn-press rounded-[10px] bg-success px-3.5 py-2 text-sm font-medium text-white disabled:opacity-50"
+            data-testid={`confirm-received-${invoice.id}`}
+          >
+            ยืนยัน
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
