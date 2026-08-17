@@ -147,6 +147,16 @@ function shortBuddhistDate(iso: string | null): string {
   return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${String(buddhistYear2).padStart(2, '0')}`;
 }
 
+/** วันที่แบบ วว/ดด/ปปปป (ปี พ.ศ. เต็ม 4 หลัก เช่น "06/04/2569") — ใช้เฉพาะช่อง "วันเดือนปีที่จ่าย" ในตาราง
+ * ประเภทเงินได้ของฟอร์ม (paidDateText ด้านล่าง) เท่านั้น (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ที่ยืนยันชัดเจนว่า
+ * อยากเห็นปีเต็ม 4 หลักตรงจุดนี้ แม้ฟอร์มราชการตัวอย่างจริงจะใช้ปี พ.ศ. 2 หลักก็ตาม — ตารางหน้าแนบท้าย
+ * appendInvoiceBreakdownPage ยังใช้ shortBuddhistDate เดิม (2 หลัก) ไม่ได้แก้ เพราะผู้ใช้ระบุเจาะจงเฉพาะช่องนี้) */
+function shortBuddhistDateFullYear(iso: string | null): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y + 543}`;
+}
+
 /** วันที่แบบเต็ม "วัน / ชื่อเดือนไทย / ปี พ.ศ. 4 หลัก" (เช่น "11 / สิงหาคม / 2569") — ใช้เติมลงเส้นวันที่ใต้
  * "ลงชื่อ" (ช่อง "(วัน เดือน ปี ที่ออกหนังสือรับรองฯ)") ตามคำขอผู้ใช้ 2026-08-13 ("วันที่ไม่ขึ้นอะ") เดิมเป็น
  * เส้นประว่างเปล่าเสมอ ตอนนี้ใช้ cert.issued_date จริง (ค่าเริ่มต้นตั้งเป็นวันที่จ่ายเงินอยู่แล้ว — ดู
@@ -494,7 +504,7 @@ function drawCertificateCopy(
   y = checkboxRowY + 3;
 
   // ตารางประเภทเงินได้พึงประเมินที่จ่าย
-  const paidDateText = invoices.length === 1 ? shortBuddhistDate(invoices[0].transaction_date) : 'หลายรายการ';
+  const paidDateText = invoices.length === 1 ? shortBuddhistDateFullYear(invoices[0].transaction_date) : 'หลายรายการ';
 
   const rows = (['1', '2', '3', '4', '5', '6'] as const).map((code) => {
     const isSelected = code === cert.income_type_code;

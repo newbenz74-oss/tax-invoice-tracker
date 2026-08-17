@@ -41,8 +41,6 @@ import { deriveStatusForTaxType, filterInvoices, sortInvoices } from '@/lib/invo
 import { excelRowToWriteInput, type ExcelImportRow } from '@/lib/excelImport';
 import { CONTACTS_SWR_KEY, fetchContacts } from '@/lib/contactApi';
 import { fetchWhtCertificates, WHT_CERTIFICATES_SWR_KEY } from '@/lib/whtCertificateApi';
-import { buildWhtCertificatePdf, whtCertificateFilename } from '@/lib/whtCertificatePdf';
-import { downloadBlob } from '@/lib/reportExport';
 import { DEFAULT_ACTIVE_ID, findNavLeaf, type NavIntent } from '@/lib/navigation';
 import { buddhistYearOptions, thaiMonthName } from '@/lib/thaiDate';
 import type {
@@ -412,21 +410,13 @@ function ExpenseRecordContent({
   // invoice เดียวที่กำลังจะออกใบอยู่ (null = ไม่ได้เปิด modal อยู่) แทน Set ของ id เดิม
   const [whtIssueInvoice, setWhtIssueInvoice] = useState<PendingTaxInvoice | null>(null);
 
-  // ออกใบสำเร็จ -> ดาวน์โหลด PDF ให้ทันที (เพิ่มพร้อม lib/whtCertificatePdf.ts) ใช้ invoice ที่ capture ไว้ตอน
-  // เปิด modal (whtIssueInvoice ก่อนถูกล้างเป็น null) — ห่อ downloadBlob ด้วย try/catch แยกต่างหากจาก mutate()
-  // เพราะการสร้าง PDF ไม่สำเร็จ (เช่น browser บล็อก popup การดาวน์โหลด) ไม่ควรทำให้ผู้ใช้เข้าใจผิดว่าออกใบไม่
-  // สำเร็จ — ใบถูกบันทึกลงฐานข้อมูลแล้วจริงเสมอ ณ จุดนี้ (ผู้ใช้ยังไปดาวน์โหลดซ้ำได้ทีหลังจากหน้าประวัติ #55)
-  async function handleWhtIssued(cert: WhtCertificate) {
-    const issuedInvoices = whtIssueInvoice ? [whtIssueInvoice] : [];
+  // ออกใบสำเร็จ -> แค่รีเฟรชรายการ ไม่ดาวน์โหลด PDF ให้อัตโนมัติอีกต่อไป (2026-08-17 ตามคำขอผู้ใช้ "ให้ยกเลิก
+  // การโหลดอัตโนมัติ ฉันจะมากดดาวน์โหลดภายหลังเอง") เดิมสร้าง+ดาวน์โหลด PDF ทันทีที่นี่ (ดู lib/whtCertificatePdf.ts)
+  // ใบยังถูกบันทึกลงฐานข้อมูลเหมือนเดิมทุกประการ ผู้ใช้ไปกดดาวน์โหลดเองทีหลังได้จากหน้า "ใบหัก ณ ที่จ่าย"
+  // (WhtCertificateHistoryPage.tsx) ซึ่งมีปุ่มดาวน์โหลด PDF ต่อรายการอยู่แล้ว
+  async function handleWhtIssued() {
     setWhtIssueInvoice(null);
     await Promise.all([mutate(), mutateWhtCertificates()]);
-    try {
-      const blob = buildWhtCertificatePdf(cert, issuedInvoices);
-      downloadBlob(blob, whtCertificateFilename(cert));
-    } catch {
-      // สร้าง/ดาวน์โหลด PDF ไม่สำเร็จ — ไม่บล็อก flow หลัก (ใบถูกบันทึกแล้วจริง) ผู้ใช้ดาวน์โหลดซ้ำได้จาก
-      // หน้าประวัติในอนาคต
-    }
   }
 
   const visibleInvoices = useMemo(() => {

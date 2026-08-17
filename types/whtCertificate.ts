@@ -88,6 +88,9 @@ export interface CreateWhtCertificateInput {
   signerName: string;
   issuedDate: string;
   invoiceIds: string[];
+  // เลขที่ใบ (ลำดับที่) ที่ผู้ใช้ระบุเอง (เพิ่มเข้ามา 2026-08-17 พร้อม migration_020) — undefined/ไม่ส่ง =
+  // ให้ RPC รันเลขให้อัตโนมัติเหมือนเดิม ดู IssueWhtCertificateModal.tsx สำหรับ UI preview+แก้ไขเลขนี้
+  sequenceOverride?: number;
 }
 
 /** ข้อมูล "ฝ่ายหนึ่งฝ่ายใด" (ผู้จ่าย/ผู้ถูกหัก) ที่ส่งเข้า RPC create_wht_certificate เป็น jsonb (p_payer/

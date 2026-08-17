@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import type { PendingTaxInvoice } from '@/types/invoice';
 import type { BusinessPartner } from '@/types/contact';
@@ -12,13 +12,18 @@ import {
   buildPayeeSnapshot,
   buildPayerSnapshot,
   findPayeeCandidates,
+  formatWhtCertNumber,
   formTypeForEntityType,
 } from '@/lib/whtCertificateLogic';
-import { createWhtCertificate } from '@/lib/whtCertificateApi';
+import { createWhtCertificate, peekNextWhtCertNumber } from '@/lib/whtCertificateApi';
 import { getContactDisplayName } from '@/lib/contactLogic';
 import { calcNetPayment } from '@/lib/invoiceLogic';
 
 const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// ตัวเลือกด่วนของช่อง "รายละเอียดเพิ่มเติม" (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้) — แค่ค่าคงที่ preset
+// ที่พบบ่อย ไม่ได้บังคับเลือก ช่องนี้ยังเป็น input ข้อความธรรมดาที่พิมพ์เองแก้ไขได้ตามปกติทุกประการ
+const INCOME_TYPE_LABEL_QUICK_OPTIONS = ['ค่าบริการ', 'ค่าจ้าง', 'เงินรางวัล', 'ค่าโฆษณา', 'ค่าเช่า'];
 
 function todayISO(): string {
   const now = new Date();
@@ -26,6 +31,38 @@ function todayISO(): string {
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+/** จำนวนวันของเดือน/ปี (ค.ศ.) ที่ระบุ — ใช้ตรวจว่าวันที่ที่พิมพ์เข้ามาใน parseBuddhistDateInput ด้านล่างมีอยู่
+ * จริงไหม (เช่น 31 กุมภาพันธ์ ไม่มีจริง) new Date(year, month, 0) คือ trick มาตรฐานของ JS ที่ได้วันสุดท้ายของ
+ * เดือนก่อนหน้า (month ที่ส่งเข้าเป็น 1-12 ปกติ ไม่ใช่ 0-11 แบบ Date API เพราะ "day 0 ของเดือนถัดไป" =
+ * "วันสุดท้ายของเดือนนี้") */
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+/** จัดรูปแบบ ISO ค.ศ. (YYYY-MM-DD) ให้เป็นข้อความ วว/ดด/ปปปป (ปี พ.ศ.) สำหรับแสดงในช่อง "วันที่ออกใบ" —
+ * คู่กับ parseBuddhistDateInput ด้านล่าง (แปลงกลับทิศทางตรงข้าม) */
+function formatBuddhistDateInput(iso: string): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y + 543}`;
+}
+
+/** แปลงข้อความ วว/ดด/ปปปป (ปี พ.ศ. ที่ผู้ใช้พิมพ์เอง) กลับเป็น ISO ค.ศ. (YYYY-MM-DD) — คืน null ถ้ารูปแบบผิด
+ * หรือเป็นวันที่ที่ไม่มีจริง (เช่น 31/02/2569) ตั้งใจไม่ยอมรับรูปแบบอื่นเลย (เช่น "17-08-2569" หรือพิมพ์ค้าง
+ * ไม่ครบ) เพื่อไม่ให้ตีความวันที่ผิดเพี้ยนแบบเงียบๆ — ผู้เรียก (handleIssuedDateInputChange) จะไม่อัปเดต
+ * issuedDate เลยถ้าฟังก์ชันนี้คืน null รอจนกว่าจะพิมพ์ครบรูปแบบที่ถูกต้อง */
+function parseBuddhistDateInput(text: string): string | null {
+  const match = text.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return null;
+  const d = Number(match[1]);
+  const m = Number(match[2]);
+  const y = Number(match[3]) - 543;
+  if (m < 1 || m > 12) return null;
+  if (y < 1000) return null;
+  if (d < 1 || d > daysInMonth(y, m)) return null;
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
 /** วันที่จ่ายเงินล่าสุดในบรรดารายการที่เลือกออกใบ — ใช้เป็นค่าเริ่มต้นของ "วันที่ออกใบ" (ตามคำขอผู้ใช้
@@ -78,9 +115,12 @@ interface IssueWhtCertificateModalProps {
  * ก็ได้จากสมุดรายชื่อทั้งหมดเสมอ ไม่บังคับให้ตรงชื่อกับ vendor_name อีกต่อไป — บล็อกไม่ให้ออกใบเฉพาะกรณีเดียว
  * คือสมุดรายชื่อยังไม่มีรายชื่อผู้ขายเลยแม้แต่รายเดียว (ไม่มีตัวเลือกให้เลือกจริงๆ)
  *
- * เลขที่ใบ (cert_number) ไม่แสดง preview ในฟอร์มนี้เลย เพราะรันจริงผ่าน RPC create_wht_certificate() ตอน
- * กดยืนยันเท่านั้น (atomic กับการขอเลขที่ถัดไป — ดู supabase/migration_015_wht_certificates.sql) periodYear/
- * periodMonth ที่ส่งเข้า RPC คำนวณจาก issuedDate เสมอ (เดือน/ปีที่ออกใบจริง ไม่ใช่เดือนที่ทำรายการจ่ายเงิน)
+ * เลขที่ใบ (cert_number) แสดง preview ในฟอร์มนี้ด้วย (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้) — เลขที่แนะนำมาจาก
+ * การอ่านตัวนับปัจจุบันแบบ read-only (peekNextWhtCertNumber, ไม่เพิ่มตัวนับถาวร) ผู้ใช้แก้ไขเลข "ลำดับที่" เองได้
+ * เสมอ ก่อนกดยืนยัน — เลขจริงที่ถูกบันทึกคือค่าที่ผู้ใช้เห็น/แก้ไขล่าสุด ณ ตอนกดยืนยัน (ส่งเป็น sequenceOverride
+ * ให้ RPC create_wht_certificate() ใช้ตรงๆ แทนการรันอัตโนมัติ — ดู supabase/migration_020_wht_cert_sequence_
+ * override.sql) periodYear/periodMonth ที่ใช้กำหนด "ชุดตัวนับ" มาจาก issuedDate เสมอ (เดือน/ปีที่ออกใบจริง
+ * ไม่ใช่เดือนที่ทำรายการจ่ายเงิน) ส่วน formType มาจากประเภทนิติบุคคล/บุคคลธรรมดาของผู้ถูกหักที่เลือก
  *
  * mode="reissue" (เพิ่มเข้ามาพร้อมปุ่ม "แก้ไข" ในหน้าประวัติ, 2026-08-11) ใช้ modal เดียวกันนี้ทุกประการ
  * เพียงพรีฟิลค่าฟอร์มด้วย prefill (จากใบเดิมที่ผู้เรียกยกเลิกไปแล้วผ่าน voidWhtCertificate() ก่อนเปิด modal
@@ -117,7 +157,10 @@ export default function IssueWhtCertificateModal({
   const [selectedContactId, setSelectedContactId] = useState<string>(() => exactMatches[0]?.id ?? '');
   const selectedContact = vendorContacts.find((c) => c.id === selectedContactId) ?? null;
 
-  const [incomeTypeCode, setIncomeTypeCode] = useState<WhtIncomeTypeCode | ''>(prefill?.incomeTypeCode ?? '');
+  // ค่าเริ่มต้น "6. อื่นๆ" (2026-08-17 ตามคำขอผู้ใช้ — ส่วนใหญ่เลือกตัวนี้อยู่แล้ว ไม่อยากต้องกดเลือกเองทุกครั้ง)
+  // ยังแก้ไขเป็นตัวเลือกอื่นได้ตามปกติผ่าน <select> ด้านล่าง — โหมด reissue ยังคง prefill จากใบเดิมก่อนเสมอ
+  // (ไม่ทับด้วยค่าเริ่มต้นนี้ถ้ามี prefill.incomeTypeCode อยู่แล้ว)
+  const [incomeTypeCode, setIncomeTypeCode] = useState<WhtIncomeTypeCode | ''>(prefill?.incomeTypeCode ?? '6');
   const [incomeTypeLabel, setIncomeTypeLabel] = useState(prefill?.incomeTypeLabel ?? '');
   const [deductionType, setDeductionType] = useState<WhtDeductionType>(prefill?.deductionType ?? 'withholding');
   const [deductionTypeNote, setDeductionTypeNote] = useState(prefill?.deductionTypeNote ?? '');
@@ -126,15 +169,107 @@ export default function IssueWhtCertificateModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ช่อง "วันที่ออกใบ" เป็นช่องเดียวเหมือนเดิม (2026-08-17) — ลองใช้ 3 dropdown วัน/เดือน/ปีแยกกันไปก่อนหน้านี้
+  // แล้วผู้ใช้ขอกลับมาเป็นช่องเดียว ("ขอแบบเดิม") แต่ยังต้องแก้ปัญหาเดิมอยู่ คือ input type="date" ของ
+  // เบราว์เซอร์รับได้แค่ปี ค.ศ. เท่านั้น พิมพ์ "2569" ตรงๆ จะกลายเป็นปี ค.ศ. 2569 จริง (ไม่ใช่แปลงจาก พ.ศ. ให้)
+  // — จึงเปลี่ยนจาก type="date" เป็น input ข้อความธรรมดา รูปแบบ วว/ดด/ปปปป (ปี พ.ศ.) แทน ให้พิมพ์ 2569 ได้ตรงๆ
+  // เก็บ buffer ข้อความที่พิมพ์แยกไว้ต่างหาก (issuedDateInput) เพราะระหว่างพิมพ์ค่าอาจยังไม่ใช่วันที่ที่ถูกต้อง
+  // สมบูรณ์ (เช่นพิมพ์ "17/08/" ค้างไว้) — issuedDate (ISO ค.ศ.) จะอัปเดตก็ต่อเมื่อข้อความที่พิมพ์ครบรูปแบบและ
+  // เป็นวันที่จริงเท่านั้น ฟิลด์อื่นที่ใช้ issuedDate ต่อ (handleSubmit/periodYear, RPC, PDF) ไม่ต้องแก้อะไรเลย
+  // เพราะ issuedDate ยังเป็น ISO ค.ศ. รูปแบบเดียวกันเป๊ะๆ เหมือนเดิม
+  const [issuedDateInput, setIssuedDateInput] = useState(() => formatBuddhistDateInput(issuedDate));
+  const issuedDateHasError = issuedDateInput.trim() !== '' && parseBuddhistDateInput(issuedDateInput) === null;
+
+  function handleIssuedDateInputChange(text: string) {
+    setIssuedDateInput(text);
+    const parsed = parseBuddhistDateInput(text);
+    if (parsed) setIssuedDate(parsed);
+  }
+
+  // ตอนออกจากช่อง (blur) — ถ้าพิมพ์ไม่ครบ/ผิดรูปแบบ ให้แสดงค่า issuedDate ล่าสุดที่ถูกต้องกลับคืนแทน (ไม่ปล่อย
+  // ให้ช่องค้างข้อความขยะ) ถ้าพิมพ์ถูกต้อง ให้จัดรูปแบบใหม่ให้เรียบร้อย (เติมเลข 0 นำหน้าให้ครบ เช่น "7/8/2569"
+  // -> "07/08/2569")
+  function handleIssuedDateBlur() {
+    const parsed = parseBuddhistDateInput(issuedDateInput);
+    setIssuedDateInput(formatBuddhistDateInput(parsed ?? issuedDate));
+  }
+
+  // เลขที่ใบหัก ณ ที่จ่าย (preview + แก้ไขเองได้ เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ "อยากให้โชว์เลขที่...
+  // โดยระบบจะรันเลขให้อัตโนมัติ...แต่ฉันก็ยังสามารถแก้ไขเลขที่ได้") — formType ขึ้นกับประเภทนิติบุคคล/บุคคล
+  // ธรรมดาของผู้ถูกหักที่เลือกไว้ (selectedContact) ส่วน periodYear (พ.ศ.)/periodMonth ขึ้นกับ issuedDate เสมอ
+  // (ชุดตัวนับเดียวกับที่ RPC ใช้จริงตอนกดยืนยัน — ดู handleSubmit ด้านล่าง)
+  const previewFormType = selectedContact ? formTypeForEntityType(selectedContact.entity_type) : null;
+  const [previewIsoYear, previewIsoMonth] = issuedDate ? issuedDate.split('-').map(Number) : [undefined, undefined];
+  const previewPeriodYear = previewIsoYear !== undefined ? previewIsoYear + 543 : null;
+  const previewPeriodMonth = previewIsoMonth ?? null;
+
+  const [sequenceInput, setSequenceInput] = useState<number | ''>('');
+  const [sequenceLoading, setSequenceLoading] = useState(false);
+  const [sequenceLoadError, setSequenceLoadError] = useState<string | null>(null);
+
+  // โหลดเลขที่แนะนำใหม่ทุกครั้งที่ formType/เดือน/ปีเปลี่ยน (เปลี่ยนผู้ขาย หรือแก้วันที่ออกใบ) — อ่านแบบ
+  // read-only ผ่าน peekNextWhtCertNumber (ไม่เพิ่มตัวนับถาวร ดู lib/whtCertificateApi.ts) เรียกซ้ำได้ไม่จำกัด
+  // เขียนทับค่าที่ผู้ใช้เคยแก้ไว้เองเสมอเมื่อ bucket เปลี่ยน เพราะเลขเดิมที่แก้ไว้อ้างอิงกับ bucket เก่าเท่านั้น
+  // ไม่มีความหมายอีกต่อไปถ้าเปลี่ยนผู้ขาย/เดือน/ปี — ถ้าผู้ใช้แก้เลขเองในหน้าจอปัจจุบัน (bucket เดิม) โดยไม่ได้
+  // เปลี่ยนผู้ขาย/วันที่ ค่านั้นจะไม่ถูกเขียนทับ (effect ไม่ยิงซ้ำเพราะ dependency ไม่เปลี่ยน)
+  useEffect(() => {
+    let cancelled = false;
+
+    // ห่อ setState ทุกจุดด้วย Promise.resolve().then(...) เสมอ (กฎ react-hooks/set-state-in-effect ของ
+    // โปรเจกต์นี้ ห้าม setState ตรงๆ ใน effect body แบบไม่มี async คั่นกลาง — ดู pattern เดียวกันใน
+    // components/CompanySettingsPage.tsx) แม้ peekNextWhtCertNumber() เป็น async อยู่แล้ว แต่ยังต้องห่อ
+    // setSequenceLoading(true)/setSequenceLoadError(null) ที่เรียกก่อนเริ่ม fetch ด้วยเช่นกัน
+    if (!previewFormType || previewPeriodYear === null || previewPeriodMonth === null) {
+      Promise.resolve().then(() => {
+        if (!cancelled) setSequenceInput('');
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setSequenceLoading(true);
+      setSequenceLoadError(null);
+    });
+
+    peekNextWhtCertNumber(companyId, previewFormType, previewPeriodYear, previewPeriodMonth)
+      .then((next) => {
+        if (!cancelled) setSequenceInput(next);
+      })
+      .catch(() => {
+        if (!cancelled) setSequenceLoadError('โหลดเลขที่แนะนำไม่สำเร็จ กรอกลำดับที่เองได้');
+      })
+      .finally(() => {
+        if (!cancelled) setSequenceLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, previewFormType, previewPeriodYear, previewPeriodMonth]);
+
+  const previewCertNumber =
+    previewFormType && previewPeriodYear !== null && previewPeriodMonth !== null && sequenceInput !== ''
+      ? formatWhtCertNumber(previewFormType, previewPeriodYear, previewPeriodMonth, sequenceInput)
+      : null;
+
   const totalAmount = invoices.reduce((sum, inv) => sum + inv.total_amount, 0);
   const totalWhtAmount = invoices.reduce((sum, inv) => sum + inv.wht_amount, 0);
   const totalNetPayment = calcNetPayment(totalAmount, totalWhtAmount);
 
   const canSubmit =
-    !vendorNameMismatch && Boolean(selectedContact) && Boolean(incomeTypeCode) && Boolean(issuedDate) && !submitting;
+    !vendorNameMismatch &&
+    Boolean(selectedContact) &&
+    Boolean(incomeTypeCode) &&
+    Boolean(issuedDate) &&
+    sequenceInput !== '' &&
+    !sequenceLoading &&
+    !submitting;
 
   async function handleSubmit() {
-    if (!selectedContact || !incomeTypeCode) return;
+    if (!selectedContact || !incomeTypeCode || sequenceInput === '') return;
     setSubmitting(true);
     setError(null);
     try {
@@ -156,6 +291,7 @@ export default function IssueWhtCertificateModal({
         signerName,
         issuedDate,
         invoiceIds: invoices.map((inv) => inv.id),
+        sequenceOverride: sequenceInput,
       };
 
       const payer = buildPayerSnapshot(company);
@@ -180,12 +316,19 @@ export default function IssueWhtCertificateModal({
     >
       {/* การ์ด/โมดัลทั้งระบบเป็นกระจกเข้มเสมอ (card-surface ชนะ bg-white เสมอตาม CSS Cascade Layers — ดู
           คอมเมนต์เต็มใน app/globals.css) องค์ประกอบที่วางตรงบนพื้นการ์ดตรงนี้ (ไม่มีกล่อง bg-white ของ
-          ตัวเอง) จึงต้องใช้สีอ่อน text-text/text-text-sub ให้อ่านออกบนพื้นเข้ม (2026-08-12) */}
+          ตัวเอง) จึงต้องใช้สีอ่อน text-text/text-text-sub ให้อ่านออกบนพื้นเข้ม (2026-08-12)
+
+          โครงสร้างเปลี่ยนเป็น flex column แบ่ง 3 ส่วน (2026-08-17 ตามคำขอผู้ใช้ "หน้าต่างกรอกข้อมูล...
+          โชว์ข้อมูลไม่ครบส่วนบนหาย") — เดิม overflow-y-auto อยู่ที่กล่องนอกสุดกล่องเดียว ทำให้หัวเรื่อง/ปุ่มปิด
+          เลื่อนหายไปพร้อมเนื้อหาฟอร์มได้เวลาฟอร์มยาวเกินจอ (เช่นเปิดฟอร์มมาก็ไม่เห็นหัวข้อทันที) ตอนนี้แยกหัว
+          เรื่อง (shrink-0) และแถบปุ่มด้านล่าง (shrink-0) ออกจากส่วนเนื้อหาฟอร์ม (flex-1 overflow-y-auto)
+          อย่างชัดเจน — หัวเรื่อง/ปุ่มปิด และปุ่มยืนยัน/ยกเลิก จะอยู่กับที่เสมอ ไม่ว่าฟอร์มจะยาวแค่ไหน มีแค่ส่วน
+          เนื้อหาฟอร์มตรงกลางเท่านั้นที่เลื่อนได้ */}
       <div
-        className="card-surface card-surface-modal max-h-[calc(100vh-48px)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6"
+        className="card-surface card-surface-modal flex max-h-[calc(100vh-32px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border/60 p-6 pb-4">
           <div>
             <h3 className="text-base font-bold text-text">
               {mode === 'reissue' ? 'แก้ไขใบหัก ณ ที่จ่าย (ออกใบใหม่แทน)' : 'ออกใบหัก ณ ที่จ่าย'}
@@ -205,6 +348,7 @@ export default function IssueWhtCertificateModal({
           </button>
         </div>
 
+        <div className="overflow-y-auto p-6 py-4">
         {mode === 'reissue' && (
           <p className="mb-4 rounded-[10px] border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
             ใบเดิม{voidedCertNumber ? ` เลขที่ ${voidedCertNumber}` : ''} ถูกยกเลิกแล้ว แก้ไขข้อมูลด้านล่างแล้วกด &quot;ยืนยันออกใบ&quot;
@@ -263,6 +407,38 @@ export default function IssueWhtCertificateModal({
               )}
             </Field>
 
+            {/* เลขที่ใบหัก ณ ที่จ่าย (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้) — เลขเต็มคำนวณสดจาก formType
+                (ขึ้นกับผู้รับที่เลือกด้านบน) + เดือน/ปีของ "วันที่ออกใบ" (ด้านล่าง) + ลำดับที่ที่แก้ไขได้ตรงนี้
+                เลขแนะนำเริ่มต้นมาจากตัวนับปัจจุบัน (peekNextWhtCertNumber, read-only ไม่เพิ่มตัวนับถาวร) —
+                ดูคอมเมนต์เต็มที่ประกาศ previewFormType/sequenceInput ด้านบน */}
+            <Field label="เลขที่ใบหัก ณ ที่จ่าย" required>
+              <div className="flex items-center gap-2">
+                <div
+                  className="font-numeric flex-1 rounded-[10px] border border-border bg-page-bg/40 px-3.5 py-2.5 text-sm font-semibold text-text"
+                  data-testid="preview-cert-number"
+                >
+                  {sequenceLoading ? 'กำลังคำนวณ...' : (previewCertNumber ?? '-')}
+                </div>
+                <label className="flex shrink-0 items-center gap-1.5 text-xs text-text-sub">
+                  ลำดับที่
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={sequenceInput}
+                    onChange={(e) => setSequenceInput(e.target.value ? Number(e.target.value) : '')}
+                    className="w-20 rounded-[10px] border border-border bg-white px-2.5 py-2 text-sm text-gray-800 focus-ring-primary"
+                    data-testid="input-sequence-number"
+                  />
+                </label>
+              </div>
+              {sequenceLoadError ? (
+                <p className="mt-1.5 text-xs text-danger">{sequenceLoadError}</p>
+              ) : (
+                <p className="mt-1.5 text-xs text-text-sub">ระบบรันเลขให้อัตโนมัติจากเลขที่ยังไม่มีเสมอ แก้ไขลำดับที่เองได้ถ้าต้องการ</p>
+              )}
+            </Field>
+
             <div className="rounded-[10px] border border-border/70 bg-page-bg/40 px-3.5 py-3 text-sm">
               <div className="flex justify-between text-text-sub">
                 <span>ยอดรวม</span>
@@ -302,6 +478,21 @@ export default function IssueWhtCertificateModal({
                 className={inputClass(false)}
                 data-testid="input-income-type-label"
               />
+              {/* ปุ่มตัวเลือกด่วน (2026-08-17 ตามคำขอผู้ใช้ "เผื่อไว้เป็นกรณีที่ฉันขี้เกียจนั่งพิมพ์") — กดแล้ว
+                  เติมค่าลงช่องด้านบนทันที ไม่ได้บังคับเลือก ยังพิมพ์เองแก้ไขทับได้ตามปกติเสมอ */}
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {INCOME_TYPE_LABEL_QUICK_OPTIONS.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setIncomeTypeLabel(opt)}
+                    className="btn-press rounded-full border border-border px-2.5 py-1 text-xs text-text-sub hover:bg-page-bg"
+                    data-testid={`income-type-label-quick-${opt}`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
             </Field>
 
             <Field label="ลักษณะการหักภาษี">
@@ -331,14 +522,20 @@ export default function IssueWhtCertificateModal({
             )}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="วันที่ออกใบ" required>
+              <Field label="วันที่ออกใบ (วว/ดด/ปปปป พ.ศ.)" required>
                 <input
-                  type="date"
-                  value={issuedDate}
-                  onChange={(e) => setIssuedDate(e.target.value)}
-                  className={inputClass(false)}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="เช่น 17/08/2569"
+                  value={issuedDateInput}
+                  onChange={(e) => handleIssuedDateInputChange(e.target.value)}
+                  onBlur={handleIssuedDateBlur}
+                  className={inputClass(issuedDateHasError)}
                   data-testid="input-issued-date"
                 />
+                {issuedDateHasError && (
+                  <p className="mt-1 text-xs text-danger">รูปแบบไม่ถูกต้อง กรุณากรอกเป็น วว/ดด/ปปปป (เช่น 17/08/2569)</p>
+                )}
               </Field>
               <Field label="ผู้ลงนาม">
                 <input
@@ -357,8 +554,9 @@ export default function IssueWhtCertificateModal({
             {error}
           </p>
         )}
+        </div>
 
-        <div className="mt-6 flex justify-end gap-2">
+        <div className="flex shrink-0 justify-end gap-2 border-t border-border/60 p-6 pt-4">
           <button
             type="button"
             onClick={onClose}

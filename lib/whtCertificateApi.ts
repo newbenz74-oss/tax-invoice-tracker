@@ -87,6 +87,33 @@ export async function getNextWhtCertNumber(
   return { sequence, certNumber: formatWhtCertNumber(formType, buddhistYear, month, sequence) };
 }
 
+/** "แอบดู" เลขที่ใบหัก ณ ที่จ่ายที่จะได้ ถ้าออกใบตอนนี้ — ต่างจาก getNextWhtCertNumber() ด้านบนตรงที่ฟังก์ชันนี้
+ * อ่านค่า last_number ปัจจุบันจากตาราง wht_certificate_counters ตรงๆ แบบ read-only (ผ่าน select ธรรมดา ไม่ใช่
+ * RPC) ไม่เพิ่มตัวนับถาวรเลย ปลอดภัยที่จะเรียกซ้ำได้ไม่จำกัด (เช่น ทุกครั้งที่ผู้ใช้เปลี่ยนวันที่ออกใบ/ผู้ขายใน
+ * ฟอร์ม เพื่อแสดง preview เลขที่ให้ดู) — เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ "อยากให้โชว์เลขที่ใบหัก ณ ที่จ่าย
+ * ที่จะออกด้วย" คืนค่า last_number+1 (หรือ 1 ถ้ายังไม่เคยมีแถวของ bucket นี้เลย) เป็นแค่เลขแนะนำเท่านั้น เลขจริง
+ * ที่ได้ตอนกดยืนยันออกใบ อาจไม่ตรงกับเลขนี้เป๊ะๆ ได้ถ้ามีคนอื่นออกใบแทรกกลางไปพอดี (เคสหายากมาก ใช้งานจริง
+ * แทบไม่เจอ เพราะแต่ละบริษัทมักมีคนทำบัญชีคนเดียว) — RLS select_own_counters (migration_014) อนุญาตให้สมาชิก
+ * บริษัทอ่านตารางนี้ได้อยู่แล้ว ไม่ต้องเพิ่มสิทธิ์ใดๆ เพิ่ม */
+export async function peekNextWhtCertNumber(
+  companyId: string,
+  formType: WhtFormType,
+  buddhistYear: number,
+  month: number
+): Promise<number> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('wht_certificate_counters')
+    .select('last_number')
+    .eq('company_id', companyId)
+    .eq('form_type', formType)
+    .eq('period_year', buddhistYear)
+    .eq('period_month', month)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.last_number ?? 0) + 1;
+}
+
 /** ดึงรายการใบหัก ณ ที่จ่ายที่ออกไปแล้วทั้งหมดของบริษัท — ใช้กับหน้าประวัติ (ยังไม่มี UI ในรอบนี้) เรียง
  * ตามวันที่ออกล่าสุดขึ้นก่อน */
 export async function fetchWhtCertificates(companyId: string): Promise<WhtCertificate[]> {
@@ -129,6 +156,9 @@ export async function createWhtCertificate(
     p_payee: payee,
     p_invoice_ids: input.invoiceIds,
     p_created_by_email: createdByEmail,
+    // เพิ่มเข้ามา 2026-08-17 พร้อม migration_020 — ไม่ส่ง (undefined -> ไม่มี key นี้เลย) หรือ null = ให้ RPC
+    // รันเลขให้อัตโนมัติเหมือนเดิมทุกประการ ส่งเลขมา = ใช้เลขนั้นตรงๆ แทน (ดู IssueWhtCertificateModal.tsx)
+    p_sequence_override: input.sequenceOverride ?? null,
   });
   if (error) throw error;
   return data as WhtCertificate;
