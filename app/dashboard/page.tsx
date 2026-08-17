@@ -44,6 +44,7 @@ import { fetchWhtCertificates, WHT_CERTIFICATES_SWR_KEY } from '@/lib/whtCertifi
 import { buildWhtCertificatePdf, whtCertificateFilename } from '@/lib/whtCertificatePdf';
 import { downloadBlob } from '@/lib/reportExport';
 import { DEFAULT_ACTIVE_ID, findNavLeaf, type NavIntent } from '@/lib/navigation';
+import { buddhistYearOptions, thaiMonthName } from '@/lib/thaiDate';
 import type {
   InvoiceFormInput,
   InvoiceStatus,
@@ -358,6 +359,13 @@ function ExpenseRecordContent({
     initialIntent?.type === 'filter' ? initialIntent.status : 'pending'
   );
   const [search, setSearch] = useState('');
+  // ตัวกรองเดือน/ปี (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้) — กรองด้วย transaction_date (วันที่ทำรายการ)
+  // ไม่บังคับเลือก ต่างจากตัวกรองเดือน/ปีของหน้าประวัติใบหัก ณ ที่จ่าย (WhtCertificateHistoryPage.tsx
+  // filtersComplete) ที่ต้องเลือกครบก่อนถึงจะแสดงตาราง — ที่นี่ไม่เลือก (ค่า '') = แสดงทุกเดือน/ทุกปีตามปกติ
+  // yearFilter เก็บเป็นปี พ.ศ. (ตรงกับ dropdown ที่ผู้ใช้เห็น ผ่าน buddhistYearOptions) แปลงกลับเป็น ค.ศ.
+  // (ลบ 543) ตอนเทียบกับ transaction_date ซึ่งเป็น ISO string ค.ศ. เท่านั้น (ดู lib/thaiDate.ts บรรทัด 26-28)
+  const [monthFilter, setMonthFilter] = useState<number | ''>('');
+  const [yearFilter, setYearFilter] = useState<number | ''>('');
   // เอาการเรียงลำดับด้วยการคลิกหัวตารางออกแล้ว (2026-08-14 ตามคำขอผู้ใช้ — ผู้ใช้กดโดนหัวตาราง
   // "วันที่ทำรายการ" แล้วเข้าใจว่าเป็นตัวกรอง ไม่ต้องการให้กดแล้วเปลี่ยนลำดับได้อีกต่อไป) เปลี่ยนจาก state
   // (มี setter) เป็นค่าคงที่ตรงๆ แทน — ผู้ใช้แก้ไขลำดับเองจาก UI ไม่ได้อีกต่อไป
@@ -447,8 +455,19 @@ function ExpenseRecordContent({
     } else {
       filtered = filterInvoices(invoices, { status: statusFilter, search });
     }
+    // กรองเดือน/ปีเพิ่มเติม (2026-08-17) — ทำงานร่วมกับตัวกรองสถานะ/คำค้นด้านบนเสมอ (AND กัน) ไม่เลือก
+    // เดือนหรือปี (ค่า '') = ไม่กรองส่วนนั้น เทียบด้วย transaction_date ตรงๆ (รูปแบบ 'YYYY-MM-DD' ค.ศ.)
+    if (monthFilter !== '' || yearFilter !== '') {
+      const isoYear = yearFilter === '' ? null : yearFilter - 543;
+      filtered = filtered.filter((i) => {
+        const [y, m] = i.transaction_date.split('-').map(Number);
+        if (isoYear !== null && y !== isoYear) return false;
+        if (monthFilter !== '' && m !== monthFilter) return false;
+        return true;
+      });
+    }
     return sortInvoices(filtered, sortField, sortDirection);
-  }, [invoices, statusFilter, search, sortField, sortDirection]);
+  }, [invoices, statusFilter, search, monthFilter, yearFilter, sortField, sortDirection]);
 
   // จำนวนหน้าคำนวณจากรายการที่กรอง/ค้นหา/เรียงแล้วเสมอ — clamp หน้าปัจจุบันไม่ให้เกินจำนวนหน้าจริง
   // ตรงนี้แทนการเรียก setState ใน effect (เช่นกรณีเปลี่ยน filter/ค้นหาแล้วรายการเหลือน้อยกว่าหน้าที่
@@ -469,6 +488,16 @@ function ExpenseRecordContent({
 
   function handleSearchChange(value: string) {
     setSearch(value);
+    setPage(1);
+  }
+
+  function handleMonthFilterChange(value: number | '') {
+    setMonthFilter(value);
+    setPage(1);
+  }
+
+  function handleYearFilterChange(value: number | '') {
+    setYearFilter(value);
     setPage(1);
   }
 
@@ -607,7 +636,7 @@ function ExpenseRecordContent({
             ))}
           </div>
 
-          <div className="entrance-animate entrance-delay-2 flex gap-2">
+          <div className="entrance-animate entrance-delay-2 flex flex-wrap gap-2">
             <div className="relative">
               <Search
                 size={18}
@@ -622,6 +651,34 @@ function ExpenseRecordContent({
                 data-testid="search-input"
               />
             </div>
+            {/* ตัวกรองเดือน/ปี (2026-08-17 ตามคำขอผู้ใช้) — ไม่บังคับเลือกเหมือนหน้าประวัติใบหัก ณ ที่จ่าย
+                ค่าเริ่มต้น "ทั้งหมด" ทั้งสองช่อง = ไม่กรอง แสดงทุกรายการตามปกติ (ดู visibleInvoices ด้านบน) */}
+            <select
+              value={monthFilter}
+              onChange={(e) => handleMonthFilterChange(e.target.value ? Number(e.target.value) : '')}
+              className="focus-ring-primary h-12 rounded-xl border border-border bg-white/8 px-3.5 text-sm text-text"
+              data-testid="month-filter"
+            >
+              <option value="">ทุกเดือน</option>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>
+                  {thaiMonthName(m)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={yearFilter}
+              onChange={(e) => handleYearFilterChange(e.target.value ? Number(e.target.value) : '')}
+              className="focus-ring-primary h-12 rounded-xl border border-border bg-white/8 px-3.5 text-sm text-text"
+              data-testid="year-filter"
+            >
+              <option value="">ทุกปี</option>
+              {buddhistYearOptions(5).map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
             <button
               onClick={() => {
                 setShowImportPanel(true);
