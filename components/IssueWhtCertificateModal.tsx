@@ -203,7 +203,14 @@ export default function IssueWhtCertificateModal({
   const previewPeriodYear = previewIsoYear !== undefined ? previewIsoYear + 543 : null;
   const previewPeriodMonth = previewIsoMonth ?? null;
 
-  const [sequenceInput, setSequenceInput] = useState<number | ''>('');
+  // ช่องเดียวพิมพ์แก้ไขเลขที่ได้ตรงๆ (2026-08-17 ตามคำขอผู้ใช้ — เดิมแยกเป็นกล่อง preview อ่านอย่างเดียว +
+  // ช่อง "ลำดับที่" ต่างหาก ผู้ใช้ขอรวมเป็นช่องเดียว พิมพ์ทับเลขเต็มได้เลย ไม่ต้องมีช่อง "ลำดับที่" แยก) —
+  // certNumberInput คือข้อความเต็มที่แสดง/แก้ไข (เช่น "53-6907001") ตอนส่งจริงจะตัดเอาแค่กลุ่มตัวเลขท้ายสุด
+  // (parseSequenceFromCertNumberInput) มาเป็น sequenceOverride ส่วน prefix (formType-ปีเดือน) หน้าเลขนั้น
+  // ผู้ใช้พิมพ์ทับได้อิสระเหมือนกัน แต่ไม่มีผลกับ formType/periodYear/periodMonth ที่ส่งจริง (ค่าพวกนั้นมาจาก
+  // ผู้รับที่เลือก + วันที่ออกใบเสมอ ไม่ใช่จากข้อความในช่องนี้) — ตอน blur จะจัดรูปแบบให้ใหม่ให้ตรงกับ prefix
+  // ที่ถูกต้องจริงเสมอ (ดู handleCertNumberBlur ด้านล่าง) กันความสับสนว่า prefix พิมพ์เองได้จริง
+  const [certNumberInput, setCertNumberInput] = useState('');
   const [sequenceLoading, setSequenceLoading] = useState(false);
   const [sequenceLoadError, setSequenceLoadError] = useState<string | null>(null);
 
@@ -221,7 +228,7 @@ export default function IssueWhtCertificateModal({
     // setSequenceLoading(true)/setSequenceLoadError(null) ที่เรียกก่อนเริ่ม fetch ด้วยเช่นกัน
     if (!previewFormType || previewPeriodYear === null || previewPeriodMonth === null) {
       Promise.resolve().then(() => {
-        if (!cancelled) setSequenceInput('');
+        if (!cancelled) setCertNumberInput('');
       });
       return () => {
         cancelled = true;
@@ -236,10 +243,12 @@ export default function IssueWhtCertificateModal({
 
     peekNextWhtCertNumber(companyId, previewFormType, previewPeriodYear, previewPeriodMonth)
       .then((next) => {
-        if (!cancelled) setSequenceInput(next);
+        if (!cancelled) {
+          setCertNumberInput(formatWhtCertNumber(previewFormType, previewPeriodYear, previewPeriodMonth, next));
+        }
       })
       .catch(() => {
-        if (!cancelled) setSequenceLoadError('โหลดเลขที่แนะนำไม่สำเร็จ กรอกลำดับที่เองได้');
+        if (!cancelled) setSequenceLoadError('โหลดเลขที่แนะนำไม่สำเร็จ กรอกเลขที่เองได้');
       })
       .finally(() => {
         if (!cancelled) setSequenceLoading(false);
@@ -250,10 +259,40 @@ export default function IssueWhtCertificateModal({
     };
   }, [companyId, previewFormType, previewPeriodYear, previewPeriodMonth]);
 
-  const previewCertNumber =
-    previewFormType && previewPeriodYear !== null && previewPeriodMonth !== null && sequenceInput !== ''
-      ? formatWhtCertNumber(previewFormType, previewPeriodYear, previewPeriodMonth, sequenceInput)
-      : null;
+  // บั๊กเดิม (พบ 2026-08-17 จากรายงานผู้ใช้ "ออกใบหัก ณ ที่จ่ายไม่สำเร็จ"): ใช้ regex /(\d+)\s*$/ ตัดกลุ่ม
+  // ตัวเลขท้ายสุดของข้อความทั้งก้อน — แต่รูปแบบเลขที่จริงคือ {formType}-{YY}{MM}{NNN} ซึ่ง YY, MM, NNN แปะติด
+  // กันไม่มีตัวคั่นเลย (เช่น "53-6907001") ทำให้ regex ตัดเอาทั้ง "6907001" (รวม YY+MM เข้าไปด้วย) มาเป็นเลข
+  // ลำดับที่ผิดๆ ทุกครั้งที่ onBlur ยิง (แม้ผู้ใช้แค่คลิกออกจากช่องโดยไม่ได้แก้อะไรเลย) แล้ว format กลับเป็น
+  // ข้อความใหม่ที่ยาวขึ้นเรื่อยๆ (เลขลำดับพองขึ้นทุกรอบ blur) จนเกินช่วงของ integer ฝั่ง Postgres (2^31-1) ทำให้
+  // RPC ตอบ 400 (numeric_value_out_of_range/check_violation) เป็นสาเหตุที่แท้จริงของปัญหา — แก้โดยตัด prefix
+  // "{formType}-{YY}{MM}" ที่ถูกต้องจริง (คำนวณจากผู้รับ+วันที่ออกใบเสมอ ไม่ใช่จากข้อความ) ออกก่อนเสมอ แล้วอ่าน
+  // เฉพาะตัวเลขที่เหลือหลัง prefix นั้นเป็นเลขลำดับ ถ้า prefix ไม่ตรง (ผู้ใช้พิมพ์ทับเพี้ยนไป) ถือว่า parse ไม่ได้
+  function parseSequenceFromCertNumberInput(text: string): number | null {
+    if (!previewFormType || previewPeriodYear === null || previewPeriodMonth === null) return null;
+    const yy = String(previewPeriodYear % 100).padStart(2, '0');
+    const mm = String(previewPeriodMonth).padStart(2, '0');
+    const prefix = `${previewFormType}-${yy}${mm}`;
+    const trimmed = text.trim();
+    if (!trimmed.startsWith(prefix)) return null;
+    const rest = trimmed.slice(prefix.length);
+    if (!/^\d+$/.test(rest)) return null;
+    const n = Number(rest);
+    return Number.isInteger(n) && n >= 1 ? n : null;
+  }
+
+  const certNumberHasError = certNumberInput.trim() !== '' && parseSequenceFromCertNumberInput(certNumberInput) === null;
+
+  // ตอน blur จัดรูปแบบข้อความให้ตรงกับ formType/เดือน/ปีที่ถูกต้องจริงเสมอ (เผื่อผู้ใช้พิมพ์ทับ prefix เพี้ยน
+  // ไป เช่นลบเลขปีออก) โดยยังคงเลขลำดับที่พิมพ์ไว้ล่าสุด — ถ้า parse เลขลำดับไม่ได้เลย ปล่อยข้อความไว้ตามเดิม
+  // ให้ certNumberHasError ด้านบนเตือนแทน (ไม่มี "ค่าที่ถูกต้องล่าสุด" ให้ย้อนกลับแบบช่องวันที่ เพราะเลขแนะนำ
+  // เปลี่ยนได้ตลอดตาม bucket) — เพราะ parseSequenceFromCertNumberInput ตอนนี้ตัด prefix ก่อนอ่านเลขเสมอ การ
+  // format กลับด้วย seq เดิมจึงเป็น no-op ปลอดภัย ไม่พองขึ้นซ้ำแล้วเหมือนบั๊กเดิม
+  function handleCertNumberBlur() {
+    const seq = parseSequenceFromCertNumberInput(certNumberInput);
+    if (seq !== null && previewFormType && previewPeriodYear !== null && previewPeriodMonth !== null) {
+      setCertNumberInput(formatWhtCertNumber(previewFormType, previewPeriodYear, previewPeriodMonth, seq));
+    }
+  }
 
   const totalAmount = invoices.reduce((sum, inv) => sum + inv.total_amount, 0);
   const totalWhtAmount = invoices.reduce((sum, inv) => sum + inv.wht_amount, 0);
@@ -264,12 +303,14 @@ export default function IssueWhtCertificateModal({
     Boolean(selectedContact) &&
     Boolean(incomeTypeCode) &&
     Boolean(issuedDate) &&
-    sequenceInput !== '' &&
+    !certNumberHasError &&
+    parseSequenceFromCertNumberInput(certNumberInput) !== null &&
     !sequenceLoading &&
     !submitting;
 
   async function handleSubmit() {
-    if (!selectedContact || !incomeTypeCode || sequenceInput === '') return;
+    const sequenceOverride = parseSequenceFromCertNumberInput(certNumberInput);
+    if (!selectedContact || !incomeTypeCode || sequenceOverride === null) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -291,7 +332,7 @@ export default function IssueWhtCertificateModal({
         signerName,
         issuedDate,
         invoiceIds: invoices.map((inv) => inv.id),
-        sequenceOverride: sequenceInput,
+        sequenceOverride,
       };
 
       const payer = buildPayerSnapshot(company);
@@ -407,35 +448,25 @@ export default function IssueWhtCertificateModal({
               )}
             </Field>
 
-            {/* เลขที่ใบหัก ณ ที่จ่าย (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้) — เลขเต็มคำนวณสดจาก formType
-                (ขึ้นกับผู้รับที่เลือกด้านบน) + เดือน/ปีของ "วันที่ออกใบ" (ด้านล่าง) + ลำดับที่ที่แก้ไขได้ตรงนี้
-                เลขแนะนำเริ่มต้นมาจากตัวนับปัจจุบัน (peekNextWhtCertNumber, read-only ไม่เพิ่มตัวนับถาวร) —
-                ดูคอมเมนต์เต็มที่ประกาศ previewFormType/sequenceInput ด้านบน */}
+            {/* เลขที่ใบหัก ณ ที่จ่าย (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้) — ช่องเดียวพิมพ์แก้ไขได้ตรงๆ (ไม่มี
+                ช่อง "ลำดับที่" แยกอีกต่อไปตามคำขอถัดมา) ค่าเริ่มต้นมาจากตัวนับปัจจุบัน (peekNextWhtCertNumber,
+                read-only ไม่เพิ่มตัวนับถาวร) — ดูคอมเมนต์เต็มที่ประกาศ certNumberInput ด้านบน */}
             <Field label="เลขที่ใบหัก ณ ที่จ่าย" required>
-              <div className="flex items-center gap-2">
-                <div
-                  className="font-numeric flex-1 rounded-[10px] border border-border bg-page-bg/40 px-3.5 py-2.5 text-sm font-semibold text-text"
-                  data-testid="preview-cert-number"
-                >
-                  {sequenceLoading ? 'กำลังคำนวณ...' : (previewCertNumber ?? '-')}
-                </div>
-                <label className="flex shrink-0 items-center gap-1.5 text-xs text-text-sub">
-                  ลำดับที่
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={sequenceInput}
-                    onChange={(e) => setSequenceInput(e.target.value ? Number(e.target.value) : '')}
-                    className="w-20 rounded-[10px] border border-border bg-white px-2.5 py-2 text-sm text-gray-800 focus-ring-primary"
-                    data-testid="input-sequence-number"
-                  />
-                </label>
-              </div>
-              {sequenceLoadError ? (
+              <input
+                type="text"
+                value={certNumberInput}
+                onChange={(e) => setCertNumberInput(e.target.value)}
+                onBlur={handleCertNumberBlur}
+                placeholder={sequenceLoading ? 'กำลังคำนวณ...' : ''}
+                className={inputClass(certNumberHasError)}
+                data-testid="input-cert-number"
+              />
+              {certNumberHasError ? (
+                <p className="mt-1.5 text-xs text-danger">กรุณากรอกเลขที่ใบให้มีตัวเลขลำดับต่อท้าย (เช่น 53-6907001)</p>
+              ) : sequenceLoadError ? (
                 <p className="mt-1.5 text-xs text-danger">{sequenceLoadError}</p>
               ) : (
-                <p className="mt-1.5 text-xs text-text-sub">ระบบรันเลขให้อัตโนมัติจากเลขที่ยังไม่มีเสมอ แก้ไขลำดับที่เองได้ถ้าต้องการ</p>
+                <p className="mt-1.5 text-xs text-text-sub">ระบบรันเลขให้อัตโนมัติจากเลขที่ยังไม่มีเสมอ แก้ไขได้โดยพิมพ์ทับเลขที่ต้องการ</p>
               )}
             </Field>
 
