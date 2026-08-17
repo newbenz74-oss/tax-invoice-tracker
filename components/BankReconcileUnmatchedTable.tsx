@@ -186,10 +186,16 @@ export default function BankReconcileUnmatchedTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
+                {/* ดับเบิ้ลคลิกที่แถว = ติ๊ก/ยกเลิกติ๊กเหมือนคลิก checkbox โดยตรง (เพิ่มเข้ามา 2026-08-17
+                    ตามคำขอผู้ใช้ — เดิมต้องเล็งคลิก checkbox แคบๆ ในคอลัมน์แรกเท่านั้น) เรียก onToggleRow
+                    ตัวเดียวกับ checkbox เป๊ะๆ ไม่มี logic แยก จึงยังทำงานถูกต้องกับ selectedIds/onToggleAll/
+                    toolbar ยืนยันจับคู่ในไฟล์ BankReconcileWorkspace.tsx เหมือนเดิมทุกประการ ไม่ต้องแก้ที่อื่น */}
                 {paged.map((row) => (
                   <tr
                     key={row.id}
-                    className={`hover:bg-table-row-hover ${selectedIds.has(row.id) ? 'bg-primary-light/40' : ''}`}
+                    onDoubleClick={() => onToggleRow(row.id)}
+                    className={`cursor-pointer select-none hover:bg-table-row-hover ${selectedIds.has(row.id) ? 'bg-primary-light/40' : ''}`}
+                    title="ดับเบิ้ลคลิกเพื่อติ๊กเลือกแถวนี้"
                     data-testid={`${testId}-row-${row.id}`}
                   >
                     <td className="px-3.5 py-2.5">
