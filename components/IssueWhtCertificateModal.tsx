@@ -274,10 +274,14 @@ export default function IssueWhtCertificateModal({
     const prefix = `${previewFormType}-${yy}${mm}`;
     const trimmed = text.trim();
     if (!trimmed.startsWith(prefix)) return null;
+    // จำกัดเลขลำดับไว้ที่ 1-3 หลัก (1-999) ให้ตรงกับ format {NNN} 3 หลักที่ใช้จริงเสมอ — กันไม่ให้พิมพ์เลข
+    // ใหญ่ผิดปกติหลุดไปตั้งเป็นตัวนับถาวรที่ wht_certificate_counters (เคยเกิดจริงมาแล้วจากบั๊ก regex เดิม
+    // ทำให้ตัวนับเพี้ยนค้างเป็นเลข 7 หลัก ต้องเข้าไปแก้ข้อมูลตรงๆ ใน DB — ดูคอมเมนต์ด้านบน) ฝั่ง backend
+    // (create_wht_certificate) ก็เช็คช่วงนี้ซ้ำอีกชั้นเช่นกัน ดู supabase/migration_021_wht_cert_sequence_bound.sql
     const rest = trimmed.slice(prefix.length);
-    if (!/^\d+$/.test(rest)) return null;
+    if (!/^\d{1,3}$/.test(rest)) return null;
     const n = Number(rest);
-    return Number.isInteger(n) && n >= 1 ? n : null;
+    return Number.isInteger(n) && n >= 1 && n <= 999 ? n : null;
   }
 
   const certNumberHasError = certNumberInput.trim() !== '' && parseSequenceFromCertNumberInput(certNumberInput) === null;
@@ -462,7 +466,7 @@ export default function IssueWhtCertificateModal({
                 data-testid="input-cert-number"
               />
               {certNumberHasError ? (
-                <p className="mt-1.5 text-xs text-danger">กรุณากรอกเลขที่ใบให้มีตัวเลขลำดับต่อท้าย (เช่น 53-6907001)</p>
+                <p className="mt-1.5 text-xs text-danger">รูปแบบไม่ถูกต้อง เลขที่ต้องขึ้นต้นด้วย {previewFormType ?? '53'}-{String((previewPeriodYear ?? 0) % 100).padStart(2, '0')}{String(previewPeriodMonth ?? 0).padStart(2, '0')} ตามด้วยเลขลำดับ 1-3 หลัก (1-999) เช่น {previewFormType ?? '53'}-{String((previewPeriodYear ?? 0) % 100).padStart(2, '0')}{String(previewPeriodMonth ?? 0).padStart(2, '0')}001</p>
               ) : sequenceLoadError ? (
                 <p className="mt-1.5 text-xs text-danger">{sequenceLoadError}</p>
               ) : (
