@@ -227,7 +227,7 @@ export default function AssistantPanel({
       // ของปุ่มพอดีเป๊ะเหมือนก่อนขยายขนาด (ไม่ทับกัน ไม่เว้นช่องว่างเกินจำเป็น) — ค่า sm: ใช้ความสูงของปุ่มที่
       // md (768px) เป็นตัวตั้งเพราะช่วง 640-768px ปุ่มยังใช้ขนาดเริ่มต้น (128px) เล็กกว่า จึงมีช่องว่างเพิ่ม
       // อีกเล็กน้อยในช่วงนั้น (เท่าเดิมเป๊ะเมื่อเทียบสัดส่วนกับก่อนขยาย 2 เท่า)
-      className={`card-surface fixed inset-x-3 top-20 bottom-3 z-[45] flex flex-col overflow-hidden rounded-2xl sm:inset-x-auto sm:top-auto sm:right-6 sm:bottom-[168px] sm:h-[70vh] sm:max-h-[640px] sm:w-[380px] min-[992px]:right-8 min-[992px]:bottom-[200px] ${
+      className={`card-surface fixed inset-x-3 top-20 bottom-3 z-[45] flex flex-col overflow-hidden rounded-2xl sm:inset-x-auto sm:top-auto sm:bottom-[168px] sm:left-6 sm:h-[70vh] sm:max-h-[640px] sm:w-[380px] min-[992px]:bottom-[200px] min-[992px]:left-8 ${
         isOpen ? 'assistant-panel-open' : 'assistant-panel-closed'
       }`}
     >

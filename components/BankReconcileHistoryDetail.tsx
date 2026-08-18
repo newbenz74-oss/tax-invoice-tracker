@@ -80,6 +80,19 @@ export default function BankReconcileHistoryDetail({ reportId, onBack, onNavigat
     return map;
   }, [detail]);
 
+  // แผนที่ id แถว Bank -> รายละเอียด (description) ของแถว GL ทั้งหมดที่จับคู่อยู่ใน group เดียวกัน (เพิ่มเข้ามา
+  // 2026-08-18 ตามคำขอผู้ใช้ — เดิมมีตาราง GL แยกต่างหาก แต่ผู้ใช้อยากให้ตาราง Bank Statement ตารางเดียว
+  // แสดงครบทั้ง "จับคู่กับ GL เลขที่" และ "รายละเอียดของ GL" เลย ไม่ต้องมีตาราง GL แยก) ใช้ pattern เดียวกับ
+  // glDocsByBankRowId ทุกประการ
+  const glDescriptionsByBankRowId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    (detail?.matchGroups ?? []).forEach((group) => {
+      const descs = group.glRows.map((row) => row.description || '-');
+      group.bankRows.forEach((row) => map.set(row.id, descs));
+    });
+    return map;
+  }, [detail]);
+
   const bankRows = useMemo(() => detail?.bankRows ?? [], [detail]);
 
   // ชุดข้อมูลกลางที่ใช้ทั้งแสดงผลในตารางและ export (Excel/PDF) — สร้างครั้งเดียวใช้ร่วมกันเพื่อให้ตัวเลขที่
@@ -127,7 +140,7 @@ export default function BankReconcileHistoryDetail({ reportId, onBack, onNavigat
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6" data-testid="reconcile-history-detail">
+    <main className="mx-auto w-full max-w-[112rem] flex-1 px-4 py-6 sm:px-10" data-testid="reconcile-history-detail">
       <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
@@ -242,13 +255,18 @@ export default function BankReconcileHistoryDetail({ reportId, onBack, onNavigat
                       <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">วันที่</th>
                       <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">รับ</th>
                       <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">จ่าย</th>
+                      {/* รายละเอียด (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้) — ดึงจาก BankTransaction.description
+                          (อาจว่างได้ถ้าไฟล์ต้นฉบับไม่มีคอลัมน์นี้ — แสดง "-" แทน) */}
+                      <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">รายละเอียด</th>
                       <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">จับคู่กับ GL เลขที่</th>
-                      <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">สถานะ</th>
+                      <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">รายละเอียด GL</th>
+                      <th className="px-3.5 py-2.5 text-left font-medium whitespace-nowrap text-text-sub">สถานะ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {bankRows.map((row) => {
                       const docs = glDocsByBankRowId.get(row.id);
+                      const glDescriptions = glDescriptionsByBankRowId.get(row.id);
                       return (
                         <tr
                           key={row.id}
@@ -262,16 +280,22 @@ export default function BankReconcileHistoryDetail({ reportId, onBack, onNavigat
                           <td className="font-numeric px-3.5 py-2.5 text-right text-text">
                             {row.type === 'payment' ? row.amount.toLocaleString('th-TH', THB2) : '-'}
                           </td>
+                          <td className="px-3.5 py-2.5 text-text-sub" data-testid={`reconcile-history-detail-bank-description-${row.id}`}>
+                            {row.description || '-'}
+                          </td>
                           <td className="px-3.5 py-2.5 text-text-sub" data-testid={`reconcile-history-detail-gldoc-${row.id}`}>
                             {docs ? docs.join(', ') : '-'}
                           </td>
-                          <td className="px-3.5 py-2.5">
+                          <td className="px-3.5 py-2.5 text-text-sub" data-testid={`reconcile-history-detail-gl-description-${row.id}`}>
+                            {glDescriptions ? glDescriptions.join(', ') : '-'}
+                          </td>
+                          <td className="px-3.5 py-2.5 whitespace-nowrap">
                             {docs ? (
-                              <span className="rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success">
+                              <span className="whitespace-nowrap rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success">
                                 จับคู่สำเร็จ
                               </span>
                             ) : (
-                              <span className="rounded-full bg-danger/15 px-2.5 py-1 text-xs font-medium text-danger">
+                              <span className="whitespace-nowrap rounded-full bg-danger/15 px-2.5 py-1 text-xs font-medium text-danger">
                                 ยังไม่จับคู่
                               </span>
                             )}
@@ -297,7 +321,7 @@ export default function BankReconcileHistoryDetail({ reportId, onBack, onNavigat
                       >
                         {totals.totalPayment.toLocaleString('th-TH', THB2)}
                       </td>
-                      <td colSpan={2} />
+                      <td colSpan={4} />
                     </tr>
                   </tfoot>
                 </table>

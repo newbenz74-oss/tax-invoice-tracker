@@ -48,7 +48,7 @@ interface AssistantBubbleProps {
  */
 export default function AssistantBubble({ isOpen, onToggle, ref }: AssistantBubbleProps) {
   return (
-    <div className="fixed right-4 bottom-4 z-[45] sm:right-6 sm:bottom-6">
+    <div className="fixed bottom-4 left-4 z-[45] sm:bottom-6 sm:left-6">
       <button
         ref={ref}
         type="button"
@@ -68,7 +68,7 @@ export default function AssistantBubble({ isOpen, onToggle, ref }: AssistantBubb
         {!isOpen && (
           <span
             role="tooltip"
-            className="card-surface pointer-events-none absolute right-0 bottom-full mb-2 hidden max-w-[180px] rounded-lg px-3 py-1.5 text-xs whitespace-normal text-text opacity-0 transition-opacity duration-200 group-hover:opacity-100 sm:block"
+            className="card-surface pointer-events-none absolute bottom-full left-0 mb-2 hidden max-w-[180px] rounded-lg px-3 py-1.5 text-xs whitespace-normal text-text opacity-0 transition-opacity duration-200 group-hover:opacity-100 sm:block"
           >
             {GREETING_TOOLTIP}
           </span>

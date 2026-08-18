@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/lib/AuthContext";
 import { CompanyProvider } from "@/lib/CompanyContext";
-import AssistantRoot from "@/components/AssistantRoot";
+// ปิดผู้ช่วย AI ไว้ก่อนตามคำขอผู้ใช้ (2026-08-18) — ดูคอมเมนต์เต็มที่จุด mount ด้านล่าง
+// import AssistantRoot from "@/components/AssistantRoot";
 import "./globals.css";
 
 // หมายเหตุ: ตั้งใจไม่ใช้ next/font/google (Geist) เพราะต้อง fetch จาก Google Fonts
@@ -35,7 +36,9 @@ export default function RootLayout({
               AssistantRoot ด้วยเพราะ AI Copilot อาจต้องรู้บริบทบริษัทที่กำลังใช้งานอยู่ในอนาคต */}
           <CompanyProvider>
             {children}
-            <AssistantRoot />
+            {/* ปิดการแสดงผู้ช่วย AI ไว้ก่อนตามคำขอผู้ใช้ (2026-08-18 — ยังไม่พร้อมใช้งานจริง/บังตำแหน่งอื่นบนจอ)
+                ไม่ได้ลบโค้ดออก แค่ไม่ mount เฉยๆ เพื่อให้เรียกกลับมาใช้ได้ทันทีในอนาคตแค่เอาคอมเมนต์นี้ออก */}
+            {/* <AssistantRoot /> */}
           </CompanyProvider>
         </AuthProvider>
       </body>
