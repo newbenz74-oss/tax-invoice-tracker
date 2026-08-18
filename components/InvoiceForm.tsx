@@ -18,6 +18,7 @@ const EMPTY_FORM: InvoiceFormInput = {
   vat_amount: '',
   wht_amount: '',
   reference_no: '',
+  contact_person: '',
   expected_date: '',
   notes: '',
   vendor_tax_id: '',
@@ -37,6 +38,7 @@ function invoiceToForm(invoice: PendingTaxInvoice): InvoiceFormInput {
     // ทำให้แก้ไขรายการเก่าที่ไม่เคยมี WHT แล้วยังเห็นช่องว่างตามปกติ ไม่ใช่ "0" ที่ต้องลบก่อนพิมพ์ใหม่
     wht_amount: invoice.wht_amount ? String(invoice.wht_amount) : '',
     reference_no: invoice.reference_no ?? '',
+    contact_person: invoice.contact_person ?? '',
     expected_date: invoice.expected_date ?? '',
     notes: invoice.notes ?? '',
     vendor_tax_id: invoice.vendor_tax_id ?? '',
@@ -274,6 +276,18 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
           </div>
         </Field>
       </div>
+
+      {/* ผู้ติดต่อ (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้) — ไม่บังคับกรอก ใช้บอกว่าควรตามเอกสาร (เช่น
+          ใบกำกับภาษี) กับใคร เป็นข้อความอิสระต่อรายการ ไม่ผูกกับสมุดรายชื่อ */}
+      <Field label="ผู้ติดต่อ">
+        <input
+          value={form.contact_person}
+          onChange={(e) => setForm((p) => ({ ...p, contact_person: e.target.value }))}
+          placeholder="ไม่บังคับ — ชื่อคนที่ต้องตามเอกสารด้วย"
+          className={inputClass(false)}
+          data-testid="input-contact-person"
+        />
+      </Field>
 
       <div className={`grid grid-cols-1 gap-4 ${showExpectedDate ? 'sm:grid-cols-2' : ''}`}>
         <Field label="เลขที่อ้างอิง">

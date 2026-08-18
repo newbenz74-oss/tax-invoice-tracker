@@ -28,6 +28,10 @@ export interface PendingTaxInvoice {
   // (ดู lib/invoiceLogic.ts isWhtCertEligible) กันออกใบซ้ำซ้อนรายการเดียวกัน
   wht_certificate_id: string | null;
   reference_no: string | null;
+  // ชื่อผู้ติดต่อฝั่งผู้ขาย (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้) — ไม่บังคับกรอก ใช้บอกว่าควรติดตาม
+  // เอกสาร (เช่น ใบกำกับภาษี) กับใคร ไม่ผูกกับสมุดรายชื่อ (business_partners) เพราะเป็นแค่ข้อความอิสระ
+  // ต่อรายการเดียว (คนละคนกันได้แม้ผู้ขายเดียวกัน) ดู supabase/migration_023_contact_person.sql
+  contact_person: string | null;
   expected_date: string | null;
   status: InvoiceStatus;
   received_date: string | null;
@@ -58,6 +62,8 @@ export interface InvoiceFormInput {
   // ไม่บังคับกรอก — เว้นว่างไว้ = ไม่มียอดหัก ณ ที่จ่าย (validateInvoiceForm ไม่บังคับให้กรอก)
   wht_amount: string;
   reference_no: string;
+  // ผู้ติดต่อฝั่งผู้ขาย — ไม่บังคับกรอก (ดู PendingTaxInvoice.contact_person ด้านบนสำหรับที่มา)
+  contact_person: string;
   expected_date: string;
   notes: string;
   vendor_tax_id: string; // ไม่บังคับ — ใช้แสดงในรายงานภาษีซื้อ

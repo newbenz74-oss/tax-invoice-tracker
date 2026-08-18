@@ -67,6 +67,7 @@ function makeInvoice(overrides: Partial<PendingTaxInvoice> = {}): PendingTaxInvo
     wht_amount: 1302,
     wht_certificate_id: 'cert-1',
     reference_no: 'PO-001',
+    contact_person: null,
     expected_date: null,
     status: 'received',
     received_date: '2026-04-06',

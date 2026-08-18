@@ -370,6 +370,7 @@ describe('excelRowToWriteInput', () => {
       vat_amount: 70,
       wht_amount: 0,
       reference_no: 'PO-001',
+      contact_person: null,
       expected_date: null,
       notes: null,
       vendor_tax_id: null,
@@ -396,6 +397,7 @@ describe('excelRowToWriteInput', () => {
     expect(input.description).toBeNull();
     expect(input.reference_no).toBeNull();
     expect(input.notes).toBeNull();
+    expect(input.contact_person).toBeNull();
   });
 });
 
@@ -430,6 +432,7 @@ describe('findDuplicateRowNumbers', () => {
       wht_amount: 0,
       wht_certificate_id: null,
       reference_no: 'PO-001',
+      contact_person: null,
       expected_date: null,
       status: 'pending',
       received_date: null,

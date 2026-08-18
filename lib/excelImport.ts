@@ -17,6 +17,9 @@ export const EXCEL_HEADERS = {
   vendor_name: 'ผู้ขาย',
   transaction_date: 'วันที่ทำรายการ',
   vendor_tax_id: 'เลขประจำตัวผู้เสียภาษี',
+  // ชื่อผู้ติดต่อฝั่งผู้ขาย (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้) — ไม่บังคับกรอก ใช้บอกว่าควรตามเอกสาร
+  // กับใคร ดู types/invoice.ts PendingTaxInvoice.contact_person สำหรับที่มาเต็ม
+  contact_person: 'ผู้ติดต่อ',
   description: 'รายละเอียด',
   amount_excl_vat: 'ยอดก่อน VAT',
   vat_amount: 'VAT',
@@ -36,6 +39,7 @@ export interface ExcelImportRow {
   vendor_name: string;
   transaction_date: string; // ISO YYYY-MM-DD หรือ '' ถ้าไม่ถูกต้อง/ไม่ได้กรอก
   vendor_tax_id: string;
+  contact_person: string; // ไม่บังคับกรอก — ดู EXCEL_HEADERS.contact_person ด้านบน
   description: string;
   amount_excl_vat: string;
   vat_amount: string;
@@ -166,6 +170,7 @@ export function parseExcelRow(raw: Record<string, unknown>, rowNumber: number): 
   const vendor_name = cellToString(raw[EXCEL_HEADERS.vendor_name]);
   const transactionDateRaw = raw[EXCEL_HEADERS.transaction_date];
   const vendor_tax_id = cellToString(raw[EXCEL_HEADERS.vendor_tax_id]);
+  const contact_person = cellToString(raw[EXCEL_HEADERS.contact_person]);
   const description = cellToString(raw[EXCEL_HEADERS.description]);
   const amountRaw = raw[EXCEL_HEADERS.amount_excl_vat];
   const vatRaw = raw[EXCEL_HEADERS.vat_amount];
@@ -179,6 +184,7 @@ export function parseExcelRow(raw: Record<string, unknown>, rowNumber: number): 
     !vendor_name &&
     !transactionDateRaw &&
     !vendor_tax_id &&
+    !contact_person &&
     !description &&
     (amountRaw === undefined || amountRaw === null || amountRaw === '') &&
     (vatRaw === undefined || vatRaw === null || vatRaw === '') &&
@@ -272,6 +278,7 @@ export function parseExcelRow(raw: Record<string, unknown>, rowNumber: number): 
     vendor_name,
     transaction_date,
     vendor_tax_id,
+    contact_person,
     description,
     amount_excl_vat,
     vat_amount,
@@ -337,6 +344,7 @@ export function excelRowToWriteInput(row: ExcelImportRow): InvoiceWriteInput {
     vat_amount: isNoVat ? 0 : parseFloat(row.vat_amount) || 0,
     wht_amount: parseFloat(row.wht_amount) || 0,
     reference_no: row.reference_no.trim() || null,
+    contact_person: row.contact_person.trim() || null,
     expected_date: isNoVat ? null : row.expected_date || null,
     notes: row.notes.trim() || null,
     vendor_tax_id: row.vendor_tax_id.trim() || null,
@@ -364,6 +372,7 @@ export function buildTemplateBlob(): Blob {
       [EXCEL_HEADERS.vendor_name]: 'บริษัท ตัวอย่าง จำกัด',
       [EXCEL_HEADERS.transaction_date]: new Date(),
       [EXCEL_HEADERS.vendor_tax_id]: '',
+      [EXCEL_HEADERS.contact_person]: 'คุณสมชาย (ฝ่ายบัญชี)',
       [EXCEL_HEADERS.description]: 'ค่าสินค้า/บริการ ตัวอย่างรายการมี VAT (ลบแถวนี้ทิ้งแล้วกรอกของจริงแทนได้เลย)',
       [EXCEL_HEADERS.amount_excl_vat]: 1000,
       [EXCEL_HEADERS.vat_amount]: 70,
@@ -377,6 +386,7 @@ export function buildTemplateBlob(): Blob {
       [EXCEL_HEADERS.vendor_name]: 'ร้านค้า ตัวอย่าง 2',
       [EXCEL_HEADERS.transaction_date]: new Date(),
       [EXCEL_HEADERS.vendor_tax_id]: '',
+      [EXCEL_HEADERS.contact_person]: '',
       [EXCEL_HEADERS.description]: 'ตัวอย่างรายการไม่มี VAT — เว้นว่างช่อง VAT ไว้ (ลบแถวนี้ทิ้งแล้วกรอกของจริงแทนได้เลย)',
       [EXCEL_HEADERS.amount_excl_vat]: 500,
       [EXCEL_HEADERS.vat_amount]: '',

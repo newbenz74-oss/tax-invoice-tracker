@@ -32,6 +32,9 @@ export interface InvoiceWriteInput {
   // ค่านี้ (จะ fallback เป็นค่าเริ่มต้นที่ฐานข้อมูล = 0) ผู้เรียกใหม่ (ฟอร์ม/Excel import) ควรส่งมาเสมอ
   wht_amount?: number;
   reference_no: string | null;
+  // ผู้ติดต่อฝั่งผู้ขาย (เพิ่มเข้ามา 2026-08-17) — optional เพื่อไม่กระทบผู้เรียกเดิม เหมือนแพทเทิร์น
+  // vendor_tax_id ด้านล่าง แถวที่ไม่ได้ส่งค่านี้มาจะถูกบันทึกเป็น NULL ในฐานข้อมูล
+  contact_person?: string | null;
   expected_date: string | null;
   notes: string | null;
   // ไม่บังคับ (optional) โดยตั้งใจ — ทำให้ที่เรียกใช้เดิม (เช่น การ import จาก Excel ใน

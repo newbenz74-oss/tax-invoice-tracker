@@ -539,6 +539,7 @@ function ExpenseRecordContent({
       // หัก ณ ที่จ่ายไม่บังคับกรอก เว้นว่าง = 0 (ไม่มียอดหัก) ไม่ผูกกับ tax_type
       wht_amount: parseFloat(input.wht_amount) || 0,
       reference_no: input.reference_no.trim() || null,
+      contact_person: input.contact_person.trim() || null,
       // วันที่คาดว่าจะได้รับมีความหมายเฉพาะ claimable_vat เท่านั้น (ประเภทอื่นไม่มีขั้นตอนรอ)
       expected_date: isNoVat || isNonClaimable ? null : input.expected_date || null,
       notes: input.notes.trim() || null,

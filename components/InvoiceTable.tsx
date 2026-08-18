@@ -159,6 +159,9 @@ export default function InvoiceTable({
                 คำนวณสด (total_amount - wht_amount) ไม่ใช่คอลัมน์ในฐานข้อมูล ดู lib/invoiceLogic.ts calcNetPayment */}
             <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">หัก ณ ที่จ่าย</th>
             <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">ยอดจ่ายสุทธิ</th>
+            {/* ผู้ติดต่อ (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้) — บอกว่าควรตามเอกสารกับใคร ไม่บังคับกรอก
+                แถวที่ไม่มีค่าแสดง "-" เหมือนคอลัมน์ optional อื่นๆ ในตารางนี้ */}
+            <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">ผู้ติดต่อ</th>
             <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">สถานะ</th>
             <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">การจัดการ</th>
           </tr>
@@ -224,6 +227,12 @@ export default function InvoiceTable({
                   data-testid={`net-payment-${invoice.id}`}
                 >
                   {THB.format(calcNetPayment(invoice.total_amount, invoice.wht_amount))}
+                </td>
+                <td
+                  className="px-[18px] py-[18px] text-text-sub"
+                  data-testid={`contact-person-${invoice.id}`}
+                >
+                  {invoice.contact_person || '-'}
                 </td>
                 <td className="px-[18px] py-[18px]">
                   {/* เอาป้าย Aging (ช่อง "-" ใต้สถานะ) ออกทั้งหมด (2026-08-14 ตามคำขอผู้ใช้) — เดิมคอลัมน์นี้มี

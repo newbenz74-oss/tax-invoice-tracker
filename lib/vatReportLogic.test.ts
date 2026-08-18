@@ -20,6 +20,7 @@ function makeInvoice(overrides: Partial<PendingTaxInvoice>): PendingTaxInvoice {
     wht_amount: 0,
     wht_certificate_id: null,
     reference_no: null,
+    contact_person: null,
     expected_date: null,
     status: 'received',
     received_date: '2026-07-05',
