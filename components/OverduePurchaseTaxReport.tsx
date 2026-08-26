@@ -264,9 +264,12 @@ export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchase
           data-testid="overdue-report-year-filter"
         >
           <option value="all">ทุกปี</option>
+          {/* value ยังเป็นปีปฏิทิน (ค.ศ.) เดิมเสมอ (ใช้กรอง expected_date ตรงๆ ใน overduePurchaseTaxLogic.ts
+              โดยไม่แปลง) — เปลี่ยนแค่ข้อความที่แสดงให้เป็น พ.ศ. (2026-08-18 ตามคำขอผู้ใช้ "แก้ไขให้การบันทึก
+              ทั้งระบบเป็น พ.ศ." — เดิมช่องนี้แสดงปี ค.ศ. ตรงๆ ไม่ตรงกับตัวกรองอื่นในระบบที่เป็น พ.ศ. หมด) */}
           {yearOptions.map((y) => (
             <option key={y} value={y}>
-              {y}
+              {y + 543}
             </option>
           ))}
         </select>

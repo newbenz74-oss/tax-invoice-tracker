@@ -266,15 +266,15 @@ describe('formatOverduePeriodLabel', () => {
     expect(formatOverduePeriodLabel('all', 'all')).toBe('ทั้งหมด');
   });
 
-  it('แสดงเดือน+ปี เมื่อกรองทั้งคู่', () => {
-    expect(formatOverduePeriodLabel(7, 2026)).toBe('กรกฎาคม 2026');
+  it('แสดงเดือน+ปี เมื่อกรองทั้งคู่ — ปีที่รับเข้าเป็น ค.ศ. แต่แสดงผลเป็น พ.ศ.', () => {
+    expect(formatOverduePeriodLabel(7, 2026)).toBe('กรกฎาคม 2569');
   });
 
   it('แสดงเดือน (ทุกปี) เมื่อกรองแค่เดือน', () => {
     expect(formatOverduePeriodLabel(7, 'all')).toBe('กรกฎาคม (ทุกปี)');
   });
 
-  it('แสดงปี เมื่อกรองแค่ปี', () => {
-    expect(formatOverduePeriodLabel('all', 2026)).toBe('ปี 2026');
+  it('แสดงปี เมื่อกรองแค่ปี — เป็น พ.ศ.', () => {
+    expect(formatOverduePeriodLabel('all', 2026)).toBe('ปี 2569');
   });
 });

@@ -343,6 +343,35 @@ describe('parseExcelRow — ตรวจสอบยอดรวมเทีย�
   });
 });
 
+describe('parseExcelRow — เตือนถ้าปีที่พิมพ์ในเซลล์วันที่ (วว/ดด/ปปปป) ดูเหมือนเป็น ค.ศ.', () => {
+  it('วันที่ทำรายการพิมพ์เป็นข้อความ วว/ดด/ปปปป ปี ค.ศ. (ต่ำกว่า 2200) → เตือน', () => {
+    const result = parseExcelRow(row({ [EXCEL_HEADERS.transaction_date]: '17/08/2026' }), 2)!;
+    expect(result.warnings.some((w) => w.includes('วันที่ทำรายการ') && w.includes('ค.ศ.'))).toBe(true);
+    // ยังคง parse เป็น ISO ตามที่พิมพ์ตรงๆ (แค่เตือน ไม่บล็อก/ไม่แปลงให้เอง)
+    expect(result.transaction_date).toBe('2026-08-17');
+  });
+
+  it('วันที่คาดว่าจะได้รับพิมพ์เป็นข้อความ วว/ดด/ปปปป ปี ค.ศ. → เตือน', () => {
+    const result = parseExcelRow(row({ [EXCEL_HEADERS.expected_date]: '20/08/2026' }), 2)!;
+    expect(result.warnings.some((w) => w.includes('วันที่คาดว่าจะได้รับ') && w.includes('ค.ศ.'))).toBe(true);
+  });
+
+  it('วันที่ทำรายการพิมพ์เป็นข้อความ วว/ดด/ปปปป ปี พ.ศ. จริง (>= 2200) → ไม่เตือน', () => {
+    const result = parseExcelRow(row({ [EXCEL_HEADERS.transaction_date]: '17/08/2569' }), 2)!;
+    expect(result.warnings.some((w) => w.includes('ค.ศ.'))).toBe(false);
+  });
+
+  it('วันที่ทำรายการรูปแบบ YYYY-MM-DD (ISO) → ไม่เตือน แม้ปีจะเป็น ค.ศ. (รูปแบบนี้เป็น ค.ศ. โดยสากลอยู่แล้ว)', () => {
+    const result = parseExcelRow(row({ [EXCEL_HEADERS.transaction_date]: '2026-08-17' }), 2)!;
+    expect(result.warnings.some((w) => w.includes('ค.ศ.'))).toBe(false);
+  });
+
+  it('วันที่ทำรายการเป็น Date object (จากเซลล์รูปแบบวันที่จริงของ Excel) → ไม่เตือน', () => {
+    const result = parseExcelRow(row({ [EXCEL_HEADERS.transaction_date]: new Date(2026, 7, 17) }), 2)!;
+    expect(result.warnings.some((w) => w.includes('ค.ศ.'))).toBe(false);
+  });
+});
+
 describe('parseExcelRows', () => {
   it('ข้ามแถวว่างไปอัตโนมัติ และเลขแถวตรงกับตำแหน่งจริงในไฟล์ (แถว 1 = header)', () => {
     const emptyRow = Object.fromEntries(Object.values(EXCEL_HEADERS).map((h) => [h, '']));

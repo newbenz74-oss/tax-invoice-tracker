@@ -10,6 +10,7 @@ import {
   isWhtCertEligible,
 } from '@/lib/invoiceLogic';
 import { buddhistYearOptions, currentBuddhistYear, currentMonth, thaiMonthName } from '@/lib/thaiDate';
+import BuddhistDateInput from '@/components/BuddhistDateInput';
 
 const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -488,21 +489,23 @@ function ReceiveInvoiceModal({
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-text-sub">
             วันที่ได้รับเอกสาร
-            <input
-              type="date"
+            <BuddhistDateInput
               value={receivedDate}
-              onChange={(e) => setReceivedDate(e.target.value)}
-              className="w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary"
+              onChange={setReceivedDate}
+              buildClassName={() =>
+                'w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary'
+              }
             />
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-text-sub">
             วันที่ใบกำกับภาษี *
-            <input
-              type="date"
+            <BuddhistDateInput
               value={taxInvoiceDate}
-              onChange={(e) => setTaxInvoiceDate(e.target.value)}
-              className="w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary"
-              data-testid={`tax-invoice-date-input-${invoice.id}`}
+              onChange={setTaxInvoiceDate}
+              buildClassName={() =>
+                'w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary'
+              }
+              testId={`tax-invoice-date-input-${invoice.id}`}
             />
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-text-sub">

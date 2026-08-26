@@ -24,14 +24,16 @@ function formatDate(iso: string | null): string {
 }
 
 /** ต่างจาก formatDate ตรงที่รับ timestamptz เต็ม (มีเวลา/timezone ติดมาด้วย เช่น email_sent_at) ไม่ใช่แค่
- * วันที่ล้วน (YYYY-MM-DD) — ใช้ Date object แปลงเป็นเวลาท้องถิ่นของเบราว์เซอร์ผู้ใช้ตรงๆ */
+ * วันที่ล้วน (YYYY-MM-DD) — ใช้ Date object แปลงเป็นเวลาท้องถิ่นของเบราว์เซอร์ผู้ใช้ตรงๆ ปีที่แสดงเป็น พ.ศ.
+ * เสมอ (แก้ไข 2026-08-18 ตามคำขอผู้ใช้ "แก้ไขให้การบันทึกทั้งระบบเป็น พ.ศ." — เดิมแสดงปี ค.ศ. จาก
+ * d.getFullYear() ตรงๆ ไม่ตรงกับวันที่อื่นทั้งหมดในหน้านี้ที่เป็น พ.ศ.) */
 function formatDateTime(iso: string | null): string {
   if (!iso) return '-';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '-';
   const day = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
+  const year = d.getFullYear() + 543;
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${day}/${month}/${year} ${hh}:${mm}`;

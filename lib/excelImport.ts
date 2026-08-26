@@ -104,6 +104,21 @@ export function parseExcelDateCell(value: unknown): string | null {
   return null;
 }
 
+/** ตรวจว่าค่าดิบในเซลล์เป็นข้อความรูปแบบ วว/ดด/ปปปป (ไม่ใช่ Date object/เลข serial ของ Excel ซึ่งเป็น ค.ศ.
+ * ที่ถูกต้องแน่นอนอยู่แล้วจากตัว Excel เอง ไม่ต้องเตือน) ที่ปีที่พิมพ์ "ดูเหมือน" เป็น ค.ศ. ไม่ใช่ พ.ศ. — เพิ่ม
+ * เข้ามา 2026-08-18 ตามคำขอผู้ใช้ "ตรวจสอบดูให้หน่อยว่าตรงไหนที่บันทึกปีเป็น ค.ศ. ... แจ้งเตือนว่าโปรดบันทึก
+ * เป็น พ.ศ." — ผู้ใช้ไทยที่พิมพ์วันที่เป็นข้อความ วว/ดด/ปปปป ลงในเซลล์ Excel ตรงๆ (ไม่ได้ใช้ตัวเลือกวันที่ของ
+ * Excel เอง) มักตั้งใจพิมพ์ปี พ.ศ. เสมอตามความเคยชิน แต่ parseExcelDateCell ด้านบนไม่เคยแปลง/เตือนอะไรเลย
+ * (เก็บปีตามที่พิมพ์ตรงๆ เป็น ISO ค.ศ.) ใช้เกณฑ์ปี < 2200 เดียวกับ lib/thaiDate.ts (ดูคอมเมนต์เต็มที่นั่น)
+ * เป็นแค่คำเตือน (ไม่ error/ไม่บล็อกการนำเข้า) เพราะไฟล์ Excel บางไฟล์อาจ export มาจากระบบอื่นที่ใช้ ค.ศ. จริง
+ * ก็ได้ ให้ผู้ใช้ตรวจสอบเองก่อนยืนยันนำเข้า */
+function cellLooksLikeGregorianDmy(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return false;
+  return Number(match[3]) < 2200;
+}
+
 /** ตรวจสอบว่า ปี/เดือน/วัน ที่ให้มาเป็นวันที่จริงที่มีอยู่จริง (เช่น เดือน 13 หรือวันที่ 30 กุมภาพันธ์ ไม่ผ่าน) */
 function isRealDate(year: number, month: number, day: number): boolean {
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -200,6 +215,9 @@ export function parseExcelRow(raw: Record<string, unknown>, rowNumber: number): 
 
   const transaction_date = parseExcelDateCell(transactionDateRaw) ?? '';
   if (!transaction_date) errors.push('วันที่ทำรายการไม่ถูกต้องหรือไม่ได้กรอก');
+  if (cellLooksLikeGregorianDmy(transactionDateRaw)) {
+    warnings.push(`วันที่ทำรายการ "${transactionDateRaw}" ปีดูเหมือนเป็น ค.ศ. โปรดตรวจสอบว่าควรบันทึกเป็นปี พ.ศ. หรือไม่`);
+  }
 
   // เลขประจำตัวผู้เสียภาษีไม่บังคับกรอก แต่ถ้ากรอกมาต้องเป็นตัวเลข 13 หลักเท่านั้น (เหมือนฟอร์มเพิ่มรายการ)
   if (vendor_tax_id && !/^\d{13}$/.test(vendor_tax_id)) {
@@ -268,6 +286,9 @@ export function parseExcelRow(raw: Record<string, unknown>, rowNumber: number): 
     !isNoVat && expectedDateRaw !== undefined && expectedDateRaw !== null && String(expectedDateRaw).trim() !== '';
   if (expectedDateProvided && !expected_date) {
     errors.push('วันที่คาดว่าจะได้รับไม่ถูกต้อง');
+  }
+  if (cellLooksLikeGregorianDmy(expectedDateRaw)) {
+    warnings.push(`วันที่คาดว่าจะได้รับ "${expectedDateRaw}" ปีดูเหมือนเป็น ค.ศ. โปรดตรวจสอบว่าควรบันทึกเป็นปี พ.ศ. หรือไม่`);
   }
   if (expected_date && transaction_date && expected_date < transaction_date) {
     errors.push('วันที่คาดว่าจะได้รับต้องไม่ก่อนวันที่ทำรายการ');

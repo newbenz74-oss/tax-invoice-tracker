@@ -76,8 +76,11 @@ export function getOverdueAging(expectedDate: string | null, today: string): Ove
 export interface OverdueFilterOptions {
   /** กรองตามเดือนของ "วันที่คาดว่าจะได้รับ" (expected_date) — 'all' = ไม่กรองเดือน */
   month: number | 'all';
-  /** กรองตามปีปฏิทิน (ค.ศ.) ของ expected_date เช่นเดียวกับที่ formatMonthLabel/computeMonthlyVatSummary
-   * แสดงปีปฏิทินตรงๆ ไม่แปลงเป็น พ.ศ. (คนละแบบกับ vat_claim_year ที่เป็น พ.ศ. โดยตั้งใจ) — 'all' = ไม่กรองปี */
+  /** กรองตามปีปฏิทิน (ค.ศ.) ของ expected_date ภายใน (ใช้ตรงกับ year ของ ISO string เทียบง่าย ไม่ต้องแปลง
+   * ไปมา) — ค่าที่ "แสดงผล" ให้ผู้ใช้เห็น (ใน dropdown ของ OverduePurchaseTaxReport.tsx และ
+   * formatOverduePeriodLabel) แปลงเป็น พ.ศ. เสมอแล้ว (แก้ไข 2026-08-18 ตามคำขอผู้ใช้ — เดิมแสดงปีปฏิทิน ค.ศ.
+   * ตรงๆ ไม่ตรงกับที่อื่นในระบบ) ค่า internal ของ field นี้ไม่เปลี่ยน ยังเป็น ค.ศ. เหมือนเดิมทุกประการ —
+   * 'all' = ไม่กรองปี */
   year: number | 'all';
   agingStatus: 'all' | OverdueAgingStatus;
   vendor: string | 'all';
@@ -239,15 +242,18 @@ export function getExpectedDateYearOptions(invoices: PendingTaxInvoice[]): numbe
   return Array.from(years).sort((a, b) => b - a);
 }
 
-/** ป้ายช่วงเวลาสำหรับหัว Export Excel/PDF — สะท้อนตัวกรองเดือน/ปีปัจจุบัน */
+/** ป้ายช่วงเวลาสำหรับหัว Export Excel/PDF — สะท้อนตัวกรองเดือน/ปีปัจจุบัน — year ที่รับเข้ายังเป็นปีปฏิทิน
+ * (ค.ศ.) เดิมเสมอ (ค่าเดียวกับที่ getExpectedDateYearOptions/filters.year ใช้กรองข้อมูลจริง) แสดงผลเป็น พ.ศ.
+ * เท่านั้น (แก้ไข 2026-08-18 ตามคำขอผู้ใช้ "แก้ไขให้การบันทึกทั้งระบบเป็น พ.ศ." — เดิมป้ายนี้แสดงปี ค.ศ. ตรงๆ) */
 export function formatOverduePeriodLabel(month: number | 'all', year: number | 'all'): string {
   const THAI_MONTHS = [
     'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
   ];
   const monthLabel = month === 'all' ? null : THAI_MONTHS[month - 1];
+  const buddhistYear = year === 'all' ? 'all' : year + 543;
   if (month === 'all' && year === 'all') return 'ทั้งหมด';
-  if (monthLabel && year !== 'all') return `${monthLabel} ${year}`;
+  if (monthLabel && buddhistYear !== 'all') return `${monthLabel} ${buddhistYear}`;
   if (monthLabel) return `${monthLabel} (ทุกปี)`;
-  return `ปี ${year}`;
+  return `ปี ${buddhistYear}`;
 }

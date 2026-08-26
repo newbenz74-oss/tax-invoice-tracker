@@ -9,6 +9,7 @@ import {
   suggestVatAmount,
   validateInvoiceForm,
 } from '@/lib/invoiceLogic';
+import BuddhistDateInput from '@/components/BuddhistDateInput';
 
 const EMPTY_FORM: InvoiceFormInput = {
   vendor_name: '',
@@ -163,12 +164,12 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
           />
         </Field>
         <Field label="วันที่ทำรายการ" error={errors.transaction_date} required>
-          <input
-            type="date"
+          <BuddhistDateInput
             value={form.transaction_date}
-            onChange={(e) => setForm((p) => ({ ...p, transaction_date: e.target.value }))}
-            className={inputClass(Boolean(errors.transaction_date))}
-            data-testid="input-transaction-date"
+            onChange={(iso) => setForm((p) => ({ ...p, transaction_date: iso }))}
+            buildClassName={inputClass}
+            hasError={Boolean(errors.transaction_date)}
+            testId="input-transaction-date"
           />
         </Field>
       </div>
@@ -300,12 +301,12 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
         </Field>
         {showExpectedDate && (
           <Field label="วันที่คาดว่าจะได้รับใบกำกับภาษี" error={errors.expected_date}>
-            <input
-              type="date"
+            <BuddhistDateInput
               value={form.expected_date}
-              onChange={(e) => setForm((p) => ({ ...p, expected_date: e.target.value }))}
-              className={inputClass(Boolean(errors.expected_date))}
-              data-testid="input-expected-date"
+              onChange={(iso) => setForm((p) => ({ ...p, expected_date: iso }))}
+              buildClassName={inputClass}
+              hasError={Boolean(errors.expected_date)}
+              testId="input-expected-date"
             />
           </Field>
         )}
@@ -322,12 +323,11 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
             />
           </Field>
           <Field label="วันที่ใบกำกับภาษี (ถ้ามี)">
-            <input
-              type="date"
+            <BuddhistDateInput
               value={form.tax_invoice_date}
-              onChange={(e) => setForm((p) => ({ ...p, tax_invoice_date: e.target.value }))}
-              className={inputClass(false)}
-              data-testid="input-tax-invoice-date"
+              onChange={(iso) => setForm((p) => ({ ...p, tax_invoice_date: iso }))}
+              buildClassName={inputClass}
+              testId="input-tax-invoice-date"
             />
           </Field>
         </div>

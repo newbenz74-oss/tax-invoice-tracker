@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-react';
 import type { MarkReceivedInput, PendingTaxInvoice } from '@/types/invoice';
 import { getTaxInvoiceStatusBadgeClass, getTaxInvoiceStatusLabel } from '@/lib/invoiceLogic';
 import { buddhistYearOptions, currentBuddhistYear, currentMonth, thaiMonthName } from '@/lib/thaiDate';
+import BuddhistDateInput from '@/components/BuddhistDateInput';
 import {
   OVERDUE_AGING_BADGE_CLASS,
   getOverdueAging,
@@ -182,21 +183,19 @@ export default function OverdueMonthDetail({ group, today, onView, onEdit, onMar
                                 />
                                 <label className="flex w-40 flex-col gap-0.5 text-[10px] text-text-sub">
                                   วันที่ได้รับเอกสาร
-                                  <input
-                                    type="date"
+                                  <BuddhistDateInput
                                     value={receivedDate}
-                                    onChange={(e) => setReceivedDate(e.target.value)}
-                                    className={inlineInputClass}
+                                    onChange={setReceivedDate}
+                                    buildClassName={() => inlineInputClass}
                                   />
                                 </label>
                                 <label className="flex w-40 flex-col gap-0.5 text-[10px] text-text-sub">
                                   วันที่ใบกำกับภาษี *
-                                  <input
-                                    type="date"
+                                  <BuddhistDateInput
                                     value={taxInvoiceDate}
-                                    onChange={(e) => setTaxInvoiceDate(e.target.value)}
-                                    className={inlineInputClass}
-                                    data-testid={`overdue-report-tax-invoice-date-input-${invoice.id}`}
+                                    onChange={setTaxInvoiceDate}
+                                    buildClassName={() => inlineInputClass}
+                                    testId={`overdue-report-tax-invoice-date-input-${invoice.id}`}
                                   />
                                 </label>
                                 <label className="flex w-40 flex-col gap-0.5 text-[10px] text-text-sub">

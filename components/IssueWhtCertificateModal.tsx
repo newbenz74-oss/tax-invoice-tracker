@@ -18,6 +18,7 @@ import {
 import { createWhtCertificate, peekNextWhtCertNumber } from '@/lib/whtCertificateApi';
 import { getContactDisplayName } from '@/lib/contactLogic';
 import { calcNetPayment } from '@/lib/invoiceLogic';
+import BuddhistDateInput from '@/components/BuddhistDateInput';
 
 const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -31,38 +32,6 @@ function todayISO(): string {
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
-}
-
-/** จำนวนวันของเดือน/ปี (ค.ศ.) ที่ระบุ — ใช้ตรวจว่าวันที่ที่พิมพ์เข้ามาใน parseBuddhistDateInput ด้านล่างมีอยู่
- * จริงไหม (เช่น 31 กุมภาพันธ์ ไม่มีจริง) new Date(year, month, 0) คือ trick มาตรฐานของ JS ที่ได้วันสุดท้ายของ
- * เดือนก่อนหน้า (month ที่ส่งเข้าเป็น 1-12 ปกติ ไม่ใช่ 0-11 แบบ Date API เพราะ "day 0 ของเดือนถัดไป" =
- * "วันสุดท้ายของเดือนนี้") */
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate();
-}
-
-/** จัดรูปแบบ ISO ค.ศ. (YYYY-MM-DD) ให้เป็นข้อความ วว/ดด/ปปปป (ปี พ.ศ.) สำหรับแสดงในช่อง "วันที่ออกใบ" —
- * คู่กับ parseBuddhistDateInput ด้านล่าง (แปลงกลับทิศทางตรงข้าม) */
-function formatBuddhistDateInput(iso: string): string {
-  if (!iso) return '';
-  const [y, m, d] = iso.split('-').map(Number);
-  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y + 543}`;
-}
-
-/** แปลงข้อความ วว/ดด/ปปปป (ปี พ.ศ. ที่ผู้ใช้พิมพ์เอง) กลับเป็น ISO ค.ศ. (YYYY-MM-DD) — คืน null ถ้ารูปแบบผิด
- * หรือเป็นวันที่ที่ไม่มีจริง (เช่น 31/02/2569) ตั้งใจไม่ยอมรับรูปแบบอื่นเลย (เช่น "17-08-2569" หรือพิมพ์ค้าง
- * ไม่ครบ) เพื่อไม่ให้ตีความวันที่ผิดเพี้ยนแบบเงียบๆ — ผู้เรียก (handleIssuedDateInputChange) จะไม่อัปเดต
- * issuedDate เลยถ้าฟังก์ชันนี้คืน null รอจนกว่าจะพิมพ์ครบรูปแบบที่ถูกต้อง */
-function parseBuddhistDateInput(text: string): string | null {
-  const match = text.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!match) return null;
-  const d = Number(match[1]);
-  const m = Number(match[2]);
-  const y = Number(match[3]) - 543;
-  if (m < 1 || m > 12) return null;
-  if (y < 1000) return null;
-  if (d < 1 || d > daysInMonth(y, m)) return null;
-  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
 /** วันที่จ่ายเงินล่าสุดในบรรดารายการที่เลือกออกใบ — ใช้เป็นค่าเริ่มต้นของ "วันที่ออกใบ" (ตามคำขอผู้ใช้
@@ -169,30 +138,12 @@ export default function IssueWhtCertificateModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ช่อง "วันที่ออกใบ" เป็นช่องเดียวเหมือนเดิม (2026-08-17) — ลองใช้ 3 dropdown วัน/เดือน/ปีแยกกันไปก่อนหน้านี้
-  // แล้วผู้ใช้ขอกลับมาเป็นช่องเดียว ("ขอแบบเดิม") แต่ยังต้องแก้ปัญหาเดิมอยู่ คือ input type="date" ของ
-  // เบราว์เซอร์รับได้แค่ปี ค.ศ. เท่านั้น พิมพ์ "2569" ตรงๆ จะกลายเป็นปี ค.ศ. 2569 จริง (ไม่ใช่แปลงจาก พ.ศ. ให้)
-  // — จึงเปลี่ยนจาก type="date" เป็น input ข้อความธรรมดา รูปแบบ วว/ดด/ปปปป (ปี พ.ศ.) แทน ให้พิมพ์ 2569 ได้ตรงๆ
-  // เก็บ buffer ข้อความที่พิมพ์แยกไว้ต่างหาก (issuedDateInput) เพราะระหว่างพิมพ์ค่าอาจยังไม่ใช่วันที่ที่ถูกต้อง
-  // สมบูรณ์ (เช่นพิมพ์ "17/08/" ค้างไว้) — issuedDate (ISO ค.ศ.) จะอัปเดตก็ต่อเมื่อข้อความที่พิมพ์ครบรูปแบบและ
-  // เป็นวันที่จริงเท่านั้น ฟิลด์อื่นที่ใช้ issuedDate ต่อ (handleSubmit/periodYear, RPC, PDF) ไม่ต้องแก้อะไรเลย
-  // เพราะ issuedDate ยังเป็น ISO ค.ศ. รูปแบบเดียวกันเป๊ะๆ เหมือนเดิม
-  const [issuedDateInput, setIssuedDateInput] = useState(() => formatBuddhistDateInput(issuedDate));
-  const issuedDateHasError = issuedDateInput.trim() !== '' && parseBuddhistDateInput(issuedDateInput) === null;
-
-  function handleIssuedDateInputChange(text: string) {
-    setIssuedDateInput(text);
-    const parsed = parseBuddhistDateInput(text);
-    if (parsed) setIssuedDate(parsed);
-  }
-
-  // ตอนออกจากช่อง (blur) — ถ้าพิมพ์ไม่ครบ/ผิดรูปแบบ ให้แสดงค่า issuedDate ล่าสุดที่ถูกต้องกลับคืนแทน (ไม่ปล่อย
-  // ให้ช่องค้างข้อความขยะ) ถ้าพิมพ์ถูกต้อง ให้จัดรูปแบบใหม่ให้เรียบร้อย (เติมเลข 0 นำหน้าให้ครบ เช่น "7/8/2569"
-  // -> "07/08/2569")
-  function handleIssuedDateBlur() {
-    const parsed = parseBuddhistDateInput(issuedDateInput);
-    setIssuedDateInput(formatBuddhistDateInput(parsed ?? issuedDate));
-  }
+  // ช่อง "วันที่ออกใบ" ใช้ BuddhistDateInput กลาง (lib/thaiDate.ts) แทน input type="date" ธรรมดา — เดิม
+  // input type="date" ของเบราว์เซอร์รับได้แค่ปี ค.ศ. เท่านั้น พิมพ์ "2569" ตรงๆ จะกลายเป็นปี ค.ศ. 2569 จริง
+  // (ไม่ใช่แปลงจาก พ.ศ. ให้) แก้ไปแล้วครั้งแรกที่นี่ (2026-08-17) ด้วยช่องข้อความ วว/ดด/ปปปป ที่ประกาศ
+  // เฉพาะจุด ภายหลังย้าย logic ไปเป็น component กลาง (2026-08-18) ใช้ร่วมกับช่องวันที่อื่นทั่วทั้งระบบแทน —
+  // issuedDate ยังเป็น ISO ค.ศ. รูปแบบเดียวกันเป๊ะๆ เหมือนเดิม ไม่กระทบฟิลด์อื่นที่ใช้ต่อ (handleSubmit/
+  // periodYear, RPC, PDF)
 
   // เลขที่ใบหัก ณ ที่จ่าย (preview + แก้ไขเองได้ เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ "อยากให้โชว์เลขที่...
   // โดยระบบจะรันเลขให้อัตโนมัติ...แต่ฉันก็ยังสามารถแก้ไขเลขที่ได้") — formType ขึ้นกับประเภทนิติบุคคล/บุคคล
@@ -558,19 +509,13 @@ export default function IssueWhtCertificateModal({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="วันที่ออกใบ (วว/ดด/ปปปป พ.ศ.)" required>
-                <input
-                  type="text"
-                  inputMode="numeric"
+                <BuddhistDateInput
+                  value={issuedDate}
+                  onChange={setIssuedDate}
+                  buildClassName={inputClass}
                   placeholder="เช่น 17/08/2569"
-                  value={issuedDateInput}
-                  onChange={(e) => handleIssuedDateInputChange(e.target.value)}
-                  onBlur={handleIssuedDateBlur}
-                  className={inputClass(issuedDateHasError)}
-                  data-testid="input-issued-date"
+                  testId="input-issued-date"
                 />
-                {issuedDateHasError && (
-                  <p className="mt-1 text-xs text-danger">รูปแบบไม่ถูกต้อง กรุณากรอกเป็น วว/ดด/ปปปป (เช่น 17/08/2569)</p>
-                )}
               </Field>
               <Field label="ผู้ลงนาม">
                 <input
