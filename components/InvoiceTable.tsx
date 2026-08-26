@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, X } from 'lucide-react';
 import type { MarkReceivedInput, PendingTaxInvoice } from '@/types/invoice';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@/lib/invoiceLogic';
 import { buddhistYearOptions, currentBuddhistYear, currentMonth, thaiMonthName } from '@/lib/thaiDate';
 import BuddhistDateInput from '@/components/BuddhistDateInput';
+import InvoiceDetailModal from '@/components/InvoiceDetailModal';
 
 const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -84,6 +86,10 @@ export default function InvoiceTable({
   // พร้อมกัน) เก็บเป็น id เดียว (ไม่ใช่ Set) เพราะเปิดได้ทีละแถวพอ — เป็นเมนูลอย (position: absolute) ไม่ใช่
   // accordion ดันความสูงแถวตาราง (ลองแบบ accordion ก่อนแล้วไม่ลื่นไหลเพราะอยู่ในบริบท tr/td) ดู JSX ด้านล่าง
   const [expandedActionsId, setExpandedActionsId] = useState<string | null>(null);
+  // id ของแถวที่กำลังเปิด modal "ดูรายละเอียด" อยู่ (ถ้ามี) — เพิ่มเข้ามา 2026-08-26 ตามคำขอผู้ใช้ (ดู
+  // InvoiceDetailModal.tsx) หาแบบเดียวกับ receivingInvoice ด้านล่าง (เทียบ id แทนเก็บ object เต็มไว้ใน state)
+  // เพื่อให้ modal เห็นข้อมูลล่าสุดเสมอถ้า invoices ที่มาจาก SWR cache อัปเดตสดระหว่างเปิด modal อยู่
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   // ปิดเมนู "จัดการเอกสาร" อัตโนมัติเมื่อคลิกนอกเมนู — เป็นพฤติกรรมมาตรฐานของ dropdown menu ที่ลอยทับแถวอื่น
   // (ต่างจาก .month-detail-panel/.nav-accordion-panel เดิมที่เป็น accordion ดันเนื้อหาลง ไม่ใช่เมนูลอย จึงไม่
@@ -137,6 +143,7 @@ export default function InvoiceTable({
   // เพราะ invoices มาจาก SWR cache ที่อาจอัปเดตสดระหว่างเปิด modal อยู่ (เช่น mutate() จากที่อื่น) ทำให้
   // modal เห็นข้อมูลล่าสุดเสมอแทนที่จะค้างข้อมูลเก่า ณ ตอนกดเปิด
   const receivingInvoice = receivingId ? (invoices.find((inv) => inv.id === receivingId) ?? null) : null;
+  const viewingInvoice = viewingId ? (invoices.find((inv) => inv.id === viewingId) ?? null) : null;
 
   if (invoices.length === 0) {
     return (
@@ -146,8 +153,23 @@ export default function InvoiceTable({
     );
   }
 
+  // ครอบด้วย Fragment แทนที่จะคืนแค่ div เดียว (2026-08-26 — แก้บั๊ก modal "ดูรายละเอียด"/"ได้รับแล้ว" ลอยขึ้น
+  // ไปติดขอบบนจอแทนที่จะอยู่กึ่งกลางจอจริง) ต้นตอมี 2 ชั้นซ้อนกัน: (1) เดิม modal ทั้งสอง (position:fixed
+  // inset-0) render เป็นลูกอยู่ข้างใน div.card-surface ของตารางนี้เอง ซึ่งมี backdrop-filter: blur(...) —
+  // ย้ายออกมาเป็น sibling นอก div.card-surface แก้จุดนี้ไปแล้วรอบก่อน แต่ (2) หน้า "บันทึกการจ่ายเงิน"
+  // (app/dashboard/page.tsx) เองก็ห่อ <InvoiceTable> ด้วย <div className="entrance-animate entrance-delay-3">
+  // อีกชั้น — .entrance-animate ใช้ "animation: entranceFadeSlide 220ms ease both" (ดู app/globals.css) ซึ่ง
+  // fill-mode "both" ทำให้ transform: translateY(0) ของ keyframe ปลายทางค้างอยู่ถาวรหลัง animation จบ (ไม่ใช่
+  // "none") — ตาม CSS spec transform ที่ไม่ใช่ "none" ใดๆ ก็สร้าง containing block ใหม่ให้ลูกที่เป็น
+  // position:fixed เสมอ (บั๊กคลาสเดียวกับที่เคยแก้ให้ Sidebar ใน .dashboard-content-entrance) ไม่แก้
+  // .entrance-animate ตรงๆ เพราะใช้ร่วมกับ entrance-delay-N ทั่วทั้งระบบ (ContactsPage ฯลฯ) — ถ้าเอา "both"
+  // ออกจะเสีย "backwards" ที่จำเป็นสำหรับซ่อน element ระหว่างช่วง animation-delay ทำให้เกิดวูบก่อนเลื่อนขึ้นแทน
+  // แก้ที่ต้นตอไม่ได้โดยไม่กระทบวงกว้าง จึงเลี่ยงปัญหาแทนด้วย React Portal (createPortal ไป document.body ตรงๆ)
+  // สำหรับ modal ทั้งสองนี้ — วิธีนี้ไม่ขึ้นกับ ancestor CSS ใดๆ เลยไม่ว่าจะเป็น transform/backdrop-filter/
+  // filter/contain ในอนาคตจะมีเพิ่มอีกกี่ชั้นก็ไม่กระทบ
   return (
-    <div className="card-surface overflow-x-auto rounded-2xl">
+    <>
+      <div className="card-surface overflow-x-auto rounded-2xl">
       <table className="min-w-full divide-y divide-border text-sm">
         <thead className="bg-table-header">
           <tr>
@@ -288,6 +310,20 @@ export default function InvoiceTable({
                         }`}
                       >
                         <div className="flex flex-col gap-1">
+                          {/* "ดูรายละเอียด" — เพิ่มเข้ามา 2026-08-26 ตามคำขอผู้ใช้ วางไว้บนสุดของเมนูเสมอ
+                              (ไม่ผูกเงื่อนไข status/tax_type ใดๆ ต่างจากตัวเลือกอื่นด้านล่าง) เพราะเป็น action
+                              ดูอย่างเดียวไม่มีผลข้างเคียง เหมาะกับทุกแถวไม่ว่าจะอยู่สถานะไหนก็ตาม */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpandedActionsId(null);
+                              setViewingId(invoice.id);
+                            }}
+                            className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-text-sub hover:bg-page-bg"
+                            data-testid={`view-detail-${invoice.id}`}
+                          >
+                            ดูรายละเอียด
+                          </button>
                           {invoice.status === 'pending' &&
                             invoice.tax_type !== 'no_vat' &&
                             invoice.tax_type !== 'non_claimable_vat' && (
@@ -378,28 +414,40 @@ export default function InvoiceTable({
           })}
         </tbody>
       </table>
-      {receivingInvoice && (
-        <ReceiveInvoiceModal
-          invoice={receivingInvoice}
-          taxInvoiceNumber={taxInvoiceNumber}
-          setTaxInvoiceNumber={setTaxInvoiceNumber}
-          receivedDate={receivedDate}
-          setReceivedDate={setReceivedDate}
-          taxInvoiceDate={taxInvoiceDate}
-          setTaxInvoiceDate={setTaxInvoiceDate}
-          vatClaimMonth={vatClaimMonth}
-          setVatClaimMonth={setVatClaimMonth}
-          vatClaimYear={vatClaimYear}
-          setVatClaimYear={setVatClaimYear}
-          busy={busyId === receivingInvoice.id}
-          onClose={() => {
-            setReceivingId(null);
-            setTaxInvoiceNumber('');
-          }}
-          onConfirm={() => handleConfirmReceived(receivingInvoice)}
-        />
-      )}
-    </div>
+      </div>
+      {receivingInvoice &&
+        createPortal(
+          <ReceiveInvoiceModal
+            invoice={receivingInvoice}
+            taxInvoiceNumber={taxInvoiceNumber}
+            setTaxInvoiceNumber={setTaxInvoiceNumber}
+            receivedDate={receivedDate}
+            setReceivedDate={setReceivedDate}
+            taxInvoiceDate={taxInvoiceDate}
+            setTaxInvoiceDate={setTaxInvoiceDate}
+            vatClaimMonth={vatClaimMonth}
+            setVatClaimMonth={setVatClaimMonth}
+            vatClaimYear={vatClaimYear}
+            setVatClaimYear={setVatClaimYear}
+            busy={busyId === receivingInvoice.id}
+            onClose={() => {
+              setReceivingId(null);
+              setTaxInvoiceNumber('');
+            }}
+            onConfirm={() => handleConfirmReceived(receivingInvoice)}
+          />,
+          document.body
+        )}
+      {viewingInvoice &&
+        createPortal(
+          <InvoiceDetailModal
+            invoice={viewingInvoice}
+            whtCertificatesById={whtCertificatesById}
+            onClose={() => setViewingId(null)}
+          />,
+          document.body
+        )}
+    </>
   );
 }
 
