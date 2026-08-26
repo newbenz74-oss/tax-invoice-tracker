@@ -149,3 +149,30 @@ export async function removeCompanyLogo(companyId: string): Promise<void> {
   const { error: updateError } = await supabase.from('companies').update({ logo_url: null }).eq('id', companyId);
   if (updateError) throw updateError;
 }
+
+/**
+ * ลบบริษัททิ้งถาวร (เพิ่มเข้ามา 2026-08-18 ตามคำขอผู้ใช้ — เดิมหน้า "ตั้งค่าบริษัท" แก้ไขข้อมูลได้อย่างเดียว
+ * ไม่มีทางลบบริษัททิ้งเลย) เป็น hard delete จริง ไม่ใช่ soft delete — ลบแถว companies แถวเดียวก็พอ ตารางลูก
+ * ทั้งหมด (pending_tax_invoices, business_partners, bank_reconcile_reports และตารางลูกของมันอีกที,
+ * company_members, wht_certificates, wht_certificate_counters, external_wht_viewer_companies) มี
+ * "on delete cascade" ผูกกับ company_id ที่ฐานข้อมูลครบทุกตัวแล้ว (ดู supabase/migration_024_delete_company.sql
+ * — ก่อนหน้านี้มี 3 ตารางที่ยังไม่ cascade เพิ่งแก้ไปพร้อมฟีเจอร์นี้) RLS policy "delete_member_companies" เช็ค
+ * ว่าต้องเป็นสมาชิกบริษัทนั้นอยู่ก่อนถึงจะลบได้ (ไม่มี role พิเศษ สมาชิกคนไหนก็ลบได้เหมือนกันหมด ตามปรัชญาการ
+ * ออกแบบทั้งระบบ — ความปลอดภัยจากการลบพลาดอยู่ที่ต้องพิมพ์ "confirm" ยืนยันในหน้า UI ก่อนเสมอ ดู
+ * components/CompanySettingsPage.tsx)
+ *
+ * ลบไฟล์โลโก้ใน storage ก่อนเสมอถ้ามี (FK cascade ของ Postgres ไม่รู้จัก Supabase Storage เลย ลบแถว companies
+ * อย่างเดียวจะเหลือไฟล์ค้างอยู่ใน bucket ตลอดไป) — ใช้ .remove() ตรงๆ ไม่ผ่าน removeCompanyLogo() เพราะฟังก์ชัน
+ * นั้นจะพยายาม update companies.logo_url ต่อด้วย ซึ่งไม่มีความหมายแล้วเพราะกำลังจะลบทั้งแถวอยู่ดี ไม่ throw ถ้า
+ * ลบไฟล์ไม่สำเร็จ/ไม่มีไฟล์อยู่แต่แรก (hasLogo=false ส่วนใหญ่) เพราะไม่ใช่สาเหตุที่ควรบล็อกการลบบริษัท
+ */
+export async function deleteCompany(companyId: string, hasLogo: boolean): Promise<void> {
+  const supabase = getSupabaseClient();
+
+  if (hasLogo) {
+    await supabase.storage.from(LOGO_BUCKET).remove([logoStoragePath(companyId)]);
+  }
+
+  const { error } = await supabase.from('companies').delete().eq('id', companyId);
+  if (error) throw error;
+}

@@ -1,9 +1,17 @@
 'use client';
 
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Building2, ImageOff, Loader2, Trash2, Upload } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { AlertTriangle, Building2, ImageOff, Loader2, Trash2, Upload, X } from 'lucide-react';
 import { useCompany } from '@/lib/CompanyContext';
-import { removeCompanyLogo, updateCompanySettings, uploadCompanyLogo, type Company, type CompanySettingsInput } from '@/lib/companyApi';
+import {
+  deleteCompany,
+  removeCompanyLogo,
+  updateCompanySettings,
+  uploadCompanyLogo,
+  type Company,
+  type CompanySettingsInput,
+} from '@/lib/companyApi';
 import { validateCompanySettingsForm } from '@/lib/companyLogic';
 import { BRANCH_TYPE_LABELS } from '@/lib/contactLogic';
 import { removeWhiteBackground } from '@/lib/logoBackgroundRemoval';
@@ -67,6 +75,11 @@ async function removeWhiteBackgroundFromFile(file: File): Promise<Blob> {
   });
 }
 
+/** คำที่ผู้ใช้ต้องพิมพ์ยืนยันก่อนลบบริษัทได้จริง (ตามคำขอผู้ใช้ 2026-08-18 "ต้องคอนเฟิร์มการลบด้วยการพิมพ์คำว่า
+ * confirm ด้วย และกดตกลงเพื่อยืนยันลบ") — เทียบแบบ case-insensitive กันผู้ใช้พิมพ์ตัวพิมพ์ใหญ่/เล็กปนกันแล้วงง
+ * ว่าทำไมปุ่มยังกดไม่ได้ ไม่ใช่ security gate ที่ต้องเข้มงวดระดับนั้น แค่กันลบพลาดจากการกดเร็วเกินไป */
+const DELETE_CONFIRM_WORD = 'confirm';
+
 const EMPTY_FORM: CompanySettingsInput = {
   tax_id: '',
   branch_type: 'head_office',
@@ -109,7 +122,8 @@ function companyToForm(company: Company): CompanySettingsInput {
  * นี้ (กฎ react-hooks/set-state-in-effect: ห้าม setState ตรงๆ ใน effect body แบบไม่มี async คั่นกลาง)
  */
 export default function CompanySettingsPage() {
-  const { selectedCompany, reload } = useCompany();
+  const { selectedCompany, reload, clearSelection } = useCompany();
+  const router = useRouter();
   const [form, setForm] = useState<CompanySettingsInput>(EMPTY_FORM);
   const [errors, setErrors] = useState<Partial<Record<keyof CompanySettingsInput, string>>>({});
   const [saving, setSaving] = useState(false);
@@ -122,6 +136,14 @@ export default function CompanySettingsPage() {
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
+
+  // สถานะ "ลบบริษัท" (เพิ่มเข้ามา 2026-08-18) — แยกวงจร async ของตัวเองเหมือน logoBusy/logoError ด้านบน
+  // deleteModalOpen คุมการเปิด/ปิด dialog ยืนยัน, deleteConfirmText เก็บข้อความที่ผู้ใช้พิมพ์ในช่องยืนยัน
+  // (ต้องตรงกับ DELETE_CONFIRM_WORD ปุ่ม "ลบบริษัท" ใน dialog ถึงจะกดได้ — ดู DELETE_CONFIRM_WORD ด้านบน)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const syncedCompanyIdRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
@@ -200,6 +222,38 @@ export default function CompanySettingsPage() {
       setLogoError(err instanceof Error ? err.message : 'ลบโลโก้ไม่สำเร็จ กรุณาลองใหม่');
     } finally {
       setLogoBusy(false);
+    }
+  }
+
+  function handleOpenDeleteModal() {
+    setDeleteConfirmText('');
+    setDeleteError(null);
+    setDeleteModalOpen(true);
+  }
+
+  function handleCloseDeleteModal() {
+    // ไม่ปิด dialog ระหว่างกำลังลบอยู่ (กันผู้ใช้กดปิด/คลิกฉากหลังกลางคันแล้วสถานะค้าง)
+    if (deleting) return;
+    setDeleteModalOpen(false);
+    setDeleteConfirmText('');
+    setDeleteError(null);
+  }
+
+  async function handleConfirmDelete() {
+    if (!selectedCompany) return;
+    if (deleteConfirmText.trim().toLowerCase() !== DELETE_CONFIRM_WORD) return;
+
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteCompany(selectedCompany.id, Boolean(selectedCompany.logo_url));
+      // ลบสำเร็จ — บริษัทที่กำลังเลือกอยู่ไม่มีอยู่จริงในระบบแล้ว ล้างค่าที่จำไว้แล้วพากลับไปหน้าเลือกบริษัท
+      // ทันที (pattern เดียวกับ handleSwitchCompany ใน Header.tsx)
+      clearSelection();
+      router.replace('/select-company');
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'ลบบริษัทไม่สำเร็จ กรุณาลองใหม่');
+      setDeleting(false);
     }
   }
 
@@ -422,7 +476,154 @@ export default function CompanySettingsPage() {
           </button>
         </div>
       </form>
+
+      {/* "danger zone" ลบบริษัท (เพิ่มเข้ามา 2026-08-18) — แยกเป็นการ์ดของตัวเอง ไม่อยู่ใน <form> เดิม เพราะ
+          เป็น action ที่ไม่เกี่ยวกับ submit ฟอร์มตั้งค่าเลย และเป็น action ที่ทำลายล้าง/ย้อนกลับไม่ได้ ควรแยก
+          สายตาให้ชัดเจนจากส่วนแก้ไขข้อมูลปกติด้านบน */}
+      <div className="card-surface mt-6 rounded-2xl border border-danger/30 bg-white p-6 sm:p-8" data-testid="company-danger-zone">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-danger/10">
+            <AlertTriangle className="h-5 w-5 text-danger" strokeWidth={2} aria-hidden="true" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-danger">ลบบริษัท</h3>
+            <p className="mt-1 text-sm text-text-sub">
+              ลบ {selectedCompany.name} และข้อมูลทั้งหมดของบริษัทนี้ถาวร (ใบกำกับภาษี, ผู้ติดต่อ, รายงานกระทบยอด, ใบหัก ณ ที่จ่าย ฯลฯ) การกระทำนี้ย้อนกลับไม่ได้
+            </p>
+            <button
+              type="button"
+              onClick={handleOpenDeleteModal}
+              className="btn-press mt-4 inline-flex items-center gap-1.5 rounded-[10px] border border-danger/30 px-3.5 py-2 text-xs font-semibold text-danger hover:bg-danger/10"
+              data-testid="open-delete-company"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              ลบบริษัท
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {deleteModalOpen && (
+        <DeleteCompanyModal
+          companyName={selectedCompany.name}
+          confirmText={deleteConfirmText}
+          onConfirmTextChange={setDeleteConfirmText}
+          deleting={deleting}
+          error={deleteError}
+          onClose={handleCloseDeleteModal}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
     </main>
+  );
+}
+
+/**
+ * Dialog ยืนยันลบบริษัท (เพิ่มเข้ามา 2026-08-18 ตามคำขอผู้ใช้ "ต้องคอนเฟิร์มการลบด้วยการพิมพ์คำว่า confirm ด้วย
+ * และกดตกลงเพื่อยืนยันลบ") — โครงสร้าง overlay/การ์ดกระจกเข้มตาม pattern เดียวกับ IssueWhtCertificateModal.tsx
+ * ปุ่ม "ลบบริษัท" (ตกลง) disabled อยู่เสมอจนกว่าข้อความในช่องจะตรงกับ DELETE_CONFIRM_WORD พอดี (case-insensitive)
+ * — เป็นเกตสองชั้นร่วมกับการต้องกดปุ่มเองอีกทีตามที่ผู้ใช้ระบุไว้ชัดเจนทั้งสองเงื่อนไข
+ */
+function DeleteCompanyModal({
+  companyName,
+  confirmText,
+  onConfirmTextChange,
+  deleting,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  companyName: string;
+  confirmText: string;
+  onConfirmTextChange: (value: string) => void;
+  deleting: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const canConfirm = confirmText.trim().toLowerCase() === DELETE_CONFIRM_WORD && !deleting;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="ยืนยันลบบริษัท"
+      data-testid="delete-company-modal"
+    >
+      <div
+        className="card-surface card-surface-modal w-full max-w-md rounded-2xl bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-danger/10">
+              <AlertTriangle className="h-5 w-5 text-danger" strokeWidth={2} aria-hidden="true" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-text">ยืนยันลบบริษัท</h3>
+              <p className="mt-1 text-sm text-text-sub">
+                คุณกำลังจะลบ <span className="font-semibold text-text">{companyName}</span> และข้อมูลทั้งหมดถาวร การกระทำนี้ย้อนกลับไม่ได้
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deleting}
+            className="shrink-0 rounded-md p-1 text-text-sub hover:bg-page-bg disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label="ปิด"
+            data-testid="delete-company-close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <label className="mt-5 block">
+          <span className="mb-1.5 block text-sm font-medium text-text">
+            พิมพ์คำว่า <span className="font-mono font-bold text-danger">confirm</span> เพื่อยืนยัน
+          </span>
+          <input
+            autoFocus
+            value={confirmText}
+            onChange={(e) => onConfirmTextChange(e.target.value)}
+            disabled={deleting}
+            placeholder="confirm"
+            className={inputClass(false)}
+            data-testid="delete-company-confirm-input"
+          />
+        </label>
+
+        {error && (
+          <p role="alert" className="mt-3 rounded-[10px] border border-danger/20 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+            {error}
+          </p>
+        )}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deleting}
+            className="btn-press rounded-[10px] border border-border px-4 py-2 text-sm font-semibold text-text-sub hover:bg-page-bg disabled:cursor-not-allowed disabled:opacity-60"
+            data-testid="delete-company-cancel"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!canConfirm}
+            className="btn-press inline-flex items-center gap-1.5 rounded-[10px] bg-danger px-4 py-2 text-sm font-semibold text-white hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50"
+            data-testid="delete-company-confirm"
+          >
+            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />}
+            ลบบริษัท
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
