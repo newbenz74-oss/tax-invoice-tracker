@@ -348,19 +348,23 @@ export default function CompanySettingsPage() {
         </Section>
 
         <Section title="ข้อมูลภาษี">
-          <Field label="เลขประจำตัวผู้เสียภาษี" error={errors.tax_id}>
-            <input
-              inputMode="numeric"
-              maxLength={13}
-              placeholder="13 หลัก (ไม่บังคับ)"
-              value={form.tax_id}
-              onChange={(e) => setForm((p) => ({ ...p, tax_id: e.target.value }))}
-              className={inputClass(Boolean(errors.tax_id))}
-              data-testid="input-tax-id"
-            />
-          </Field>
-
-          <div className={`grid grid-cols-1 gap-4 ${isBranch ? 'md:grid-cols-2' : ''}`}>
+          {/* เดิม "เลขประจำตัวผู้เสียภาษี" อยู่แถวเดี่ยวเต็มความกว้างฟอร์ม + "สาขา" อยู่แถวถัดมาเต็มความกว้าง
+              อีกแถว (เว้นแต่เลือกสาขาถึงจะมี "เลขที่สาขา" มาแบ่งครึ่ง) — ทั้งสองฟิลด์นี้เนื้อหาสั้นมาก (ตัวเลข
+              13 หลัก / dropdown ตัวเลือกไม่กี่ตัว) ยาวเต็มแถวแล้วดูโหวงเกินความจำเป็น (ผู้ใช้แจ้ง 2026-08-26)
+              รวมมาอยู่แถวเดียวกันแทน กว้างครึ่งแถวทั้งคู่บนจอ md ขึ้นไป ถ้าเลือกสาขา เพิ่ม "เลขที่สาขา" เข้ามา
+              เป็นช่องที่ 3 ในแถวเดียวกันเลยบนจอ lg ขึ้นไป (แคบกว่านั้นค่อยตกลงไปแถวใหม่ ไม่บีบจนอ่านยาก) */}
+          <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${isBranch ? 'lg:grid-cols-3' : ''}`}>
+            <Field label="เลขประจำตัวผู้เสียภาษี" error={errors.tax_id}>
+              <input
+                inputMode="numeric"
+                maxLength={13}
+                placeholder="13 หลัก (ไม่บังคับ)"
+                value={form.tax_id}
+                onChange={(e) => setForm((p) => ({ ...p, tax_id: e.target.value }))}
+                className={inputClass(Boolean(errors.tax_id))}
+                data-testid="input-tax-id"
+              />
+            </Field>
             <Field label="สาขา" error={errors.branch_type}>
               <select
                 value={form.branch_type}
