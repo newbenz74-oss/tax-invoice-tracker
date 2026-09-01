@@ -151,7 +151,7 @@ export default function ContactTable({ contacts, onView, onEdit, onToggleStatus,
                       {PARTNER_TYPE_LABELS[contact.partner_type]}
                     </span>
                   </td>
-                  <td className="px-[18px] py-[18px] text-text">{getContactDisplayName(contact)}</td>
+                  <td className="whitespace-nowrap px-[18px] py-[18px] text-text">{getContactDisplayName(contact)}</td>
                   <td className="font-numeric px-[18px] py-[18px] text-text-sub">{contact.tax_id || '-'}</td>
                   <td className="px-[18px] py-[18px] text-text-sub">{formatBranchLabel(contact)}</td>
                   <td className="font-numeric px-[18px] py-[18px] text-text-sub">{contact.phone || '-'}</td>
