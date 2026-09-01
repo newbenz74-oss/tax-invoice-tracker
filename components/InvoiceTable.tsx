@@ -86,6 +86,42 @@ export default function InvoiceTable({
   // พร้อมกัน) เก็บเป็น id เดียว (ไม่ใช่ Set) เพราะเปิดได้ทีละแถวพอ — เป็นเมนูลอย (position: absolute) ไม่ใช่
   // accordion ดันความสูงแถวตาราง (ลองแบบ accordion ก่อนแล้วไม่ลื่นไหลเพราะอยู่ในบริบท tr/td) ดู JSX ด้านล่าง
   const [expandedActionsId, setExpandedActionsId] = useState<string | null>(null);
+  // ทิศทางที่เมนู "จัดการเอกสาร" ที่เปิดอยู่ตอนนี้ควรกางออก (ขึ้น/ลง) — เพิ่มเข้ามา 2026-08-26 แก้บั๊กที่ผู้ใช้
+  // แจ้งว่ากด "จัดการเอกสาร" ของตารางที่มีแค่ 1-2 แถวแล้วเมนูโผล่พ้นขอบบนจอ มองไม่เห็นตัวเลือกครบ — เดิมคำนวณ
+  // จาก index เทียบกับ invoices.length (ดู commit เก่า: "2 แถวสุดท้ายเปิดขึ้นด้านบนแทนด้านล่าง") ซึ่งใช้ได้ดี
+  // เฉพาะตารางแถวเยอะที่แถวท้ายๆ อยู่ใกล้ขอบล่างจอจริง แต่พังทันทีถ้าตารางมีแค่ 1-2 แถว เพราะ "2 แถวสุดท้าย"
+  // ก็คือ "ทุกแถวในตาราง" พอดี ทั้งที่แถวเหล่านั้นอยู่ใกล้ขอบบนจอ (ใต้ thead ทันที) ไม่ใช่ขอบล่าง — เปลี่ยนมาวัด
+  // พื้นที่ว่างจริงด้านล่างปุ่มตอนกดเปิดเมนู (ครั้งเดียวตอน onClick ซึ่ง layout นิ่งแล้วแน่นอน ไม่ใช่การวัดระหว่าง
+  // render/transition ที่เคยเจอปัญหาค่าเพี้ยนกับ sliding indicator ใน ContactsPage.tsx) ถ้าเหลือพื้นที่ด้านล่าง
+  // ไม่พอสำหรับเมนู (ประมาณความสูงสูงสุดที่เป็นไปได้ไว้ก่อน เผื่อกรณีมีตัวเลือกครบทุกอันพร้อมกัน) ถึงจะเปิดขึ้น
+  const [menuOpensUpward, setMenuOpensUpward] = useState(false);
+  // ความสูงโดยประมาณของเมนูเวลามีตัวเลือกครบทุกอัน (ดูรายละเอียด/ได้รับแล้ว/จัดการใบหัก ณ ที่จ่าย/ยกเลิกรายการ/
+  // แก้ไข/ลบ 6 ปุ่ม ปุ่มละ ~34px รวม padding กล่อง ~12px) เผื่อไว้มากกว่าความสูงจริงเสมอ ปลอดภัยไว้ก่อน
+  const ACTIONS_MENU_MAX_HEIGHT = 260;
+  // ตำแหน่งจริงของปุ่ม "จัดการเอกสาร" ที่กำลังเปิดเมนูอยู่ (มุมบน/ล่าง/ขวา เทียบ viewport) — เพิ่มเข้ามา
+  // 2026-08-26 (รอบ 2) แก้บั๊กที่ผู้ใช้แจ้งว่าตอนตารางมีแค่ 1-2 แถว เมนูที่เปิดขึ้นมาถูก "กรอบ" ของตารางบังไป
+  // (แสดงข้อความไม่ครบ) — ต้นตอคือ div.card-surface ที่ห่อตารางใช้ overflow-x-auto (จำเป็นสำหรับเลื่อนตาราง
+  // แนวนอนตอนจอแคบ) แต่ตาม CSS spec ถ้า overflow แกนใดแกนหนึ่งไม่ใช่ visible อีกแกนที่เหลือ (overflow-y ในที่นี้
+  // ซึ่งไม่ได้ตั้งค่าไว้ตรงๆ) จะถูกบังคับกลายเป็น auto ไปด้วยเสมอ (ไม่ใช่ visible ตามที่ตั้งใจ) ทำให้กล่องนี้
+  // กลายเป็น scroll container ที่ตัด (clip) ลูกที่เป็น position:absolute ซึ่งกางออกเกินขอบกล่องไปทันที — ปุ่ม
+  // เมนูเดิมใช้ position:absolute ลอยทับซ้อนอยู่ในกล่องนี้จึงโดนตัดพอดี ทางแก้: เปลี่ยนเมนูให้ portal ออกไปแปะที่
+  // document.body ตรงๆ (createPortal เหมือน ReceiveInvoiceModal/InvoiceDetailModal ด้านล่าง) แล้วใช้
+  // position:fixed คำนวณพิกัดจาก getBoundingClientRect() ของปุ่มตรงๆ แทน — วิธีนี้ไม่ขึ้นกับ overflow ของ
+  // ancestor ใดๆ เลยไม่ว่าจะเป็นกี่ชั้นก็ตาม (บั๊กคลาสเดียวกับที่เจอตอนแก้ modal ทั้งสองด้านล่าง แค่ต้นตอเป็น
+  // overflow แทน backdrop-filter/transform)
+  const [menuAnchorRect, setMenuAnchorRect] = useState<{ top: number; bottom: number; right: number } | null>(null);
+
+  function handleToggleActionsMenu(e: React.MouseEvent<HTMLButtonElement>, invoiceId: string) {
+    if (expandedActionsId === invoiceId) {
+      setExpandedActionsId(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    setMenuOpensUpward(spaceBelow < ACTIONS_MENU_MAX_HEIGHT);
+    setMenuAnchorRect({ top: rect.top, bottom: rect.bottom, right: rect.right });
+    setExpandedActionsId(invoiceId);
+  }
   // id ของแถวที่กำลังเปิด modal "ดูรายละเอียด" อยู่ (ถ้ามี) — เพิ่มเข้ามา 2026-08-26 ตามคำขอผู้ใช้ (ดู
   // InvoiceDetailModal.tsx) หาแบบเดียวกับ receivingInvoice ด้านล่าง (เทียบ id แทนเก็บ object เต็มไว้ใน state)
   // เพื่อให้ modal เห็นข้อมูลล่าสุดเสมอถ้า invoices ที่มาจาก SWR cache อัปเดตสดระหว่างเปิด modal อยู่
@@ -144,6 +180,9 @@ export default function InvoiceTable({
   // modal เห็นข้อมูลล่าสุดเสมอแทนที่จะค้างข้อมูลเก่า ณ ตอนกดเปิด
   const receivingInvoice = receivingId ? (invoices.find((inv) => inv.id === receivingId) ?? null) : null;
   const viewingInvoice = viewingId ? (invoices.find((inv) => inv.id === viewingId) ?? null) : null;
+  // แถวที่กำลังเปิดเมนู "จัดการเอกสาร" อยู่ (ถ้ามี) — หาแบบเดียวกับ receivingInvoice/viewingInvoice ด้านบน
+  // ใช้กับเมนูที่ portal ออกไปแปะ document.body (ดู ActionsMenuPortal ท้ายไฟล์) แทนที่จะ render ซ้อนอยู่ในแถว
+  const expandedInvoice = expandedActionsId ? (invoices.find((inv) => inv.id === expandedActionsId) ?? null) : null;
 
   if (invoices.length === 0) {
     return (
@@ -191,14 +230,6 @@ export default function InvoiceTable({
         </thead>
         <tbody className="divide-y divide-border/60">
           {invoices.map((invoice, index) => {
-            const isBusy = busyId === invoice.id;
-            // เมนู "จัดการเอกสาร" ของ 2 แถวสุดท้ายในหน้านี้เปิดขึ้นด้านบนแทนด้านล่าง (2026-08-14 ตามคำขอ
-            // ผู้ใช้ — เดิมเปิดลงด้านล่างเสมอ ทำให้แถวใกล้ท้ายตาราง/ท้ายหน้าเมนูโผล่พ้นขอบจอ มองไม่เห็นตัวเลือก
-            // ที่อยู่ล่างๆ ของเมนู) ใช้ index เทียบกับความยาว invoices (จำนวนแถวจริงของหน้านี้หลัง pagination
-            // ไม่ใช่ PAGE_SIZE คงที่ เพราะหน้าสุดท้ายอาจมีน้อยกว่านั้น) แทนการวัดตำแหน่งจริงด้วย
-            // getBoundingClientRect ซึ่งเพิ่งพบว่าให้ค่าที่เพี้ยนได้ (ดู components/ContactsPage.tsx ที่เพิ่งตัด
-            // การวัด DOM แบบนี้ออกไปเพราะปัญหาเดียวกัน) — วิธีนี้ไม่ต้องวัด DOM เลย ทำนายทิศทางได้แน่นอนเสมอ
-            const openUpward = index >= invoices.length - 2;
             return (
               <tr
                 key={invoice.id}
@@ -269,145 +300,28 @@ export default function InvoiceTable({
                   </span>
                 </td>
                 <td className="px-[18px] py-[18px]">
-                  {
-                    // เมนูลอย (dropdown) ที่สไลด์ลงมาจริงๆ (2026-08-12 — เดิมลองใช้เทคนิค accordion แบบ
-                    // grid-template-rows เหมือน .month-detail-panel แต่เพราะอยู่ในแถวตาราง (tr/td) ความสูง
-                    // แถวเปลี่ยนแบบไม่ลื่นไหล ดูเหมือน "โผล่มาทันที" ไม่ใช่ "สไลด์" ตามที่ผู้ใช้ต้องการ — เปลี่ยน
-                    // มาใช้ position: absolute ลอยทับแถวถัดไปแทน (ไม่ดันความสูงแถวตารางเลย) แล้ว animate
-                    // opacity + translateY ตรงๆ ด้วย Tailwind transition ได้ลื่นไหลแน่นอนไม่ว่าจะอยู่ในบริบท
-                    // ตารางหรือไม่ก็ตาม — ปิดอัตโนมัติเมื่อคลิกนอกเมนู (ดู useEffect handleClickOutside ด้านบน)
-                    //
-                    // เดิมกด "ได้รับแล้ว" แล้วเซลล์นี้เปลี่ยนไปแสดงฟอร์มกรอกเลขที่ใบกำกับภาษีแบบยัดอยู่ในเซลล์
-                    // แคบๆ (5 ช่องเรียงต่อกัน) — เปลี่ยนเป็น modal กลางจอแทน (2026-08-17 ตามคำขอผู้ใช้) ดู
-                    // ReceiveInvoiceModal ท้ายไฟล์นี้ ที่นี่จึงแสดงเมนู "จัดการเอกสาร" เสมอ ไม่มีเงื่อนไข isReceiving
-                    // สลับ UI ในเซลล์นี้อีกต่อไป (receivingId ยังคงใช้ควบคุมว่า modal เปิดอยู่สำหรับแถวไหน)
-                    <div className="relative inline-block text-left" data-row-actions-menu>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedActionsId((id) => (id === invoice.id ? null : invoice.id))
-                        }
-                        className="btn-press flex items-center gap-1 rounded-[10px] border border-border px-2.5 py-1.5 text-xs font-medium text-text-sub hover:bg-page-bg"
-                        aria-expanded={expandedActionsId === invoice.id}
-                        data-testid={`manage-actions-${invoice.id}`}
-                      >
-                        จัดการเอกสาร
-                        <ChevronDown
-                          size={14}
-                          className={`transition-transform duration-200 ${
-                            expandedActionsId === invoice.id ? 'rotate-180' : ''
-                          }`}
-                          aria-hidden="true"
-                        />
-                      </button>
-                      <div
-                        className={`absolute right-0 z-20 w-44 rounded-[10px] border border-border bg-card-bg p-1.5 shadow-lg transition-all duration-200 ease-out ${
-                          openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
-                        } ${
-                          expandedActionsId === invoice.id
-                            ? 'pointer-events-auto translate-y-0 opacity-100'
-                            : `pointer-events-none opacity-0 ${openUpward ? 'translate-y-2' : '-translate-y-2'}`
+                  {/* ปุ่มเปิดเมนูเท่านั้น — ตัวเมนูเองย้ายไป portal ที่ document.body แล้ว (ดู
+                      ActionsMenuPortal + expandedInvoice ท้ายไฟล์) ไม่ได้ซ้อนอยู่ในเซลล์นี้อีกต่อไป (แก้บั๊ก
+                      เมนูโดนกรอบ div.card-surface ตัด — ดูคอมเมนต์เต็มที่ menuAnchorRect ด้านบน) data-row-
+                      actions-menu ยังต้องอยู่ที่นี่เหมือนเดิม เพื่อกันไม่ให้คลิกปุ่มนี้เองถูกนับเป็น "คลิกนอกเมนู" */}
+                  <div data-row-actions-menu>
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleActionsMenu(e, invoice.id)}
+                      className="btn-press flex items-center gap-1 rounded-[10px] border border-border px-2.5 py-1.5 text-xs font-medium text-text-sub hover:bg-page-bg"
+                      aria-expanded={expandedActionsId === invoice.id}
+                      data-testid={`manage-actions-${invoice.id}`}
+                    >
+                      จัดการเอกสาร
+                      <ChevronDown
+                        size={14}
+                        className={`transition-transform duration-200 ${
+                          expandedActionsId === invoice.id ? 'rotate-180' : ''
                         }`}
-                      >
-                        <div className="flex flex-col gap-1">
-                          {/* "ดูรายละเอียด" — เพิ่มเข้ามา 2026-08-26 ตามคำขอผู้ใช้ วางไว้บนสุดของเมนูเสมอ
-                              (ไม่ผูกเงื่อนไข status/tax_type ใดๆ ต่างจากตัวเลือกอื่นด้านล่าง) เพราะเป็น action
-                              ดูอย่างเดียวไม่มีผลข้างเคียง เหมาะกับทุกแถวไม่ว่าจะอยู่สถานะไหนก็ตาม */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setExpandedActionsId(null);
-                              setViewingId(invoice.id);
-                            }}
-                            className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-text-sub hover:bg-page-bg"
-                            data-testid={`view-detail-${invoice.id}`}
-                          >
-                            ดูรายละเอียด
-                          </button>
-                          {invoice.status === 'pending' &&
-                            invoice.tax_type !== 'no_vat' &&
-                            invoice.tax_type !== 'non_claimable_vat' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setExpandedActionsId(null);
-                                  setReceivingId(invoice.id);
-                                  setTaxInvoiceNumber('');
-                                  setReceivedDate(today);
-                                  setTaxInvoiceDate('');
-                                  // เดือน/ปีที่ใช้เครดิต VAT ตั้งค่าเริ่มต้นเป็นเดือน/ปีปัจจุบัน (กรณีส่วนใหญ่
-                                  // ที่นำไปเครดิตในเดือนเดียวกับที่กำลังบันทึก) ผู้ใช้แก้เป็นเดือน/ปีอื่นได้เสมอ
-                                  setVatClaimMonth(currentMonth());
-                                  setVatClaimYear(currentBuddhistYear());
-                                }}
-                                className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-success hover:bg-success/10"
-                                data-testid={`mark-received-${invoice.id}`}
-                              >
-                                ได้รับแล้ว
-                              </button>
-                            )}
-                          {/* "จัดการใบหัก ณ ที่จ่าย" — ย้ายเข้ามาในเมนูนี้แทน checkbox + แถบปุ่มลอยเดิม
-                              (2026-08-14 ตามคำขอผู้ใช้ — วางระหว่าง "ได้รับแล้ว" กับ "ยกเลิกรายการ" ตามที่ระบุ)
-                              เงื่อนไขแสดงตรงกับที่ checkbox เดิมเคยใช้ (isWhtCertEligible เท่านั้น ไม่ผูกกับ
-                              status/tax_type แบบ "ได้รับแล้ว"/"ยกเลิกรายการ" เพราะรายการที่ "ได้รับแล้ว" ก็ยัง
-                              ออกใบหัก ณ ที่จ่ายได้ถ้ายังไม่เคยออก) */}
-                          {onIssueWht && isWhtCertEligible(invoice) && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setExpandedActionsId(null);
-                                onIssueWht(invoice);
-                              }}
-                              className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-text-sub hover:bg-page-bg"
-                              data-testid={`issue-wht-${invoice.id}`}
-                            >
-                              จัดการใบหัก ณ ที่จ่าย
-                            </button>
-                          )}
-                          {invoice.status === 'pending' &&
-                            invoice.tax_type !== 'no_vat' &&
-                            invoice.tax_type !== 'non_claimable_vat' && (
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={() => {
-                                  setExpandedActionsId(null);
-                                  onCancelInvoice(invoice);
-                                }}
-                                className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-text-sub hover:bg-page-bg"
-                              >
-                                ยกเลิกรายการ
-                              </button>
-                            )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setExpandedActionsId(null);
-                              onEdit(invoice);
-                            }}
-                            className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-text-sub hover:bg-page-bg"
-                            data-testid={`edit-${invoice.id}`}
-                          >
-                            แก้ไข
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isBusy}
-                            onClick={() => handleDeleteClick(invoice)}
-                            onBlur={() => setConfirmingDeleteId(null)}
-                            className={`btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium ${
-                              confirmingDeleteId === invoice.id
-                                ? 'bg-danger text-white'
-                                : 'text-danger hover:bg-danger/10'
-                            }`}
-                            data-testid={`delete-${invoice.id}`}
-                          >
-                            {confirmingDeleteId === invoice.id ? 'ยืนยันลบ?' : 'ลบ'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  }
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </div>
                 </td>
               </tr>
             );
@@ -445,6 +359,118 @@ export default function InvoiceTable({
             whtCertificatesById={whtCertificatesById}
             onClose={() => setViewingId(null)}
           />,
+          document.body
+        )}
+      {/* เมนู "จัดการเอกสาร" — portal ออกไป document.body ตรงๆ (ดูเหตุผลเต็มที่ menuAnchorRect ด้านบน) แทนที่
+          จะซ้อนอยู่ในเซลล์ตารางแบบเดิม ใช้ position:fixed คำนวณพิกัดจาก menuAnchorRect ที่จับตอนคลิกปุ่ม —
+          เปิดได้ทีละแถวเท่านั้น (expandedActionsId เป็น id เดียว) จึง render แค่ก้อนเดียวพอ ไม่ต้องวนซ้ำต่อแถว */}
+      {expandedInvoice &&
+        menuAnchorRect &&
+        createPortal(
+          <div
+            data-row-actions-menu
+            className="fixed z-30 w-44 rounded-[10px] border border-border bg-card-bg p-1.5 shadow-lg"
+            style={{
+              right: window.innerWidth - menuAnchorRect.right,
+              ...(menuOpensUpward
+                ? { bottom: window.innerHeight - menuAnchorRect.top + 6 }
+                : { top: menuAnchorRect.bottom + 6 }),
+            }}
+          >
+            <div className="flex flex-col gap-1">
+              {/* "ดูรายละเอียด" — วางไว้บนสุดของเมนูเสมอ (ไม่ผูกเงื่อนไข status/tax_type ใดๆ ต่างจากตัวเลือก
+                  อื่นด้านล่าง) เพราะเป็น action ดูอย่างเดียวไม่มีผลข้างเคียง เหมาะกับทุกแถวไม่ว่าจะอยู่สถานะไหน */}
+              <button
+                type="button"
+                onClick={() => {
+                  setExpandedActionsId(null);
+                  setViewingId(expandedInvoice.id);
+                }}
+                className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-text-sub hover:bg-page-bg"
+                data-testid={`view-detail-${expandedInvoice.id}`}
+              >
+                ดูรายละเอียด
+              </button>
+              {expandedInvoice.status === 'pending' &&
+                expandedInvoice.tax_type !== 'no_vat' &&
+                expandedInvoice.tax_type !== 'non_claimable_vat' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpandedActionsId(null);
+                      setReceivingId(expandedInvoice.id);
+                      setTaxInvoiceNumber('');
+                      setReceivedDate(today);
+                      setTaxInvoiceDate('');
+                      // เดือน/ปีที่ใช้เครดิต VAT ตั้งค่าเริ่มต้นเป็นเดือน/ปีปัจจุบัน (กรณีส่วนใหญ่ที่นำไปเครดิต
+                      // ในเดือนเดียวกับที่กำลังบันทึก) ผู้ใช้แก้เป็นเดือน/ปีอื่นได้เสมอ
+                      setVatClaimMonth(currentMonth());
+                      setVatClaimYear(currentBuddhistYear());
+                    }}
+                    className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-success hover:bg-success/10"
+                    data-testid={`mark-received-${expandedInvoice.id}`}
+                  >
+                    ได้รับแล้ว
+                  </button>
+                )}
+              {/* "จัดการใบหัก ณ ที่จ่าย" — เงื่อนไขแสดงตรงกับที่ checkbox เดิมเคยใช้ (isWhtCertEligible เท่านั้น
+                  ไม่ผูกกับ status/tax_type แบบ "ได้รับแล้ว"/"ยกเลิกรายการ" เพราะรายการที่ "ได้รับแล้ว" ก็ยังออก
+                  ใบหัก ณ ที่จ่ายได้ถ้ายังไม่เคยออก) */}
+              {onIssueWht && isWhtCertEligible(expandedInvoice) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpandedActionsId(null);
+                    onIssueWht(expandedInvoice);
+                  }}
+                  className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-text-sub hover:bg-page-bg"
+                  data-testid={`issue-wht-${expandedInvoice.id}`}
+                >
+                  จัดการใบหัก ณ ที่จ่าย
+                </button>
+              )}
+              {expandedInvoice.status === 'pending' &&
+                expandedInvoice.tax_type !== 'no_vat' &&
+                expandedInvoice.tax_type !== 'non_claimable_vat' && (
+                  <button
+                    type="button"
+                    disabled={busyId === expandedInvoice.id}
+                    onClick={() => {
+                      setExpandedActionsId(null);
+                      onCancelInvoice(expandedInvoice);
+                    }}
+                    className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-text-sub hover:bg-page-bg"
+                  >
+                    ยกเลิกรายการ
+                  </button>
+                )}
+              <button
+                type="button"
+                onClick={() => {
+                  setExpandedActionsId(null);
+                  onEdit(expandedInvoice);
+                }}
+                className="btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium text-text-sub hover:bg-page-bg"
+                data-testid={`edit-${expandedInvoice.id}`}
+              >
+                แก้ไข
+              </button>
+              <button
+                type="button"
+                disabled={busyId === expandedInvoice.id}
+                onClick={() => handleDeleteClick(expandedInvoice)}
+                onBlur={() => setConfirmingDeleteId(null)}
+                className={`btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium ${
+                  confirmingDeleteId === expandedInvoice.id
+                    ? 'bg-danger text-white'
+                    : 'text-danger hover:bg-danger/10'
+                }`}
+                data-testid={`delete-${expandedInvoice.id}`}
+              >
+                {confirmingDeleteId === expandedInvoice.id ? 'ยืนยันลบ?' : 'ลบ'}
+              </button>
+            </div>
+          </div>,
           document.body
         )}
     </>
