@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { deriveStatusForTaxType } from './invoiceLogic';
+import { formatBuddhistDateInput } from './thaiDate';
 import type { InvoiceWriteInput } from './invoiceApi';
 import type { PendingTaxInvoice, TaxType } from '@/types/invoice';
 
@@ -388,10 +389,20 @@ export function readWorkbookRows(data: ArrayBuffer): Record<string, unknown>[] {
  * VAT เพียงอย่างเดียว: แถวแรกกรอก VAT มา (ตรวจพบว่า "มี VAT") แถวสองเว้นว่างคอลัมน์ VAT ไว้ (ตรวจพบว่า
  * "ไม่มี VAT") */
 export function buildTemplateBlob(): Blob {
+  // ตัวอย่างวันที่ในเทมเพลต (เพิ่มคอมเมนต์ 2026-08-26 แก้ตามที่ผู้ใช้ทักว่า "ทำไมตัวอย่างเป็น ค.ศ. ทั้งๆ
+  // ที่ขอแก้เป็น พ.ศ. ทั้งระบบแล้ว") — เดิมใส่ `new Date()` ตรงๆ ซึ่ง XLSX.utils.json_to_sheet แปลงเป็นเซลล์
+  // วันที่จริงของ Excel (native date cell) เซลล์ประเภทนี้ Excel เองมีปฏิทินเดียวคือเกรกอเรียน ไม่มีตัวเลือก
+  // พ.ศ. ให้เลย จึงโชว์ปี ค.ศ. เสมอไม่ว่าจะพยายามจัด numFmt ยังไงก็ตาม (จุดนี้ไม่เกี่ยวกับ parseExcelDateCell
+  // ที่ตั้งใจเชื่อปี ค.ศ. ตรงๆ จากเซลล์วันที่จริงของ Excel อยู่แล้ว — ดูคอมเมนต์ cellLooksLikeGregorianDmy
+  // ด้านบน — แต่เป็นคนละเรื่องกับที่ผู้ใช้เห็นแล้วสับสน เพราะเซลล์ตัวอย่างนี้ไม่ได้ตั้งใจจะสาธิตการพิมพ์ปี ค.ศ.
+  // แต่อย่างใด) แก้โดยเปลี่ยนเป็นข้อความ วว/ดด/ปปปป (พ.ศ.) ธรรมดาแทน — ผ่าน parseExcelDateCell ทาง branch
+  // string ปกติ (เก็บปีตามที่พิมพ์ตรงๆ ไม่แปลง ตรงกับ convention ปีในระบบทั้งหมดที่เก็บเป็นเลข พ.ศ. ตรงๆ อยู่
+  // แล้ว) และปี >= 2200 จึงไม่โดน cellLooksLikeGregorianDmy เตือนด้วย
+  const exampleDateText = formatBuddhistDateInput(toISODate(new Date()));
   const exampleRows: Record<string, unknown>[] = [
     {
       [EXCEL_HEADERS.vendor_name]: 'บริษัท ตัวอย่าง จำกัด',
-      [EXCEL_HEADERS.transaction_date]: new Date(),
+      [EXCEL_HEADERS.transaction_date]: exampleDateText,
       [EXCEL_HEADERS.vendor_tax_id]: '',
       [EXCEL_HEADERS.contact_person]: 'คุณสมชาย (ฝ่ายบัญชี)',
       [EXCEL_HEADERS.description]: 'ค่าสินค้า/บริการ ตัวอย่างรายการมี VAT (ลบแถวนี้ทิ้งแล้วกรอกของจริงแทนได้เลย)',
@@ -405,7 +416,7 @@ export function buildTemplateBlob(): Blob {
     },
     {
       [EXCEL_HEADERS.vendor_name]: 'ร้านค้า ตัวอย่าง 2',
-      [EXCEL_HEADERS.transaction_date]: new Date(),
+      [EXCEL_HEADERS.transaction_date]: exampleDateText,
       [EXCEL_HEADERS.vendor_tax_id]: '',
       [EXCEL_HEADERS.contact_person]: '',
       [EXCEL_HEADERS.description]: 'ตัวอย่างรายการไม่มี VAT — เว้นว่างช่อง VAT ไว้ (ลบแถวนี้ทิ้งแล้วกรอกของจริงแทนได้เลย)',
