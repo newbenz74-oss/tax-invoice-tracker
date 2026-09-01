@@ -142,7 +142,7 @@ export default function ContactTable({ contacts, onView, onEdit, onToggleStatus,
                     index % 2 === 1 ? 'bg-table-row-zebra' : ''
                   }`}
                 >
-                  <td className="font-numeric px-[18px] py-[18px] font-medium text-text">{contact.contact_code}</td>
+                  <td className="font-numeric whitespace-nowrap px-[18px] py-[18px] font-medium text-text">{contact.contact_code}</td>
                   <td className="px-[18px] py-[18px]">
                     <span
                       className={`inline-block w-fit rounded-full px-3.5 py-2 text-xs font-medium ${PARTNER_TYPE_BADGE_CLASS[contact.partner_type]}`}
@@ -153,13 +153,13 @@ export default function ContactTable({ contacts, onView, onEdit, onToggleStatus,
                   </td>
                   <td className="whitespace-nowrap px-[18px] py-[18px] text-text">{getContactDisplayName(contact)}</td>
                   <td className="font-numeric px-[18px] py-[18px] text-text-sub">{contact.tax_id || '-'}</td>
-                  <td className="px-[18px] py-[18px] text-text-sub">{formatBranchLabel(contact)}</td>
+                  <td className="whitespace-nowrap px-[18px] py-[18px] text-text-sub">{formatBranchLabel(contact)}</td>
                   <td className="font-numeric px-[18px] py-[18px] text-text-sub">{contact.phone || '-'}</td>
                   <td className="px-[18px] py-[18px] text-text-sub">{contact.email || '-'}</td>
                   <td className="px-[18px] py-[18px] text-text-sub">{contact.province || '-'}</td>
-                  <td className="px-[18px] py-[18px]">
+                  <td className="whitespace-nowrap px-[18px] py-[18px]">
                     <span
-                      className={`inline-block w-fit rounded-full px-3.5 py-2 text-xs font-medium ${CONTACT_STATUS_BADGE_CLASS[contact.status]}`}
+                      className={`inline-block w-fit whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-medium ${CONTACT_STATUS_BADGE_CLASS[contact.status]}`}
                       data-testid={`status-badge-${contact.id}`}
                     >
                       {CONTACT_STATUS_LABELS[contact.status]}
