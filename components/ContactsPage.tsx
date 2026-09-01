@@ -404,10 +404,11 @@ export default function ContactsPage() {
   const modalSubtitle = modalMode ? MODAL_SUBTITLES[modalMode] : '';
 
   return (
-    // ขยายจาก max-w-6xl (1152px) เป็น max-w-[1400px] (2026-08-14 ตามคำขอผู้ใช้ "ตารางขยับซ้ายและขวาเพิ่มให้
-    // กว้างหน่อย") ให้ตารางมีที่ว่างซ้าย-ขวาเพิ่มขึ้น — ใช้ค่าเดียวกับ WhtCertificateHistoryPage.tsx (หน้า
-    // ตาราง/รายการที่กว้างกว่าค่าเริ่มต้น max-w-6xl/max-w-4xl ของหน้าฟอร์ม/ตั้งค่าทั่วไปในระบบนี้อยู่แล้ว)
-    <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-8 sm:px-8">
+    // ขยายจาก max-w-6xl (1152px) เป็น max-w-[1400px] (2026-08-14) แล้วขยายอีกครั้งเป็น max-w-[1800px]
+    // (2026-09-01 ตามคำขอผู้ใช้ "ขยายกรอบซ้ายและขวาให้ยาวขึ้นหน่อย ตอนนี้ตกขอบแล้ว" — คอลัมน์ "การจัดการ"
+    // ทางขวาสุดโดนตัดพ้นขอบจอ) ใช้ค่าเดียวกับ app/dashboard/page.tsx และ BankReconcileWorkspace.tsx ซึ่งเป็น
+    // หน้าตารางกว้างสุดในระบบนี้อยู่แล้ว
+    <main className="mx-auto w-full max-w-[1800px] flex-1 px-4 py-8 sm:px-8">
       <div className="mb-8 flex flex-col gap-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Segmented Control — role=tablist/tab + aria-selected ตามสเปก Accessibility, รองรับ
