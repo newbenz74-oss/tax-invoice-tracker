@@ -38,8 +38,21 @@ describe('parseExcelDateCell', () => {
     expect(parseExcelDateCell('2026-07-13')).toBe('2026-07-13');
   });
 
-  it('รับ string แบบ DD/MM/YYYY', () => {
+  it('รับ string แบบ DD/MM/YYYY ที่ปีดูเหมือน ค.ศ. (< 2200) — เก็บตรงๆ ไม่แปลง', () => {
     expect(parseExcelDateCell('13/7/2026')).toBe('2026-07-13');
+  });
+
+  it('รับ string แบบ DD/MM/YYYY ที่ปีเป็น พ.ศ. (>= 2200) — แปลงเป็น ค.ศ. จริงโดยลบ 543 (เดิมเป็นบั๊ก เก็บปีตามที่พิมพ์ตรงๆ ทำให้ transaction_date เพี้ยนไป 543 ปี แก้ไข 2026-09-02)', () => {
+    expect(parseExcelDateCell('13/7/2569')).toBe('2026-07-13');
+    expect(parseExcelDateCell('30/07/2569')).toBe('2026-07-30');
+    expect(parseExcelDateCell('01/01/2570')).toBe('2027-01-01');
+  });
+
+  it('ปี พ.ศ. ที่แปลงแล้วต้องยังเป็นวันที่จริง (เช่น 29 ก.พ. ปีอธิกสุรทิน ค.ศ. เท่านั้น)', () => {
+    // พ.ศ. 2571 = ค.ศ. 2028 (อธิกสุรทิน มี 29 ก.พ.) — ผ่าน
+    expect(parseExcelDateCell('29/2/2571')).toBe('2028-02-29');
+    // พ.ศ. 2570 = ค.ศ. 2027 (ไม่ใช่อธิกสุรทิน ไม่มี 29 ก.พ.) — ไม่ผ่าน
+    expect(parseExcelDateCell('29/2/2570')).toBeNull();
   });
 
   it('รับเลข serial ของ Excel', () => {

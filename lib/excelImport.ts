@@ -57,6 +57,13 @@ export interface ExcelImportRow {
   warnings: string[]; // ไม่ block การนำเข้า แต่ควรแจ้งเตือนให้ผู้ใช้ตรวจสอบก่อนยืนยัน
 }
 
+// ค่าเดียวกับ BUDDHIST_YEAR_OFFSET/GREGORIAN_LOOKING_YEAR_MAX ใน lib/thaiDate.ts (เป็น local const ไม่ได้
+// export ออกมาที่นั่น จึงประกาศซ้ำที่นี่ — ไฟล์นี้ก็มี cellLooksLikeGregorianDmy ที่ hardcode ปี 2200 อยู่แล้ว
+// เป็นแพทเทิร์นเดิมของไฟล์นี้) ใช้ตัดสินว่าปีที่พิมพ์ในเซลล์ข้อความ วว/ดด/ปปปป เป็น พ.ศ. (>= 2200) หรือ
+// ค.ศ. ที่พิมพ์ผิดมาแทน (< 2200) ดูคอมเมนต์เต็มที่ lib/thaiDate.ts
+const BUDDHIST_YEAR_OFFSET = 543;
+const GREGORIAN_LOOKING_YEAR_MAX = 2200;
+
 function toISODate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -96,9 +103,17 @@ export function parseExcelDateCell(value: unknown): string | null {
     }
     const dmyMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (dmyMatch) {
-      const [, d, mo, y] = dmyMatch;
-      if (!isRealDate(Number(y), Number(mo), Number(d))) return null;
-      return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      const [, d, mo, yRaw] = dmyMatch;
+      // ปีที่พิมพ์ในเซลล์ข้อความ วว/ดด/ปปปป ปกติเป็น พ.ศ. เสมอตามความเคยชินของผู้ใช้ไทย (ดูคอมเมนต์เต็มที่
+      // cellLooksLikeGregorianDmy ด้านล่าง — ใช้เกณฑ์ปี >= 2200 เดียวกัน) ต้องลบ 543 ออกก่อนเก็บเป็น ISO ค.ศ.
+      // เหมือนกับ parseBuddhistDateInput ใน lib/thaiDate.ts มิเช่นนั้นวันที่จะถูกบันทึกเพี้ยนไปข้างหน้า 543 ปี
+      // จริงในฐานข้อมูล (บั๊กที่พบและแก้ไข 2026-09-02 — transaction_date ของใบกำกับภาษีที่นำเข้าจาก Excel เกือบ
+      // ทั้งหมดในระบบเพี้ยนไป 543 ปีจากบั๊กนี้ กระทบทั้งการแสดงผลและการคำนวณภาษีซื้อเกินกำหนด) ถ้าปีดูเหมือน
+      // ค.ศ. อยู่แล้ว (< 2200) ให้เก็บตรงๆ ไม่แปลง — cellLooksLikeGregorianDmy จะเตือนผู้ใช้แยกต่างหากให้ตรวจสอบ
+      const typedYear = Number(yRaw);
+      const y = typedYear < GREGORIAN_LOOKING_YEAR_MAX ? typedYear : typedYear - BUDDHIST_YEAR_OFFSET;
+      if (!isRealDate(y, Number(mo), Number(d))) return null;
+      return `${String(y).padStart(4, '0')}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
     }
     return null;
   }
@@ -117,7 +132,7 @@ function cellLooksLikeGregorianDmy(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!match) return false;
-  return Number(match[3]) < 2200;
+  return Number(match[3]) < GREGORIAN_LOOKING_YEAR_MAX;
 }
 
 /** ตรวจสอบว่า ปี/เดือน/วัน ที่ให้มาเป็นวันที่จริงที่มีอยู่จริง (เช่น เดือน 13 หรือวันที่ 30 กุมภาพันธ์ ไม่ผ่าน) */
