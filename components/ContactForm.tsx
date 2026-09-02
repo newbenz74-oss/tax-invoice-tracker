@@ -471,8 +471,15 @@ export default function ContactForm({
 // app/globals.css) หัวข้อ Section/label ของ Field ด้านล่างจึงต้องใช้สีอ่อน text-text/text-text-sub แทน
 /** ช่องกรอกทั่วไป (input/select) — ความสูงคงที่ 44px ตามสเปก (ลดจากเดิมที่ใช้ padding แนวตั้งอย่างเดียว) */
 function inputClass(hasError: boolean): string {
+  // disabled (โหมด "ดูรายละเอียด" อ่านอย่างเดียว) เดิมใช้ disabled:bg-page-bg (กรมท่าเข้ม #0b1220 — สีพื้น
+  // หลังของทั้งหน้าตามธีมกระจกเข้ม) ผสม disabled:opacity-70 ทับ text-gray-800 (เทาเข้ม) ที่ตั้งใจไว้สำหรับ
+  // กล่องขาวทึบเท่านั้น กลายเป็นตัวหนังสือเข้มบนพื้นเข้มเกือบสนิท มองแทบไม่เห็นเลย (ผู้ใช้แจ้ง 2026-09-02 —
+  // "รายละเอียดในสมุดรายชื่อมองตัวหนังสือแทบไม่เห็นเลย") ช่อง input/select ในไฟล์นี้ยังคงเป็นกล่องขาวทึบ
+  // ลอยอยู่บนการ์ดกระจกเข้มเสมอ (ดูคอมเมนต์ด้านบนไฟล์) จึงต้องใช้พื้นหลัง/ตัวหนังสือโทนอ่อนคู่กันตอน disabled
+  // ด้วยเช่นกัน ไม่ใช่สลับไปใช้โทนเข้มของธีมทั้งหน้า — เปลี่ยนเป็นเทาอ่อนกล่องเทาอ่อน + ตัวหนังสือเทาเข้มอ่านง่าย
+  // ชัดเจน (ไม่ใช้ opacity ลดทั้งกล่องอีกต่อไป เพราะลดทั้งตัวหนังสือไปด้วยเสมอ ไม่ว่าพื้นหลังจะเป็นสีอะไร)
   const base =
-    'h-11 w-full rounded-[10px] border bg-white px-3.5 text-sm text-gray-800 placeholder:text-gray-400 transition-colors duration-[250ms] focus:outline-none disabled:cursor-not-allowed disabled:bg-page-bg disabled:opacity-70';
+    'h-11 w-full rounded-[10px] border bg-white px-3.5 text-sm text-gray-800 placeholder:text-gray-400 transition-colors duration-[250ms] focus:outline-none disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-700';
   if (hasError) {
     return `${base} border-danger focus:border-danger focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]`;
   }
@@ -482,8 +489,10 @@ function inputClass(hasError: boolean): string {
 /** Textarea — สูงประมาณ 96px (อยู่ในช่วง 90–110px ตามสเปก) ต่างจาก inputClass เพราะต้องใช้ padding
  * แนวตั้งปกติ (ไม่ใช่ h-11 ตายตัวแบบช่องบรรทัดเดียว) */
 function textareaClass(hasError: boolean): string {
+  // ดูคอมเมนต์เต็มที่ inputClass ด้านบน — บั๊กเดียวกัน (ตัวหนังสือเข้มบนพื้นเข้มตอน disabled) แก้ด้วยวิธี
+  // เดียวกัน
   const base =
-    'min-h-[96px] w-full resize-y rounded-[10px] border bg-white px-3.5 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 transition-colors duration-[250ms] focus:outline-none disabled:cursor-not-allowed disabled:bg-page-bg disabled:opacity-70';
+    'min-h-[96px] w-full resize-y rounded-[10px] border bg-white px-3.5 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 transition-colors duration-[250ms] focus:outline-none disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-700';
   if (hasError) {
     return `${base} border-danger focus:border-danger focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]`;
   }
