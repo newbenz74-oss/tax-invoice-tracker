@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'r
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Building2, ImageOff, Loader2, Trash2, Upload, X } from 'lucide-react';
 import { useCompany } from '@/lib/CompanyContext';
+import CompanyBackupCard from '@/components/CompanyBackupCard';
 import {
   deleteCompany,
   removeCompanyLogo,
@@ -480,6 +481,10 @@ export default function CompanySettingsPage() {
           </button>
         </div>
       </form>
+
+      {/* การ์ด "สำรอง / กู้คืนข้อมูล" (เพิ่มเข้ามา 2026-09-08) — วางไว้ก่อน danger zone โดยเจตนา เพราะเป็น
+          ทางออกที่ผู้ใช้ควรเห็นก่อนตัดสินใจทำอะไรที่ย้อนกลับไม่ได้ด้านล่าง (สำรองข้อมูลไว้ก่อนลบบริษัท) */}
+      <CompanyBackupCard />
 
       {/* "danger zone" ลบบริษัท (เพิ่มเข้ามา 2026-08-18) — แยกเป็นการ์ดของตัวเอง ไม่อยู่ใน <form> เดิม เพราะ
           เป็น action ที่ไม่เกี่ยวกับ submit ฟอร์มตั้งค่าเลย และเป็น action ที่ทำลายล้าง/ย้อนกลับไม่ได้ ควรแยก
