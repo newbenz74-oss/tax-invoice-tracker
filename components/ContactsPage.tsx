@@ -420,13 +420,13 @@ export default function ContactsPage() {
             aria-label="กรองประเภทรายชื่อ"
             onKeyDown={handleSegmentedKeyDown}
             // สีตัวหนังสือในหน้านี้ (2026-08-12 — สรุปหลักการสุดท้าย) — จุดที่เป็นกล่องขาวทึบจริงๆ ของตัวเอง
-            // (มี bg-white ติดอยู่บน element นั้นตรงๆ เช่น search box, ปุ่ม toolbar, segmented control, หัว
-            // modal แบบ sticky) ใช้ text-gray-800/text-gray-500/placeholder:text-gray-400 ถูกต้องแล้ว เพราะ
-            // bg-white ของ Tailwind ใช้งานได้ปกติเมื่อไม่ได้ติดอยู่บน element เดียวกับ .card-surface — ส่วน
-            // การ์ด/โมดัลที่ติดคลาส .card-surface (พื้นกระจกเข้มเสมอ ชนะ bg-white ตาม CSS Cascade Layers ดู
+            // (มี bg-card-bg ติดอยู่บน element นั้นตรงๆ เช่น search box, ปุ่ม toolbar, segmented control, หัว
+            // modal แบบ sticky) ใช้ text-gray-800/text-text-sub/placeholder:text-text-sub ถูกต้องแล้ว เพราะ
+            // bg-card-bg ของ Tailwind ใช้งานได้ปกติเมื่อไม่ได้ติดอยู่บน element เดียวกับ .card-surface — ส่วน
+            // การ์ด/โมดัลที่ติดคลาส .card-surface (พื้นกระจกเข้มเสมอ ชนะ bg-card-bg ตาม CSS Cascade Layers ดู
             // app/globals.css) องค์ประกอบที่วางตรงบนพื้นนั้น (ไม่มีกล่องขาวของตัวเองอีกชั้น) ต้องใช้สีอ่อน
             // text-text/text-text-sub เท่านั้น (เช่น dialog "ยังไม่ได้บันทึกข้อมูล" ด้านล่าง)
-            className="entrance-animate entrance-delay-1 flex flex-wrap gap-1 rounded-full border border-border bg-white p-1"
+            className="entrance-animate entrance-delay-1 flex flex-wrap gap-1 rounded-full border border-border bg-card-bg p-1"
             data-testid="contact-segmented-control"
           >
             {PARTNER_TABS.map((pt) => {
@@ -443,7 +443,7 @@ export default function ContactsPage() {
                   tabIndex={isActive ? 0 : -1}
                   onClick={() => handlePartnerFilterChange(pt)}
                   className={`btn-press rounded-full px-4 py-2 text-sm font-medium transition-colors duration-[220ms] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-                    isActive ? 'bg-primary text-white shadow-sm' : 'text-gray-500 hover:text-primary'
+                    isActive ? 'bg-primary text-on-primary shadow-sm' : 'text-text-sub hover:text-primary'
                   }`}
                   data-testid={`contact-filter-${pt}`}
                 >
@@ -460,14 +460,14 @@ export default function ContactsPage() {
             <div className="relative">
               <Search
                 size={18}
-                className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-gray-400"
+                className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-text-sub"
                 aria-hidden="true"
               />
               <input
                 value={search}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="ค้นหารหัส / ชื่อ / เลขผู้เสียภาษี / เบอร์โทร / Email"
-                className="focus-ring-primary h-12 w-64 rounded-xl border border-border bg-white pr-4 pl-10 text-sm text-gray-800 placeholder:text-gray-400"
+                className="focus-ring-primary h-12 w-64 rounded-xl border border-border bg-input pr-4 pl-10 text-sm text-text placeholder:text-text-sub"
                 data-testid="contact-search-input"
               />
             </div>
@@ -476,7 +476,7 @@ export default function ContactsPage() {
                 setShowImportPanel(true);
                 closeModal();
               }}
-              className="btn-press h-12 rounded-[10px] border border-border bg-white px-4 text-sm font-medium text-gray-700 hover:bg-page-bg"
+              className="btn-press h-12 rounded-[10px] border border-border bg-card-bg px-4 text-sm font-medium text-text hover:bg-page-bg"
               data-testid="open-contact-import-panel"
             >
               นำเข้าจาก Excel
@@ -484,14 +484,14 @@ export default function ContactsPage() {
             <button
               onClick={handleExportExcel}
               disabled={visibleContacts.length === 0}
-              className="btn-press h-12 rounded-[10px] border border-border bg-white px-4 text-sm font-medium text-gray-700 hover:bg-page-bg disabled:opacity-50"
+              className="btn-press h-12 rounded-[10px] border border-border bg-card-bg px-4 text-sm font-medium text-text hover:bg-page-bg disabled:opacity-50"
               data-testid="export-contacts-excel"
             >
               ส่งออก Excel
             </button>
             <button
               onClick={openAddModal}
-              className="btn-press h-12 rounded-[10px] bg-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover"
+              className="btn-press h-12 rounded-[10px] bg-primary px-4 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover"
               data-testid="open-add-contact"
             >
               + เพิ่มรายชื่อ
@@ -549,7 +549,7 @@ export default function ContactsPage() {
                   <select
                     value={pageSize}
                     onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                    className="rounded-[8px] border border-border bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                    className="rounded-[8px] border border-border bg-card-bg px-2 py-1 text-xs text-text focus:outline-none"
                     data-testid="contact-page-size"
                   >
                     {PAGE_SIZE_OPTIONS.map((size) => (
@@ -566,7 +566,7 @@ export default function ContactsPage() {
                   type="button"
                   disabled={safePage <= 1}
                   onClick={() => setPage(safePage - 1)}
-                  className="btn-press rounded-[10px] border border-border bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-page-bg disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-press rounded-[10px] border border-border bg-card-bg px-3.5 py-2 text-sm font-medium text-text hover:bg-page-bg disabled:cursor-not-allowed disabled:opacity-50"
                   data-testid="contact-pagination-prev"
                 >
                   ก่อนหน้า
@@ -578,7 +578,7 @@ export default function ContactsPage() {
                   type="button"
                   disabled={safePage >= totalPages}
                   onClick={() => setPage(safePage + 1)}
-                  className="btn-press rounded-[10px] border border-border bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-page-bg disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-press rounded-[10px] border border-border bg-card-bg px-3.5 py-2 text-sm font-medium text-text hover:bg-page-bg disabled:cursor-not-allowed disabled:opacity-50"
                   data-testid="contact-pagination-next"
                 >
                   ถัดไป
@@ -601,21 +601,21 @@ export default function ContactsPage() {
           <div
             ref={modalCardRef}
             data-testid="contact-form-modal-card"
-            className="card-surface card-surface-modal flex max-h-[calc(100vh-24px)] w-[calc(100%-24px)] flex-col overflow-hidden rounded-2xl bg-white md:max-h-[calc(100vh-48px)] md:w-[calc(100%-48px)] md:max-w-[900px]"
+            className="card-surface card-surface-modal flex max-h-[calc(100vh-24px)] w-[calc(100%-24px)] flex-col overflow-hidden rounded-2xl bg-card-bg md:max-h-[calc(100vh-48px)] md:w-[calc(100%-48px)] md:max-w-[900px]"
             onClick={(e) => e.stopPropagation()}
           >
             <div
-              className="sticky top-0 z-10 flex flex-none items-start justify-between gap-4 border-b border-border bg-white px-6 py-4 sm:px-7"
+              className="sticky top-0 z-10 flex flex-none items-start justify-between gap-4 border-b border-border bg-card-bg px-6 py-4 sm:px-7"
               data-testid="contact-modal-header"
             >
               <div>
-                <h2 className="text-base font-bold text-gray-800">{modalTitle}</h2>
-                <p className="mt-0.5 text-xs text-gray-500">{modalSubtitle}</p>
+                <h2 className="text-base font-bold text-text">{modalTitle}</h2>
+                <p className="mt-0.5 text-xs text-text-sub">{modalSubtitle}</p>
               </div>
               <button
                 type="button"
                 onClick={attemptClose}
-                className="rounded-md p-1 text-gray-500 transition-colors duration-[250ms] hover:bg-primary-light"
+                className="rounded-md p-1 text-text-sub transition-colors duration-[250ms] hover:bg-primary-light"
                 aria-label="ปิด"
                 data-testid="close-contact-modal"
               >
@@ -650,7 +650,7 @@ export default function ContactsPage() {
         >
           <div
             ref={discardDialogRef}
-            className="card-surface card-surface-modal w-full max-w-sm rounded-2xl bg-white p-6"
+            className="card-surface card-surface-modal w-full max-w-sm rounded-2xl bg-card-bg p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-base font-bold text-text">ยังไม่ได้บันทึกข้อมูล</h3>
@@ -661,7 +661,7 @@ export default function ContactsPage() {
               <button
                 type="button"
                 onClick={() => setShowDiscardConfirm(false)}
-                className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-gray-500 hover:bg-page-bg"
+                className="btn-press rounded-[10px] border border-border bg-card-bg px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg"
                 data-testid="discard-confirm-cancel"
               >
                 กลับไปแก้ไขต่อ
@@ -669,7 +669,7 @@ export default function ContactsPage() {
               <button
                 type="button"
                 onClick={closeModal}
-                className="btn-press rounded-[10px] bg-danger px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-danger/90"
+                className="btn-press rounded-[10px] bg-danger px-4 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-danger/90"
                 data-testid="discard-confirm-ok"
               >
                 ปิดโดยไม่บันทึก

@@ -33,9 +33,9 @@ interface OverdueMonthDetailProps {
 // เพราะอยู่ในเซลล์ตารางแคบๆ) — คงฟิลด์ครบ 4 ช่องเดียวกันทุกประการ (เลขที่/วันที่ใบกำกับภาษี, เดือน/ปีที่
 // ใช้เครดิต VAT) ตามที่สเปกระบุ "ใช้ขั้นตอนเดิมของระบบ"
 // แก้บั๊กตัวหนังสือมองไม่เห็น (2026-08-11 — เจอต้นตอเดียวกันที่ InvoiceTable.tsx) text-text (สีเกือบขาว) บน
-// กล่องขาว (bg-white) ทำให้พิมพ์แล้วมองไม่เห็น — เปลี่ยนเป็น text-gray-800
+// กล่องขาว (bg-card-bg) ทำให้พิมพ์แล้วมองไม่เห็น — เปลี่ยนเป็น text-text
 const inlineInputClass =
-  'w-40 rounded-[10px] border border-border bg-white px-2.5 py-1.5 text-xs text-gray-800 focus-ring-primary';
+  'w-40 rounded-[10px] border border-border bg-card-bg px-2.5 py-1.5 text-xs text-text focus-ring-primary';
 
 /** เนื้อหาที่ขยายออกมาเมื่อกด "ดูรายละเอียด" ของแถวเดือนในหน้า "ภาษีซื้อที่ยังไม่ได้รับ" — จัดกลุ่มย่อย
  * ตามผู้ขาย (มุมมองรายบริษัท) กดชื่อผู้ขายเพื่อขยายดูรายการใบกำกับภาษีของผู้ขายนั้น พร้อมปุ่มดำเนินการ
@@ -96,7 +96,7 @@ export default function OverdueMonthDetail({ group, today, onView, onEdit, onMar
             <button
               type="button"
               onClick={() => toggleVendor(vendorGroup.vendorName)}
-              className="btn-press flex w-full flex-wrap items-center justify-between gap-2 rounded-[10px] px-2 py-2 text-left hover:bg-white"
+              className="btn-press flex w-full flex-wrap items-center justify-between gap-2 rounded-[10px] px-2 py-2 text-left hover:bg-card-bg"
               aria-expanded={isExpanded}
               data-testid={`overdue-report-vendor-toggle-${group.monthKey}-${index}`}
             >
@@ -118,7 +118,7 @@ export default function OverdueMonthDetail({ group, today, onView, onEdit, onMar
 
             {isExpanded && (
               <div
-                className="mt-2 overflow-x-auto rounded-xl border border-border bg-white"
+                className="mt-2 overflow-x-auto rounded-xl border border-border bg-card-bg"
                 data-testid={`overdue-report-vendor-group-${group.monthKey}-${index}`}
               >
                 <table className="min-w-full divide-y divide-border text-sm">
@@ -245,7 +245,7 @@ export default function OverdueMonthDetail({ group, today, onView, onEdit, onMar
                                     type="button"
                                     disabled={!taxInvoiceNumber.trim() || !taxInvoiceDate || !vatClaimMonth || !vatClaimYear || isBusy}
                                     onClick={() => handleConfirmReceived(invoice)}
-                                    className="btn-press rounded-[10px] bg-success px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
+                                    className="btn-press rounded-[10px] bg-success px-2 py-1 text-xs font-medium text-on-primary disabled:opacity-50"
                                     data-testid={`overdue-report-confirm-received-${invoice.id}`}
                                   >
                                     ยืนยัน

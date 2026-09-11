@@ -79,7 +79,7 @@ export default function BankReconcileManualMatchToolbar({
           type="button"
           onClick={onConfirm}
           disabled={!validation.canConfirm}
-          className="btn-press flex shrink-0 items-center gap-1.5 rounded-[10px] bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-press flex shrink-0 items-center gap-1.5 rounded-[10px] bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           data-testid="manual-match-confirm-button"
         >
           <CheckCircle2 size={16} aria-hidden="true" />

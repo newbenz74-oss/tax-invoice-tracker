@@ -103,15 +103,18 @@ export default function ExternalLoginPage() {
   const busy = submitting;
 
   return (
-    <div className="flex min-h-screen flex-1 items-center justify-center bg-[#0f2f42] px-4 py-10 sm:py-12">
+    // (2026-09-11 — ธีมชมพูพาสเทล) เดิมพื้นหลังเป็นน้ำเงินเข้ม #0f2f42 (จอ login ของบุคคลภายนอก ไม่มีวิดีโอ
+    // พื้นหลังแบบหน้า login ภายใน) เปลี่ยนเป็นชมพูอ่อนของพาเลตใหม่ — ตัวหนังสือเล็กๆ ใต้การ์ดที่เคยเป็นสีขาว
+    // จึงต้องเปลี่ยนเป็นโทนเข้มคู่กันด้วย (ดูท้ายไฟล์)
+    <div className="auth-gradient-bg flex min-h-screen flex-1 items-center justify-center px-4 py-10 sm:py-12">
       <div className="w-full max-w-[420px]">
-        <div className="rounded-2xl border border-white/10 bg-white p-6 shadow-[0_20px_50px_-12px_rgba(15,64,105,0.35)] sm:p-8 md:p-10">
+        <div className="rounded-2xl border border-border bg-card-bg p-6 shadow-[0_20px_50px_-12px_rgba(92,31,56,0.28)] sm:p-8 md:p-10">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--login-primary-light)]">
               <ShieldCheck className="h-6 w-6 text-[var(--login-primary)]" strokeWidth={2} />
             </div>
             <h1 className="text-2xl font-bold text-[var(--login-primary)]">ใบหัก ณ ที่จ่าย</h1>
-            <p className="mt-1.5 text-sm text-gray-500">สำหรับบุคคลภายนอก</p>
+            <p className="mt-1.5 text-sm text-text-sub">สำหรับบุคคลภายนอก</p>
           </div>
 
           <div className="mb-6 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 text-sm font-medium">
@@ -123,7 +126,7 @@ export default function ExternalLoginPage() {
                 setInfoMessage(null);
               }}
               className={`rounded-md py-2.5 transition-colors ${
-                mode === 'signin' ? 'bg-white text-[var(--login-primary)] shadow' : 'text-gray-500'
+                mode === 'signin' ? 'bg-card-bg text-[var(--login-primary)] shadow' : 'text-text-sub'
               }`}
             >
               เข้าสู่ระบบ
@@ -136,7 +139,7 @@ export default function ExternalLoginPage() {
                 setInfoMessage(null);
               }}
               className={`rounded-md py-2.5 transition-colors ${
-                mode === 'signup' ? 'bg-white text-[var(--login-primary)] shadow' : 'text-gray-500'
+                mode === 'signup' ? 'bg-card-bg text-[var(--login-primary)] shadow' : 'text-text-sub'
               }`}
             >
               สมัครสมาชิก
@@ -145,7 +148,7 @@ export default function ExternalLoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
             <div>
-              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-text">
                 อีเมล
               </label>
               <input
@@ -154,12 +157,12 @@ export default function ExternalLoginPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-14 w-full rounded-lg border border-[var(--login-border)] px-4 text-base text-gray-800 placeholder:text-gray-400 focus:border-[var(--login-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--login-primary-light)]"
+                className="h-14 w-full rounded-lg border border-[var(--login-border)] bg-input px-4 text-base text-text placeholder:text-text-sub focus:border-[var(--login-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--login-primary-light)]"
                 placeholder="name@example.com"
               />
             </div>
             <div>
-              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-text">
                 รหัสผ่าน
               </label>
               <div className="relative">
@@ -169,13 +172,13 @@ export default function ExternalLoginPage() {
                   autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-14 w-full rounded-lg border border-[var(--login-border)] px-4 pr-12 text-base text-gray-800 placeholder:text-gray-400 focus:border-[var(--login-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--login-primary-light)]"
+                  className="h-14 w-full rounded-lg border border-[var(--login-border)] bg-input px-4 pr-12 text-base text-text placeholder:text-text-sub focus:border-[var(--login-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--login-primary-light)]"
                   placeholder="กรอกรหัสผ่าน"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-400 hover:text-gray-600"
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-text-sub hover:text-primary"
                   aria-label={showPassword ? 'ซ่อนรหัส' : 'แสดงรหัส'}
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -195,7 +198,7 @@ export default function ExternalLoginPage() {
             <button
               type="submit"
               disabled={busy}
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-[var(--login-primary)] text-base font-semibold text-white transition-colors hover:bg-[var(--login-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-[var(--login-primary)] text-base font-semibold text-on-primary transition-colors hover:bg-[var(--login-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {busy && <Loader2 className="h-5 w-5 animate-spin" />}
               {busy ? 'กำลังดำเนินการ...' : mode === 'signin' ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก'}
@@ -203,7 +206,7 @@ export default function ExternalLoginPage() {
           </form>
 
           {mode === 'signin' && (
-            <p className="mt-5 text-center text-sm text-gray-600">
+            <p className="mt-5 text-center text-sm text-text-sub">
               ยังไม่มีบัญชีกับเรา?{' '}
               <button
                 type="button"
@@ -221,8 +224,10 @@ export default function ExternalLoginPage() {
         </div>
 
         <div className="mt-6 text-center">
-          <p className="text-xs text-white/80">สมัครแล้วต้องรอผู้ดูแลระบบอนุมัติสิทธิ์ก่อนจึงจะเห็นข้อมูลได้</p>
-          <p className="mt-1.5 flex items-center justify-center gap-1 text-xs text-white/70">
+          {/* (2026-09-11) ตัวหนังสือสองบรรทัดนี้วางตรงบนพื้นหลังของหน้า (ไม่มีการ์ดรองรับ) เดิมเป็นสีขาว
+              เพราะพื้นหลังเป็นน้ำเงินเข้ม — ตอนนี้พื้นหลังเป็นชมพูอ่อนแล้ว ต้องสลับเป็นโทนเข้ม */}
+          <p className="text-xs text-text">สมัครแล้วต้องรอผู้ดูแลระบบอนุมัติสิทธิ์ก่อนจึงจะเห็นข้อมูลได้</p>
+          <p className="mt-1.5 flex items-center justify-center gap-1 text-xs text-text-sub">
             <Lock className="h-3 w-3" />
             ข้อมูลของคุณได้รับการปกป้องอย่างปลอดภัย
           </p>

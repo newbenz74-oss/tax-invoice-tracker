@@ -284,7 +284,7 @@ export default function CompanySettingsPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="card-surface space-y-6 rounded-2xl bg-white p-6 sm:p-8"
+        className="card-surface space-y-6 rounded-2xl bg-card-bg p-6 sm:p-8"
         noValidate
         data-testid="company-settings-form"
       >
@@ -474,7 +474,7 @@ export default function CompanySettingsPage() {
           <button
             type="submit"
             disabled={saving}
-            className="btn-press rounded-[10px] bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn-press rounded-[10px] bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
             data-testid="save-company-settings"
           >
             {saving ? 'กำลังบันทึก...' : 'บันทึก'}
@@ -489,7 +489,7 @@ export default function CompanySettingsPage() {
       {/* "danger zone" ลบบริษัท (เพิ่มเข้ามา 2026-08-18) — แยกเป็นการ์ดของตัวเอง ไม่อยู่ใน <form> เดิม เพราะ
           เป็น action ที่ไม่เกี่ยวกับ submit ฟอร์มตั้งค่าเลย และเป็น action ที่ทำลายล้าง/ย้อนกลับไม่ได้ ควรแยก
           สายตาให้ชัดเจนจากส่วนแก้ไขข้อมูลปกติด้านบน */}
-      <div className="card-surface mt-6 rounded-2xl border border-danger/30 bg-white p-6 sm:p-8" data-testid="company-danger-zone">
+      <div className="card-surface mt-6 rounded-2xl border border-danger/30 bg-card-bg p-6 sm:p-8" data-testid="company-danger-zone">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-danger/10">
             <AlertTriangle className="h-5 w-5 text-danger" strokeWidth={2} aria-hidden="true" />
@@ -562,7 +562,7 @@ function DeleteCompanyModal({
       data-testid="delete-company-modal"
     >
       <div
-        className="card-surface card-surface-modal w-full max-w-md rounded-2xl bg-white p-6"
+        className="card-surface card-surface-modal w-full max-w-md rounded-2xl bg-card-bg p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -624,7 +624,7 @@ function DeleteCompanyModal({
             type="button"
             onClick={onConfirm}
             disabled={!canConfirm}
-            className="btn-press inline-flex items-center gap-1.5 rounded-[10px] bg-danger px-4 py-2 text-sm font-semibold text-white hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-press inline-flex items-center gap-1.5 rounded-[10px] bg-danger px-4 py-2 text-sm font-semibold text-on-primary hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="delete-company-confirm"
           >
             {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />}
@@ -636,12 +636,12 @@ function DeleteCompanyModal({
   );
 }
 
-// กล่อง input จริงๆ มี bg-white ของตัวเอง (ไม่ติด .card-surface) จึงเป็นกล่องขาวทึบจริง ใช้ text-gray-800/
+// กล่อง input จริงๆ มี bg-card-bg ของตัวเอง (ไม่ติด .card-surface) จึงเป็นกล่องขาวทึบจริง ใช้ text-gray-800/
 // placeholder:text-gray-400 ถูกต้องแล้ว — ต่างจากหัวข้อ/label ด้านล่างที่วางตรงบนพื้น .card-surface (กระจก
 // เข้มเสมอ ดู app/globals.css) ต้องใช้สีอ่อน text-text/text-text-sub แทน (2026-08-12)
 function inputClass(hasError: boolean): string {
   const base =
-    'h-11 w-full rounded-[10px] border bg-white px-3.5 text-sm text-gray-800 placeholder:text-gray-400 transition-colors duration-[250ms] focus:outline-none';
+    'h-11 w-full rounded-[10px] border bg-input px-3.5 text-sm text-text placeholder:text-text-sub transition-colors duration-[250ms] focus:outline-none';
   if (hasError) {
     return `${base} border-danger focus:border-danger focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]`;
   }

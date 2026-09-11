@@ -49,7 +49,7 @@ export default function BankReconcilePagination({
             <select
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="rounded-[8px] border border-border bg-white/8 px-2 py-1 text-xs text-text focus:outline-none"
+              className="rounded-[8px] border border-border bg-primary/6 px-2 py-1 text-xs text-text focus:outline-none"
               data-testid={`${testIdPrefix}-page-size`}
             >
               {pageSizeOptions.map((size) => (
@@ -68,10 +68,10 @@ export default function BankReconcilePagination({
           disabled={page <= 1}
           onClick={onPrev}
           // แก้ไข 2026-08-07 — เดิมใช้ bg-white (สีขาวทึบ) ร่วมกับ text-text (สีตัวอักษร #f1f5f9 เกือบขาว
-          // ตามธีมมืดของแอป) ทำให้ตัวหนังสือ "มองไม่เห็นเลย" เพราะเป็นสีขาวบนพื้นขาว — เปลี่ยนเป็น bg-white/8
-          // (ขาวโปร่งแสง 8%) + hover:bg-white/15 ให้เข้ากับพื้นหลังเข้มของธีม เหมือนปุ่ม "Export Excel" ที่ใช้
+          // ตามธีมมืดของแอป) ทำให้ตัวหนังสือ "มองไม่เห็นเลย" เพราะเป็นสีขาวบนพื้นขาว — เปลี่ยนเป็น bg-primary/6
+          // (ขาวโปร่งแสง 8%) + hover:bg-primary/12 ให้เข้ากับพื้นหลังเข้มของธีม เหมือนปุ่ม "Export Excel" ที่ใช้
           // สีชุดเดียวกันนี้อยู่แล้วในตารางอื่นของหน้านี้
-          className="btn-press rounded-[10px] border border-border bg-white/8 px-3.5 py-2 text-sm font-medium text-text hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-press rounded-[10px] border border-border bg-primary/6 px-3.5 py-2 text-sm font-medium text-text hover:bg-primary/12 disabled:cursor-not-allowed disabled:opacity-50"
           data-testid={`${testIdPrefix}-pagination-prev`}
         >
           ก่อนหน้า
@@ -84,10 +84,10 @@ export default function BankReconcilePagination({
           disabled={page >= totalPages}
           onClick={onNext}
           // แก้ไข 2026-08-07 — เดิมใช้ bg-white (สีขาวทึบ) ร่วมกับ text-text (สีตัวอักษร #f1f5f9 เกือบขาว
-          // ตามธีมมืดของแอป) ทำให้ตัวหนังสือ "มองไม่เห็นเลย" เพราะเป็นสีขาวบนพื้นขาว — เปลี่ยนเป็น bg-white/8
-          // (ขาวโปร่งแสง 8%) + hover:bg-white/15 ให้เข้ากับพื้นหลังเข้มของธีม เหมือนปุ่ม "Export Excel" ที่ใช้
+          // ตามธีมมืดของแอป) ทำให้ตัวหนังสือ "มองไม่เห็นเลย" เพราะเป็นสีขาวบนพื้นขาว — เปลี่ยนเป็น bg-primary/6
+          // (ขาวโปร่งแสง 8%) + hover:bg-primary/12 ให้เข้ากับพื้นหลังเข้มของธีม เหมือนปุ่ม "Export Excel" ที่ใช้
           // สีชุดเดียวกันนี้อยู่แล้วในตารางอื่นของหน้านี้
-          className="btn-press rounded-[10px] border border-border bg-white/8 px-3.5 py-2 text-sm font-medium text-text hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-press rounded-[10px] border border-border bg-primary/6 px-3.5 py-2 text-sm font-medium text-text hover:bg-primary/12 disabled:cursor-not-allowed disabled:opacity-50"
           data-testid={`${testIdPrefix}-pagination-next`}
         >
           ถัดไป

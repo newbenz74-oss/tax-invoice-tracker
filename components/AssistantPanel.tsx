@@ -283,8 +283,8 @@ export default function AssistantPanel({
                 data-testid={message.role === 'user' ? 'assistant-message-user' : 'assistant-message-assistant'}
                 className={
                   message.role === 'user'
-                    ? 'ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3.5 py-2.5 text-sm whitespace-pre-wrap text-white'
-                    : 'mr-auto max-w-[85%] rounded-2xl rounded-bl-sm bg-white/8 px-3.5 py-2.5 text-sm whitespace-pre-wrap text-text'
+                    ? 'ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3.5 py-2.5 text-sm whitespace-pre-wrap text-on-primary'
+                    : 'mr-auto max-w-[85%] rounded-2xl rounded-bl-sm bg-primary/6 px-3.5 py-2.5 text-sm whitespace-pre-wrap text-text'
                 }
               >
                 {isTyping ? (
@@ -337,7 +337,7 @@ export default function AssistantPanel({
         {pending && !typingMessageId && (
           <div
             data-testid="assistant-pending-indicator"
-            className="mr-auto flex items-center gap-2 rounded-2xl rounded-bl-sm bg-white/8 px-3.5 py-2.5 text-sm text-text-sub"
+            className="mr-auto flex items-center gap-2 rounded-2xl rounded-bl-sm bg-primary/6 px-3.5 py-2.5 text-sm text-text-sub"
           >
             <Loader2 size={14} className="animate-spin" aria-hidden="true" />
             กำลังพิมพ์...
@@ -355,7 +355,7 @@ export default function AssistantPanel({
           disabled={pending}
           aria-label="พิมพ์คำถามถึงผู้ช่วย"
           data-testid="assistant-input"
-          className="focus-ring-primary h-11 min-w-0 flex-1 rounded-xl border border-border bg-white/5 px-3.5 text-sm text-text placeholder:text-text-sub disabled:opacity-60"
+          className="focus-ring-primary h-11 min-w-0 flex-1 rounded-xl border border-border bg-primary/5 px-3.5 text-sm text-text placeholder:text-text-sub disabled:opacity-60"
         />
         <button
           // ตั้งใจไม่ใช้ type="submit" (2026-07-19 พบจาก e2e regression) — แผงนี้ mount ค้างไว้ทุกหน้ารวม
@@ -371,7 +371,7 @@ export default function AssistantPanel({
           disabled={pending || !inputValue.trim()}
           aria-label="ส่งข้อความ"
           data-testid="send-assistant-message"
-          className="btn-press flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-primary text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-press flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-primary text-on-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
           {pending ? (
             <Loader2 size={18} className="animate-spin" aria-hidden="true" />

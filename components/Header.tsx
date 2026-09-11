@@ -11,14 +11,17 @@ import {
   Landmark,
   LayoutDashboard,
   Menu,
+  Moon,
   SearchCheck,
   Send,
+  Sun,
   type LucideIcon,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
 import { getSupabaseClient } from '@/lib/supabaseClient';
+import { useTheme } from '@/lib/ThemeContext';
 
 interface HeaderProps {
   title: string;
@@ -87,6 +90,7 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
   // ปัจจุบัน + ปุ่ม "สลับบริษัท" (แสดงเฉพาะ user ที่เป็นสมาชิกมากกว่า 1 บริษัทเท่านั้น) clearSelection ใช้
   // ล้างค่าที่จำไว้ตอนออกจากระบบ (ผู้ใช้ยืนยันว่าต้องเลือกใหม่ทุกครั้งที่ล็อกอิน ไม่ใช่จำไว้ข้ามรอบ)
   const { companies, selectedCompany, clearSelection } = useCompany();
+  const { theme, toggleTheme } = useTheme();
   const router = useRouter();
   const meta = PAGE_META[title];
   const PageIcon = meta?.icon ?? FileText;
@@ -127,8 +131,10 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
+          {/* (2026-09-11) แผ่นชื่อบริษัทด้านล่างเดิมใช้ bg-white/8 (ขาวจางๆ ให้เห็นเป็นแผ่นนูนบนพื้นเข้ม) —
+              บนแถบหัวสีขาวของธีมชมพูตอนนี้ ขาวบนขาวคือมองไม่เห็นเลย เปลี่ยนเป็นชมพูจางแทน */}
           {selectedCompany && (
-            <div className="hidden items-center gap-1.5 rounded-[10px] border border-border bg-white/8 px-3 py-2 text-sm text-text sm:flex">
+            <div className="hidden items-center gap-1.5 rounded-[10px] border border-border bg-primary/6 px-3 py-2 text-sm text-text sm:flex">
               {selectedCompany.logo_url ? (
                 // eslint-disable-next-line @next/next/no-img-element -- URL มาจาก Supabase Storage (โดเมนไม่คงที่ล่วงหน้า) และเป็นไอคอนเล็กมาก ไม่คุ้ม next/image
                 <img src={selectedCompany.logo_url} alt="" className="h-[15px] w-[15px] shrink-0 object-contain" aria-hidden="true" />
@@ -151,16 +157,58 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
           {session?.user?.email && (
             <span className="hidden text-sm text-text-sub sm:inline">{session.user.email}</span>
           )}
-          {/* ปุ่ม "ออกจากระบบ" (2026-07-19) — ผู้ใช้เจอบน production จริงหลัง deploy ธีมเข้มรอบนี้ว่าอ่านปุ่มนี้
-              แทบไม่ออกเลย (เดิม bg-white/8 + text-text คือขาวใสจางมากบนพื้น bg-card-bg/90 ที่เข้มอยู่แล้ว
-              คอนทราสต์ต่ำเกินไป) — โค้ดปุ่มนี้เป็นของเดิมจากรอบสร้างธีมเข้มครั้งก่อน ไม่ได้อยู่ใน 6 ไฟล์ที่ส่งมอบ
-              รอบนี้ จึงเพิ่งถูกมองเห็นจริงครั้งแรกตอนนี้ที่ธีมเข้มขึ้น production แล้ว แก้ตามที่ผู้ใช้ขอตรงๆ:
-              bg-black (ดำสนิท) + text-white (ขาวสนิท) แทน — คอนทราสต์ชัดเจนแน่นอน ไม่แตะ hover state เดิม
-              เพราะยังไม่มีปัญหา */}
+          {/* สวิตช์สลับโหมดกลางวัน/กลางคืน (2026-09-11 ตามคำขอผู้ใช้ "เผื่อไว้ใช้ในที่กลางคืนจะได้ถนอมสายตา")
+              รอบแรกทำเป็นปุ่มไอคอนสี่เหลี่ยมกดสลับ แต่ผู้ใช้ส่งภาพอ้างอิงมาว่าอยากได้ "ปุ่มเลื่อนซ้ายขวา"
+              (toggle switch แบบแคปซูล + ปุ่มกลมเลื่อนไปมา) จึงเปลี่ยนมาเป็นแบบนี้แทน
+
+              ใช้ role="switch" + aria-checked (ไม่ใช่ aria-pressed แบบปุ่มธรรมดา) เพราะนี่คือ "สวิตช์เปิด/ปิด"
+              จริงๆ ตามความหมาย — screen reader จะอ่านว่า "เปิด/ปิด" ให้เองถูกต้อง ส่วนคนที่ใช้เมาส์ยังเห็น
+              คำอธิบายเต็มจาก title ตอนชี้ค้าง
+
+              วางไว้ก่อนปุ่ม "ออกจากระบบ" เพราะเป็นปุ่มที่กดบ่อยกว่า และไม่ควรอยู่ติดขอบขวาสุดจนกดพลาดเป็น
+              ปุ่มออกจากระบบ
+
+              ตัวเลข: รางกว้าง 44px สูง 24px (w-11 h-6) ปุ่มกลม 20px (h-5 w-5) เลื่อนจาก 2px ไป 22px
+              (44 − 20 − 2 = 22 พอดี เว้นขอบเท่ากันทั้งสองข้าง) ตั้งใจไม่ใส่ border ที่ราง เพื่อให้คำนวณ
+              ระยะเลื่อนตรงไปตรงมาโดยไม่ต้องเผื่อความหนาขอบ
+
+              ไอคอนอยู่ "ในปุ่มกลม" และบอก "สถานะปัจจุบัน" (ไม่ใช่สิ่งที่จะเกิดเมื่อกด) ตามธรรมเนียมของสวิตช์:
+              อยู่โหมดกลางคืน = พระจันทร์ / อยู่โหมดกลางวัน = ดวงอาทิตย์ */}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={theme === 'dark'}
+            onClick={toggleTheme}
+            aria-label="โหมดกลางคืน"
+            title={theme === 'dark' ? 'ปิดโหมดกลางคืน (กลับเป็นกลางวัน)' : 'เปิดโหมดกลางคืน'}
+            className={`btn-press relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-[250ms] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+              theme === 'dark' ? 'bg-primary' : 'bg-text-sub/40'
+            }`}
+            data-testid="theme-toggle"
+          >
+            <span
+              aria-hidden="true"
+              className={`pointer-events-none flex h-5 w-5 items-center justify-center rounded-full bg-card-bg shadow-sm transition-transform duration-[250ms] ${
+                theme === 'dark' ? 'translate-x-[22px]' : 'translate-x-[2px]'
+              }`}
+            >
+              {theme === 'dark' ? (
+                <Moon size={11} className="text-primary" />
+              ) : (
+                <Sun size={11} className="text-text-sub" />
+              )}
+            </span>
+          </button>
+          {/* ปุ่ม "ออกจากระบบ" — ประวัติ: เคยเป็น bg-white/8 + text-text แล้วผู้ใช้เจอบน production ว่าอ่านแทบ
+              ไม่ออกบนธีมเข้ม จึงแก้เป็น bg-black + text-on-primary (2026-07-19)
+              (2026-09-11 — ธีมชมพูพาสเทล) ปุ่มดำสนิทบนธีมชมพูอ่อนกลายเป็นก้อนดำสะดุดตาผิดที่ผิดทาง เปลี่ยน
+              เป็น bg-primary (โรส) + text-on-primary ได้ contrast 5.76:1 ชัดเจนพอๆ กับปุ่มดำเดิม แต่อยู่ในธีม
+              hover เดิมใช้ bg-primary-light ซึ่งตอนนี้เป็นโรสจางมาก ถ้าคงไว้ตัวหนังสือขาวจะหายไปตอนชี้ จึง
+              เปลี่ยนเป็น bg-primary-hover (โรสเข้มขึ้น) แทน */}
           <button
             type="button"
             onClick={handleSignOut}
-            className="btn-press rounded-[10px] border border-border bg-black px-3.5 py-2 text-sm font-medium text-white hover:border-primary/50 hover:bg-primary-light"
+            className="btn-press rounded-[10px] border border-primary bg-primary px-3.5 py-2 text-sm font-medium text-on-primary hover:border-primary-hover hover:bg-primary-hover"
           >
             ออกจากระบบ
           </button>

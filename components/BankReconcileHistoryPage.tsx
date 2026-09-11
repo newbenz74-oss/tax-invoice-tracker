@@ -244,7 +244,7 @@ export default function BankReconcileHistoryPage({ onNavigate }: BankReconcileHi
           data-testid="reconcile-history-delete-confirm-dialog"
         >
           <div
-            className="card-surface card-surface-modal w-full max-w-sm rounded-2xl bg-white p-6"
+            className="card-surface card-surface-modal w-full max-w-sm rounded-2xl bg-card-bg p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-base font-bold text-text">ยืนยันลบรายการกระทบยอด</h3>
@@ -261,7 +261,7 @@ export default function BankReconcileHistoryPage({ onNavigate }: BankReconcileHi
                 type="button"
                 disabled={deleteBusy}
                 onClick={() => setDeletingReport(null)}
-                className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-gray-500 hover:bg-page-bg disabled:opacity-60"
+                className="btn-press rounded-[10px] border border-border bg-input px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-primary/8 disabled:opacity-60"
               >
                 ยกเลิก
               </button>
@@ -269,7 +269,7 @@ export default function BankReconcileHistoryPage({ onNavigate }: BankReconcileHi
                 type="button"
                 disabled={deleteBusy}
                 onClick={handleConfirmDelete}
-                className="btn-press rounded-[10px] bg-danger px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-danger/90 disabled:opacity-60"
+                className="btn-press rounded-[10px] bg-danger px-4 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-danger/90 disabled:opacity-60"
                 data-testid="confirm-reconcile-history-delete"
               >
                 {deleteBusy ? 'กำลังลบ...' : 'ยืนยันลบ'}

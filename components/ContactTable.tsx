@@ -277,10 +277,10 @@ export default function ContactTable({ contacts, onView, onEdit, onToggleStatus,
             aria-modal="true"
             aria-label="ยืนยันการลบรายชื่อ"
           >
-            {/* การ์ด/โมดัลทั้งระบบเป็นกระจกเข้มเสมอ (card-surface ชนะ bg-white เสมอตาม CSS Cascade Layers — ดู
+            {/* การ์ด/โมดัลทั้งระบบเป็นกระจกเข้มเสมอ (card-surface ชนะ bg-card-bg เสมอตาม CSS Cascade Layers — ดู
                 คอมเมนต์เต็มใน app/globals.css) จึงใช้สีอ่อน text-text/text-text-sub ให้อ่านออกบนพื้นเข้ม
                 (2026-08-12) */}
-            <div className="card-surface card-surface-modal w-full max-w-sm rounded-2xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="card-surface card-surface-modal w-full max-w-sm rounded-2xl bg-card-bg p-6" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-base font-bold text-text">ยืนยันการลบรายชื่อ</h3>
               <p className="mt-2 text-sm text-text-sub">
                 ต้องการลบ &quot;{getContactDisplayName(deletingContact)}&quot; ({deletingContact.contact_code}) ใช่หรือไม่?
@@ -290,7 +290,7 @@ export default function ContactTable({ contacts, onView, onEdit, onToggleStatus,
                 <button
                   type="button"
                   onClick={() => setDeletingContact(null)}
-                  className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-gray-500 hover:bg-page-bg"
+                  className="btn-press rounded-[10px] border border-border bg-card-bg px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg"
                 >
                   ยกเลิก
                 </button>
@@ -298,7 +298,7 @@ export default function ContactTable({ contacts, onView, onEdit, onToggleStatus,
                   type="button"
                   disabled={busyId === deletingContact.id}
                   onClick={handleConfirmDelete}
-                  className="btn-press rounded-[10px] bg-danger px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-danger/90 disabled:opacity-60"
+                  className="btn-press rounded-[10px] bg-danger px-4 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-danger/90 disabled:opacity-60"
                   data-testid="confirm-delete"
                 >
                   {busyId === deletingContact.id ? 'กำลังลบ...' : 'ลบรายชื่อ'}

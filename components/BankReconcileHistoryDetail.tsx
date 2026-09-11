@@ -145,7 +145,7 @@ export default function BankReconcileHistoryDetail({ reportId, onBack, onNavigat
         <button
           type="button"
           onClick={onBack}
-          className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white/8 px-3.5 py-2 text-sm font-medium text-text hover:bg-white/15"
+          className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-primary/6 px-3.5 py-2 text-sm font-medium text-text hover:bg-primary/12"
           data-testid="reconcile-history-detail-back"
         >
           <ArrowLeft size={16} aria-hidden="true" />
@@ -157,7 +157,7 @@ export default function BankReconcileHistoryDetail({ reportId, onBack, onNavigat
             type="button"
             onClick={handleExportExcel}
             disabled={!detail || bankRows.length === 0}
-            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white/8 px-3.5 py-2 text-sm font-medium text-text hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-primary/6 px-3.5 py-2 text-sm font-medium text-text hover:bg-primary/12 disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="reconcile-history-detail-export-excel"
           >
             <FileSpreadsheet size={16} aria-hidden="true" />
@@ -167,7 +167,7 @@ export default function BankReconcileHistoryDetail({ reportId, onBack, onNavigat
             type="button"
             onClick={handleExportPdf}
             disabled={!detail || bankRows.length === 0}
-            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white/8 px-3.5 py-2 text-sm font-medium text-text hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-primary/6 px-3.5 py-2 text-sm font-medium text-text hover:bg-primary/12 disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="reconcile-history-detail-export-pdf"
           >
             <FileText size={16} aria-hidden="true" />
@@ -177,7 +177,7 @@ export default function BankReconcileHistoryDetail({ reportId, onBack, onNavigat
             type="button"
             onClick={handlePrint}
             disabled={!detail || bankRows.length === 0}
-            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white/8 px-3.5 py-2 text-sm font-medium text-text hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-primary/6 px-3.5 py-2 text-sm font-medium text-text hover:bg-primary/12 disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="reconcile-history-detail-print"
           >
             <Printer size={16} aria-hidden="true" />

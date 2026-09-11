@@ -308,7 +308,7 @@ export default function WhtCertificateHistoryPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ค้นหาเลขที่ใบ / ชื่อผู้ถูกหัก"
-            className="focus-ring-primary h-11 w-64 rounded-xl border border-border bg-white/5 pr-4 pl-10 text-sm text-text placeholder:text-text-sub"
+            className="focus-ring-primary h-11 w-64 rounded-xl border border-border bg-primary/5 pr-4 pl-10 text-sm text-text placeholder:text-text-sub"
             data-testid="wht-history-search"
           />
         </div>
@@ -320,7 +320,7 @@ export default function WhtCertificateHistoryPage() {
         <select
           value={formTypeFilter}
           onChange={(e) => setFormTypeFilter(e.target.value as WhtFormType | '')}
-          className="focus-ring-primary rounded-[10px] border border-border bg-white/8 px-3.5 py-2.5 text-sm text-text"
+          className="focus-ring-primary rounded-[10px] border border-border bg-primary/6 px-3.5 py-2.5 text-sm text-text"
           data-testid="wht-history-form-type-filter"
         >
           <option value="">-- เลือกประเภท --</option>
@@ -330,7 +330,7 @@ export default function WhtCertificateHistoryPage() {
         <select
           value={monthFilter}
           onChange={(e) => setMonthFilter(e.target.value ? Number(e.target.value) : '')}
-          className="focus-ring-primary rounded-[10px] border border-border bg-white/8 px-3.5 py-2.5 text-sm text-text"
+          className="focus-ring-primary rounded-[10px] border border-border bg-primary/6 px-3.5 py-2.5 text-sm text-text"
           data-testid="wht-history-month-filter"
         >
           <option value="">-- เลือกเดือน --</option>
@@ -343,7 +343,7 @@ export default function WhtCertificateHistoryPage() {
         <select
           value={yearFilter}
           onChange={(e) => setYearFilter(e.target.value ? Number(e.target.value) : '')}
-          className="focus-ring-primary rounded-[10px] border border-border bg-white/8 px-3.5 py-2.5 text-sm text-text"
+          className="focus-ring-primary rounded-[10px] border border-border bg-primary/6 px-3.5 py-2.5 text-sm text-text"
           data-testid="wht-history-year-filter"
         >
           <option value="">-- เลือกปี --</option>
@@ -483,7 +483,7 @@ export default function WhtCertificateHistoryPage() {
       )}
 
       {/* dialog ยืนยัน "แก้ไข"/"ลบ" ใช้ร่วมกัน (ทั้งคู่เรียก voidWhtCertificate เหมือนกัน) — การ์ด/โมดัลทั้งระบบ
-          เป็นกระจกเข้มเสมอ (card-surface ชนะ bg-white เสมอตาม CSS Cascade Layers — ดูคอมเมนต์เต็มใน
+          เป็นกระจกเข้มเสมอ (card-surface ชนะ bg-card-bg เสมอตาม CSS Cascade Layers — ดูคอมเมนต์เต็มใน
           app/globals.css) จึงใช้สีอ่อน text-text/text-text-sub ให้อ่านออกบนพื้นเข้ม (2026-08-12) */}
       {actionTarget && (
         <div
@@ -494,7 +494,7 @@ export default function WhtCertificateHistoryPage() {
           aria-label={actionTarget.kind === 'edit' ? 'ยืนยันแก้ไขใบหัก ณ ที่จ่าย' : 'ยืนยันลบใบหัก ณ ที่จ่าย'}
           data-testid="wht-cert-action-confirm-dialog"
         >
-          <div className="card-surface card-surface-modal w-full max-w-sm rounded-2xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="card-surface card-surface-modal w-full max-w-sm rounded-2xl bg-card-bg p-6" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-bold text-text">
               {actionTarget.kind === 'edit' ? 'ยืนยันแก้ไขใบหัก ณ ที่จ่าย' : 'ยืนยันลบใบหัก ณ ที่จ่าย'}
             </h3>
@@ -513,7 +513,7 @@ export default function WhtCertificateHistoryPage() {
                 type="button"
                 disabled={actionBusy}
                 onClick={() => setActionTarget(null)}
-                className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-gray-500 hover:bg-page-bg disabled:opacity-60"
+                className="btn-press rounded-[10px] border border-border bg-card-bg px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg disabled:opacity-60"
               >
                 ยกเลิก
               </button>
@@ -521,7 +521,7 @@ export default function WhtCertificateHistoryPage() {
                 type="button"
                 disabled={actionBusy}
                 onClick={handleConfirmAction}
-                className="btn-press rounded-[10px] bg-danger px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-danger/90 disabled:opacity-60"
+                className="btn-press rounded-[10px] bg-danger px-4 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-danger/90 disabled:opacity-60"
                 data-testid="confirm-wht-cert-action"
               >
                 {actionBusy ? 'กำลังดำเนินการ...' : actionTarget.kind === 'edit' ? 'ยกเลิกใบเดิม' : 'ยืนยันลบ'}

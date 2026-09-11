@@ -34,11 +34,11 @@ export default function OverdueInvoiceDetailModal({ invoice, today, onClose }: O
       aria-label={`รายละเอียดรายการ ${invoice.vendor_name}`}
       data-testid="overdue-report-detail-modal"
     >
-      {/* การ์ด/โมดัลทั้งระบบเป็นกระจกเข้มเสมอ (card-surface ชนะ bg-white เสมอตาม CSS Cascade Layers — ดู
-          คอมเมนต์เต็มใน app/globals.css) องค์ประกอบที่วางตรงบนพื้นการ์ดตรงนี้ (ไม่มีกล่อง bg-white ของ
+      {/* การ์ด/โมดัลทั้งระบบเป็นกระจกเข้มเสมอ (card-surface ชนะ bg-card-bg เสมอตาม CSS Cascade Layers — ดู
+          คอมเมนต์เต็มใน app/globals.css) องค์ประกอบที่วางตรงบนพื้นการ์ดตรงนี้ (ไม่มีกล่อง bg-card-bg ของ
           ตัวเอง) จึงต้องใช้สีอ่อน text-text/text-text-sub ให้อ่านออกบนพื้นเข้ม (2026-08-12) */}
       <div
-        className="card-surface card-surface-modal max-h-[calc(100vh-48px)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6"
+        className="card-surface card-surface-modal max-h-[calc(100vh-48px)] w-full max-w-lg overflow-y-auto rounded-2xl bg-card-bg p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between gap-3">
@@ -85,7 +85,7 @@ export default function OverdueInvoiceDetailModal({ invoice, today, onClose }: O
           <button
             type="button"
             onClick={onClose}
-            className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-gray-500 hover:bg-page-bg"
+            className="btn-press rounded-[10px] border border-border bg-card-bg px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg"
           >
             ปิด
           </button>

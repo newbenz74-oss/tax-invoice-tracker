@@ -51,15 +51,15 @@ export default function InvoiceDetailModal({ invoice, whtCertificatesById, onClo
       aria-label={`รายละเอียดรายการ ${invoice.vendor_name}`}
       data-testid="invoice-detail-modal"
     >
-      {/* การ์ด/โมดัลทั้งระบบเป็นกระจกเข้มเสมอ (card-surface ชนะ bg-white เสมอตาม CSS Cascade Layers — ดู
-          คอมเมนต์เต็มใน app/globals.css) องค์ประกอบที่วางตรงบนพื้นการ์ดตรงนี้ (ไม่มีกล่อง bg-white ของ
+      {/* การ์ด/โมดัลทั้งระบบเป็นกระจกเข้มเสมอ (card-surface ชนะ bg-card-bg เสมอตาม CSS Cascade Layers — ดู
+          คอมเมนต์เต็มใน app/globals.css) องค์ประกอบที่วางตรงบนพื้นการ์ดตรงนี้ (ไม่มีกล่อง bg-card-bg ของ
           ตัวเอง) จึงต้องใช้สีอ่อน text-text/text-text-sub ให้อ่านออกบนพื้นเข้ม (2026-08-12) */}
       {/* max-h ต้องตรงกับ padding ของ overlay ด้านนอกเป๊ะๆ (p-4 = 16px บน+ล่างรวม 32px) — เดิมใช้
           calc(100vh-48px) (ตามโมดัลอื่นในระบบ) ซึ่งมากกว่าพื้นที่จริงที่ overlay เหลือให้ (100vh-32px) ทำให้
           การ์ดสูงเกินกรอบได้ 16px ในบางความสูงจอ เกิด scroll เลื่อนขึ้นลงได้นิดเดียวโดยไม่จำเป็น (ผู้ใช้แจ้ง
           2026-08-26) แก้โดยให้ตัวเลขตรงกันเป๊ะ ไม่มีส่วนเกินให้ scroll */}
       <div
-        className="card-surface card-surface-modal max-h-[calc(100vh-32px)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6"
+        className="card-surface card-surface-modal max-h-[calc(100vh-32px)] w-full max-w-lg overflow-y-auto rounded-2xl bg-card-bg p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between gap-3">
@@ -136,7 +136,7 @@ export default function InvoiceDetailModal({ invoice, whtCertificatesById, onClo
           <button
             type="button"
             onClick={onClose}
-            className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-gray-500 hover:bg-page-bg"
+            className="btn-press rounded-[10px] border border-border bg-card-bg px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg"
           >
             ปิด
           </button>

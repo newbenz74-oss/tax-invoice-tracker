@@ -383,13 +383,13 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
       <div className="card-surface entrance-animate entrance-delay-2 mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-4">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm font-medium text-text">ช่วงวันที่ที่ยอมรับได้</span>
-          <div className="flex rounded-[10px] border border-border bg-white/8 p-1" role="group" aria-label="เลือกช่วงวันที่ที่ยอมรับได้">
+          <div className="flex rounded-[10px] border border-border bg-primary/6 p-1" role="group" aria-label="เลือกช่วงวันที่ที่ยอมรับได้">
             <button
               type="button"
               onClick={() => setTolerance(1)}
               aria-pressed={tolerance === 1}
               className={`btn-press rounded-[8px] px-3.5 py-1.5 text-sm font-medium transition-colors duration-150 ${
-                tolerance === 1 ? 'bg-primary text-white' : 'text-text-sub hover:bg-page-bg'
+                tolerance === 1 ? 'bg-primary text-on-primary' : 'text-text-sub hover:bg-page-bg'
               }`}
               data-testid="tolerance-option-1"
             >
@@ -400,7 +400,7 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
               onClick={() => setTolerance(3)}
               aria-pressed={tolerance === 3}
               className={`btn-press rounded-[8px] px-3.5 py-1.5 text-sm font-medium transition-colors duration-150 ${
-                tolerance === 3 ? 'bg-primary text-white' : 'text-text-sub hover:bg-page-bg'
+                tolerance === 3 ? 'bg-primary text-on-primary' : 'text-text-sub hover:bg-page-bg'
               }`}
               data-testid="tolerance-option-3"
             >
@@ -413,7 +413,7 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
           type="button"
           onClick={handleCheck}
           disabled={!canCheck}
-          className="btn-press flex items-center gap-1.5 rounded-[10px] bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-press flex items-center gap-1.5 rounded-[10px] bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           data-testid="check-data-button"
         >
           <ListChecks size={16} aria-hidden="true" />

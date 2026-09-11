@@ -130,7 +130,7 @@ export default function CompanyBackupCard() {
     !restoring && (restoreMode === 'merge' || replaceConfirmText.trim().toLowerCase() === REPLACE_CONFIRM_WORD);
 
   return (
-    <div className="card-surface mt-6 rounded-2xl bg-white p-6 sm:p-8" data-testid="company-backup-card">
+    <div className="card-surface mt-6 rounded-2xl bg-card-bg p-6 sm:p-8" data-testid="company-backup-card">
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-light">
           <DatabaseBackup className="h-5 w-5 text-primary" strokeWidth={2} aria-hidden="true" />
@@ -151,7 +151,7 @@ export default function CompanyBackupCard() {
             type="button"
             onClick={handleExport}
             disabled={busy}
-            className="btn-press inline-flex items-center gap-1.5 rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn-press inline-flex items-center gap-1.5 rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
             data-testid="export-backup"
           >
             {exporting ? (
@@ -279,7 +279,7 @@ export default function CompanyBackupCard() {
             <fieldset className="mt-4 space-y-2" disabled={restoring}>
               <legend className="mb-1.5 text-xs font-bold text-text-sub">เลือกวิธีกู้คืน</legend>
 
-              <label className="flex cursor-pointer items-start gap-2.5 rounded-[10px] border border-border bg-white p-3 has-[:checked]:border-primary has-[:checked]:bg-primary-light">
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-[10px] border border-border bg-card-bg p-3 has-[:checked]:border-primary has-[:checked]:bg-primary-light">
                 <input
                   type="radio"
                   name="restore-mode"
@@ -290,14 +290,14 @@ export default function CompanyBackupCard() {
                   data-testid="restore-mode-merge"
                 />
                 <span className="text-xs">
-                  <span className="block font-semibold text-gray-800">รวมข้อมูล (ปลอดภัยกว่า)</span>
-                  <span className="mt-0.5 block text-gray-500">
+                  <span className="block font-semibold text-text">รวมข้อมูล (ปลอดภัยกว่า)</span>
+                  <span className="mt-0.5 block text-text-sub">
                     เขียนทับเฉพาะรายการที่ตรงกันกับในไฟล์ รายการอื่นที่มีอยู่ในระบบตอนนี้ยังอยู่ครบ — เหมาะกับกรณีข้อมูลหายบางส่วน
                   </span>
                 </span>
               </label>
 
-              <label className="flex cursor-pointer items-start gap-2.5 rounded-[10px] border border-border bg-white p-3 has-[:checked]:border-danger has-[:checked]:bg-danger/5">
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-[10px] border border-border bg-card-bg p-3 has-[:checked]:border-danger has-[:checked]:bg-danger/5">
                 <input
                   type="radio"
                   name="restore-mode"
@@ -308,8 +308,8 @@ export default function CompanyBackupCard() {
                   data-testid="restore-mode-replace"
                 />
                 <span className="text-xs">
-                  <span className="block font-semibold text-gray-800">ล้างของเดิมก่อนแล้วกู้คืนทั้งหมด</span>
-                  <span className="mt-0.5 block text-gray-500">
+                  <span className="block font-semibold text-text">ล้างของเดิมก่อนแล้วกู้คืนทั้งหมด</span>
+                  <span className="mt-0.5 block text-text-sub">
                     ลบข้อมูลทั้งหมดของบริษัทนี้ทิ้งก่อน แล้วเขียนใหม่จากไฟล์ — ได้สภาพเหมือนวันที่สำรองไว้เป๊ะ รายการที่เพิ่มหลังจากนั้นจะหายไปทั้งหมด
                   </span>
                 </span>
@@ -326,7 +326,7 @@ export default function CompanyBackupCard() {
                   onChange={(e) => setReplaceConfirmText(e.target.value)}
                   disabled={restoring}
                   placeholder="confirm"
-                  className="h-11 w-full rounded-[10px] border border-border bg-white px-3.5 text-sm text-gray-800 placeholder:text-gray-400 focus-ring-primary focus:outline-none"
+                  className="h-11 w-full rounded-[10px] border border-border bg-input px-3.5 text-sm text-text placeholder:text-text-sub focus-ring-primary focus:outline-none"
                   data-testid="restore-confirm-input"
                 />
               </label>
@@ -350,7 +350,7 @@ export default function CompanyBackupCard() {
                 type="button"
                 onClick={handleConfirmRestore}
                 disabled={!canConfirmRestore}
-                className={`btn-press inline-flex items-center gap-1.5 rounded-[10px] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${
+                className={`btn-press inline-flex items-center gap-1.5 rounded-[10px] px-4 py-2 text-sm font-semibold text-on-primary disabled:cursor-not-allowed disabled:opacity-50 ${
                   restoreMode === 'replace' ? 'bg-danger hover:bg-danger/90' : 'bg-primary hover:bg-primary-hover'
                 }`}
                 data-testid="confirm-restore"

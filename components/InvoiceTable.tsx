@@ -462,7 +462,7 @@ export default function InvoiceTable({
                 onBlur={() => setConfirmingDeleteId(null)}
                 className={`btn-press w-full rounded-[8px] px-2.5 py-1.5 text-left text-xs font-medium ${
                   confirmingDeleteId === expandedInvoice.id
-                    ? 'bg-danger text-white'
+                    ? 'bg-danger text-on-primary'
                     : 'text-danger hover:bg-danger/10'
                 }`}
                 data-testid={`delete-${expandedInvoice.id}`}
@@ -527,11 +527,11 @@ function ReceiveInvoiceModal({
       aria-label="บันทึกว่าได้รับเอกสารแล้ว"
       data-testid="receive-invoice-modal"
     >
-      {/* การ์ด/โมดัลทั้งระบบเป็นกระจกเข้มเสมอ (card-surface ชนะ bg-white เสมอตาม CSS Cascade Layers — ดู
+      {/* การ์ด/โมดัลทั้งระบบเป็นกระจกเข้มเสมอ (card-surface ชนะ bg-card-bg เสมอตาม CSS Cascade Layers — ดู
           คอมเมนต์เต็มใน app/globals.css) ใช้ตัวเลือกสี/โครงเดียวกับ IssueWhtCertificateModal.tsx ทุกประการ
           เพื่อความสม่ำเสมอของ modal ทั้งระบบ */}
       <div
-        className="card-surface card-surface-modal max-h-[calc(100vh-48px)] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-6"
+        className="card-surface card-surface-modal max-h-[calc(100vh-48px)] w-full max-w-sm overflow-y-auto rounded-2xl bg-card-bg p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between gap-3">
@@ -557,7 +557,7 @@ function ReceiveInvoiceModal({
               placeholder="เลขที่ใบกำกับภาษี"
               value={taxInvoiceNumber}
               onChange={(e) => setTaxInvoiceNumber(e.target.value)}
-              className="w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary"
+              className="w-full rounded-[10px] border border-border bg-input px-3 py-2 text-sm text-text focus-ring-primary"
               data-testid={`tax-invoice-number-input-${invoice.id}`}
             />
           </label>
@@ -567,7 +567,7 @@ function ReceiveInvoiceModal({
               value={receivedDate}
               onChange={setReceivedDate}
               buildClassName={() =>
-                'w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary'
+                'w-full rounded-[10px] border border-border bg-input px-3 py-2 text-sm text-text focus-ring-primary'
               }
             />
           </label>
@@ -577,7 +577,7 @@ function ReceiveInvoiceModal({
               value={taxInvoiceDate}
               onChange={setTaxInvoiceDate}
               buildClassName={() =>
-                'w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary'
+                'w-full rounded-[10px] border border-border bg-input px-3 py-2 text-sm text-text focus-ring-primary'
               }
               testId={`tax-invoice-date-input-${invoice.id}`}
             />
@@ -587,7 +587,7 @@ function ReceiveInvoiceModal({
             <select
               value={vatClaimMonth}
               onChange={(e) => setVatClaimMonth(e.target.value ? Number(e.target.value) : '')}
-              className="w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary"
+              className="w-full rounded-[10px] border border-border bg-input px-3 py-2 text-sm text-text focus-ring-primary"
               data-testid={`vat-claim-month-select-${invoice.id}`}
             >
               <option value="">เลือกเดือน</option>
@@ -603,7 +603,7 @@ function ReceiveInvoiceModal({
             <select
               value={vatClaimYear}
               onChange={(e) => setVatClaimYear(e.target.value ? Number(e.target.value) : '')}
-              className="w-full rounded-[10px] border border-border bg-white px-3 py-2 text-sm text-gray-800 focus-ring-primary"
+              className="w-full rounded-[10px] border border-border bg-input px-3 py-2 text-sm text-text focus-ring-primary"
               data-testid={`vat-claim-year-select-${invoice.id}`}
             >
               <option value="">เลือกปี</option>
@@ -628,7 +628,7 @@ function ReceiveInvoiceModal({
             type="button"
             disabled={!canConfirm || busy}
             onClick={onConfirm}
-            className="btn-press rounded-[10px] bg-success px-3.5 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="btn-press rounded-[10px] bg-success px-3.5 py-2 text-sm font-medium text-on-primary disabled:opacity-50"
             data-testid={`confirm-received-${invoice.id}`}
           >
             ยืนยัน

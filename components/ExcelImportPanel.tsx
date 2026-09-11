@@ -159,13 +159,13 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
         <button
           type="button"
           onClick={handleDownloadTemplate}
-          className="btn-press rounded-[10px] border border-border bg-white/8 px-4 py-2.5 text-sm font-medium text-text hover:bg-white/15"
+          className="btn-press rounded-[10px] border border-border bg-primary/6 px-4 py-2.5 text-sm font-medium text-text hover:bg-primary/12"
           data-testid="download-template"
         >
           ดาวน์โหลดเทมเพลต Excel
         </button>
 
-        <label className="btn-press cursor-pointer rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover">
+        <label className="btn-press cursor-pointer rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover">
           เลือกไฟล์ Excel...
           <input
             ref={fileInputRef}
@@ -203,8 +203,8 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
                 onClick={() => setReviewFilter(tab.key)}
                 className={`btn-press rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors duration-[250ms] ${
                   reviewFilter === tab.key
-                    ? 'bg-primary text-white'
-                    : 'border border-border bg-white/8 text-text-sub hover:bg-white/15'
+                    ? 'bg-primary text-on-primary'
+                    : 'border border-border bg-primary/6 text-text-sub hover:bg-primary/12'
                 }`}
                 data-testid={`import-filter-${tab.key}`}
               >
@@ -213,7 +213,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-border bg-white/5 p-3 text-xs sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 rounded-[10px] border border-border bg-primary/5 p-3 text-xs sm:grid-cols-5">
             <div>
               <span className="text-text-sub">จะนำเข้า</span>{' '}
               <span className="font-numeric font-semibold text-text" data-testid="import-summary-count">
@@ -327,7 +327,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
                         )}
                         {r.tax_type === 'no_vat' && (
                           <span
-                            className="rounded-full bg-white/5 px-2.5 py-1 text-xs font-medium text-text-sub"
+                            className="rounded-full bg-primary/5 px-2.5 py-1 text-xs font-medium text-text-sub"
                             data-testid={`import-row-tax-type-${r.rowNumber}`}
                           >
                             ไม่มี VAT
@@ -368,7 +368,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
         <button
           type="button"
           onClick={onClose}
-          className="btn-press rounded-[10px] border border-border bg-white/8 px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-white/15"
+          className="btn-press rounded-[10px] border border-border bg-primary/6 px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-primary/12"
         >
           ปิด
         </button>
@@ -376,7 +376,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
           <button
             type="button"
             onClick={handlePickAnotherFile}
-            className="btn-press rounded-[10px] border border-border bg-white/8 px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-white/15"
+            className="btn-press rounded-[10px] border border-border bg-primary/6 px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-primary/12"
           >
             เลือกไฟล์ใหม่
           </button>
@@ -385,7 +385,7 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
           type="button"
           onClick={handleConfirmImport}
           disabled={importableRows.length === 0 || importing}
-          className="btn-press rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover disabled:opacity-60"
+          className="btn-press rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover disabled:opacity-60"
           data-testid="confirm-import"
         >
           {importing ? 'กำลังนำเข้า...' : `นำเข้า ${importableRows.length} รายการ`}

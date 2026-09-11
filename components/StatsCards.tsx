@@ -35,8 +35,11 @@ export default function StatsCards({ stats, onCardClick }: StatsCardsProps) {
       label: 'ยอดรวมที่รอรับ (บาท)',
       value: THB.format(stats.totalPendingAmount),
       icon: Banknote,
-      iconBg: 'bg-brand/15',
-      iconColor: 'text-brand',
+      // (2026-09-11) เดิม text-brand เป็นฟ้าสด อ่านออกบนการ์ดเข้ม — ตอนนี้ --brand เป็นชมพูอ่อน #ffb9d3
+      // ซึ่งบนการ์ดขาวได้ contrast แค่ 1.5:1 (มองไม่เห็นไอคอนเลย) จึงใช้ --primary (โรส 5.76:1) เป็นสี
+      // ไอคอน แล้วคงพื้นวงกลมเป็นชมพูอ่อนของพาเลตไว้ตามเดิม
+      iconBg: 'bg-brand/35',
+      iconColor: 'text-primary',
     },
     {
       id: 'pending-vat',

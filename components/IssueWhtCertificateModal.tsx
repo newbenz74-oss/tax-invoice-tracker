@@ -310,8 +310,8 @@ export default function IssueWhtCertificateModal({
       aria-label="ออกใบหัก ณ ที่จ่าย"
       data-testid="issue-wht-cert-modal"
     >
-      {/* การ์ด/โมดัลทั้งระบบเป็นกระจกเข้มเสมอ (card-surface ชนะ bg-white เสมอตาม CSS Cascade Layers — ดู
-          คอมเมนต์เต็มใน app/globals.css) องค์ประกอบที่วางตรงบนพื้นการ์ดตรงนี้ (ไม่มีกล่อง bg-white ของ
+      {/* การ์ด/โมดัลทั้งระบบเป็นกระจกเข้มเสมอ (card-surface ชนะ bg-card-bg เสมอตาม CSS Cascade Layers — ดู
+          คอมเมนต์เต็มใน app/globals.css) องค์ประกอบที่วางตรงบนพื้นการ์ดตรงนี้ (ไม่มีกล่อง bg-card-bg ของ
           ตัวเอง) จึงต้องใช้สีอ่อน text-text/text-text-sub ให้อ่านออกบนพื้นเข้ม (2026-08-12)
 
           โครงสร้างเปลี่ยนเป็น flex column แบ่ง 3 ส่วน (2026-08-17 ตามคำขอผู้ใช้ "หน้าต่างกรอกข้อมูล...
@@ -321,7 +321,7 @@ export default function IssueWhtCertificateModal({
           อย่างชัดเจน — หัวเรื่อง/ปุ่มปิด และปุ่มยืนยัน/ยกเลิก จะอยู่กับที่เสมอ ไม่ว่าฟอร์มจะยาวแค่ไหน มีแค่ส่วน
           เนื้อหาฟอร์มตรงกลางเท่านั้นที่เลื่อนได้ */}
       <div
-        className="card-surface card-surface-modal flex max-h-[calc(100vh-32px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white"
+        className="card-surface card-surface-modal flex max-h-[calc(100vh-32px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-card-bg"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border/60 p-6 pb-4">
@@ -363,7 +363,7 @@ export default function IssueWhtCertificateModal({
               <button
                 type="button"
                 onClick={onGoToContacts}
-                className="btn-press mt-2 rounded-[10px] border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
+                className="btn-press mt-2 rounded-[10px] border border-amber-300 bg-card-bg px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
               >
                 ไปหน้าสมุดรายชื่อ
               </button>
@@ -540,7 +540,7 @@ export default function IssueWhtCertificateModal({
           <button
             type="button"
             onClick={onClose}
-            className="btn-press rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-gray-500 hover:bg-page-bg"
+            className="btn-press rounded-[10px] border border-border bg-card-bg px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg"
           >
             ยกเลิก
           </button>
@@ -549,7 +549,7 @@ export default function IssueWhtCertificateModal({
               type="button"
               disabled={!canSubmit}
               onClick={handleSubmit}
-              className="btn-press rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-press rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="confirm-issue-wht-cert"
             >
               {submitting ? 'กำลังออกใบ...' : mode === 'reissue' ? 'ยืนยันออกใบใหม่' : 'ยืนยันออกใบ'}
@@ -563,7 +563,7 @@ export default function IssueWhtCertificateModal({
 
 function inputClass(hasError: boolean): string {
   const base =
-    'h-11 w-full rounded-[10px] border bg-white px-3.5 text-sm text-gray-800 placeholder:text-gray-400 transition-colors duration-[250ms] focus:outline-none';
+    'h-11 w-full rounded-[10px] border bg-input px-3.5 text-sm text-text placeholder:text-text-sub transition-colors duration-[250ms] focus:outline-none';
   if (hasError) {
     return `${base} border-danger focus:border-danger focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]`;
   }

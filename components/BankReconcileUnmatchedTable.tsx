@@ -135,7 +135,7 @@ export default function BankReconcileUnmatchedTable({
           type="button"
           onClick={handleExportExcel}
           disabled={rows.length === 0}
-          className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white/8 px-3 py-1.5 text-xs font-medium text-text hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-primary/6 px-3 py-1.5 text-xs font-medium text-text hover:bg-primary/12 disabled:cursor-not-allowed disabled:opacity-50"
           data-testid={`${testId}-export-excel`}
         >
           <FileSpreadsheet size={14} aria-hidden="true" />

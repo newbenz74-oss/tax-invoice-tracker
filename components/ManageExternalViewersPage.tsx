@@ -126,7 +126,7 @@ export default function ManageExternalViewersPage() {
     return (
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-8">
         <div
-          className="rounded-xl border border-dashed border-border bg-white px-6 py-10 text-center text-sm text-gray-500"
+          className="rounded-xl border border-dashed border-border bg-card-bg px-6 py-10 text-center text-sm text-text-sub"
           data-testid="manage-external-viewers-forbidden"
         >
           หน้านี้สำหรับผู้ดูแลระบบเท่านั้น
@@ -166,7 +166,7 @@ export default function ManageExternalViewersPage() {
 
         {!pendingLoading && !pendingError && pendingViewers.length === 0 && (
           <div
-            className="rounded-xl border border-dashed border-border bg-white px-6 py-8 text-center text-sm text-gray-500"
+            className="rounded-xl border border-dashed border-border bg-card-bg px-6 py-8 text-center text-sm text-text-sub"
             data-testid="pending-external-empty"
           >
             ไม่มีคำขอที่รอดำเนินการตอนนี้
@@ -185,11 +185,11 @@ export default function ManageExternalViewersPage() {
               return (
                 <div
                   key={viewer.id}
-                  className="rounded-xl border border-border bg-white p-4"
+                  className="rounded-xl border border-border bg-card-bg p-4"
                   data-testid={`pending-external-row-${viewer.id}`}
                 >
-                  <p className="truncate text-sm font-medium text-gray-800">{viewer.email}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="truncate text-sm font-medium text-text">{viewer.email}</p>
+                  <p className="text-xs text-text-sub">
                     สมัครเมื่อ{' '}
                     {new Date(viewer.createdAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
                   </p>
@@ -203,7 +203,7 @@ export default function ManageExternalViewersPage() {
                           type="button"
                           onClick={() => toggleCompanyForUser(viewer.id, c.id)}
                           className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                            checked ? 'border-primary bg-primary-light text-primary' : 'border-border text-gray-600 hover:bg-gray-50'
+                            checked ? 'border-primary bg-primary-light text-primary' : 'border-border text-text-sub hover:bg-primary/8'
                           }`}
                         >
                           {c.name}
@@ -217,7 +217,7 @@ export default function ManageExternalViewersPage() {
                       type="button"
                       onClick={() => handleApprove(viewer.id)}
                       disabled={approvingId === viewer.id || selected.size === 0}
-                      className="h-10 rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                      className="h-10 rounded-lg bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                       data-testid={`approve-external-${viewer.id}`}
                     >
                       {approvingId === viewer.id ? 'กำลังอนุมัติ...' : 'อนุมัติ'}
@@ -247,7 +247,7 @@ export default function ManageExternalViewersPage() {
 
         {!approvedLoading && !approvedError && approvedViewers.length === 0 && (
           <div
-            className="rounded-xl border border-dashed border-border bg-white px-6 py-8 text-center text-sm text-gray-500"
+            className="rounded-xl border border-dashed border-border bg-card-bg px-6 py-8 text-center text-sm text-text-sub"
             data-testid="approved-external-empty"
           >
             ยังไม่มีผู้ใช้ภายนอกที่ได้รับสิทธิ์
@@ -267,10 +267,10 @@ export default function ManageExternalViewersPage() {
               return (
                 <div
                   key={viewer.id}
-                  className="rounded-xl border border-border bg-white p-4"
+                  className="rounded-xl border border-border bg-card-bg p-4"
                   data-testid={`approved-external-row-${viewer.id}`}
                 >
-                  <p className="truncate text-sm font-medium text-gray-800">{viewer.email}</p>
+                  <p className="truncate text-sm font-medium text-text">{viewer.email}</p>
 
                   <div className="mt-2 flex flex-wrap gap-2">
                     {viewer.companies.map((c) => (
@@ -297,7 +297,7 @@ export default function ManageExternalViewersPage() {
                       <select
                         value={addCompanyByUser[viewer.id] ?? ''}
                         onChange={(e) => setAddCompanyByUser((prev) => ({ ...prev, [viewer.id]: e.target.value }))}
-                        className="h-9 rounded-lg border border-border bg-white px-3 text-xs text-gray-800 focus:border-primary focus:outline-none"
+                        className="h-9 rounded-lg border border-border bg-card-bg px-3 text-xs text-text focus:border-primary focus:outline-none"
                       >
                         <option value="">เพิ่มบริษัท...</option>
                         {availableCompanies.map((c) => (
@@ -310,7 +310,7 @@ export default function ManageExternalViewersPage() {
                         type="button"
                         onClick={() => handleAddCompany(viewer.id)}
                         disabled={!addCompanyByUser[viewer.id] || busyGrantKey === `add-${viewer.id}`}
-                        className="h-9 rounded-lg border border-border px-3 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="h-9 rounded-lg border border-border px-3 text-xs font-medium text-text-sub hover:bg-primary/8 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         เพิ่ม
                       </button>

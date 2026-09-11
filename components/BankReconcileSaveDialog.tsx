@@ -82,7 +82,7 @@ export default function BankReconcileSaveDialog({
                 id="bank-reconcile-save-month"
                 value={month}
                 onChange={(e) => setMonth(Number(e.target.value))}
-                className="focus-ring-primary flex-1 rounded-[10px] border border-border bg-white/8 px-3.5 py-2.5 text-sm text-text"
+                className="focus-ring-primary flex-1 rounded-[10px] border border-border bg-primary/6 px-3.5 py-2.5 text-sm text-text"
                 data-testid="bank-reconcile-save-month"
               >
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
@@ -95,7 +95,7 @@ export default function BankReconcileSaveDialog({
                 value={year}
                 onChange={(e) => setYear(Number(e.target.value))}
                 aria-label="ปี"
-                className="focus-ring-primary w-28 rounded-[10px] border border-border bg-white/8 px-3.5 py-2.5 text-sm text-text"
+                className="focus-ring-primary w-28 rounded-[10px] border border-border bg-primary/6 px-3.5 py-2.5 text-sm text-text"
                 data-testid="bank-reconcile-save-year"
               >
                 {buddhistYearOptions().map((y) => (
@@ -114,13 +114,13 @@ export default function BankReconcileSaveDialog({
 
           <div>
             <span className="mb-1.5 block text-sm font-medium text-text">สถานะ</span>
-            <div className="flex rounded-[10px] border border-border bg-white/8 p-1" role="group" aria-label="เลือกสถานะ">
+            <div className="flex rounded-[10px] border border-border bg-primary/6 p-1" role="group" aria-label="เลือกสถานะ">
               <button
                 type="button"
                 onClick={() => setStatus('draft')}
                 aria-pressed={status === 'draft'}
                 className={`btn-press flex-1 rounded-[8px] px-3.5 py-1.5 text-sm font-medium transition-colors duration-150 ${
-                  status === 'draft' ? 'bg-primary text-white' : 'text-text-sub hover:bg-page-bg'
+                  status === 'draft' ? 'bg-primary text-on-primary' : 'text-text-sub hover:bg-page-bg'
                 }`}
                 data-testid="bank-reconcile-save-status-draft"
               >
@@ -131,7 +131,7 @@ export default function BankReconcileSaveDialog({
                 onClick={() => setStatus('complete')}
                 aria-pressed={status === 'complete'}
                 className={`btn-press flex-1 rounded-[8px] px-3.5 py-1.5 text-sm font-medium transition-colors duration-150 ${
-                  status === 'complete' ? 'bg-primary text-white' : 'text-text-sub hover:bg-page-bg'
+                  status === 'complete' ? 'bg-primary text-on-primary' : 'text-text-sub hover:bg-page-bg'
                 }`}
                 data-testid="bank-reconcile-save-status-complete"
               >
@@ -152,7 +152,7 @@ export default function BankReconcileSaveDialog({
             type="button"
             onClick={onCancel}
             disabled={saving}
-            className="btn-press rounded-[10px] border border-border bg-white/8 px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-press rounded-[10px] border border-border bg-primary/6 px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-primary/12 disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="bank-reconcile-save-cancel"
           >
             ยกเลิก
@@ -161,7 +161,7 @@ export default function BankReconcileSaveDialog({
             type="button"
             onClick={() => onConfirm({ periodMonth: month, periodYear: year, status })}
             disabled={saving}
-            className="btn-press rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-press rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="bank-reconcile-save-confirm"
           >
             {saving ? 'กำลังบันทึก...' : 'บันทึก'}

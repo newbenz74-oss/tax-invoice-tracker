@@ -175,8 +175,9 @@ export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchase
       label: 'จำนวนรายการที่ยังไม่ได้รับ',
       value: kpis.itemCount,
       icon: ListChecks,
-      iconBg: 'bg-brand/15',
-      iconColor: 'text-brand',
+      // (2026-09-11) เหตุผลเดียวกับ StatsCards.tsx — --brand เป็นชมพูอ่อนแล้ว ใช้เป็นสีไอคอนบนการ์ดขาวไม่ได้
+      iconBg: 'bg-brand/35',
+      iconColor: 'text-primary',
     },
     {
       id: 'vendor-count',
@@ -246,7 +247,7 @@ export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchase
         <select
           value={filters.month}
           onChange={(e) => updateFilter('month', e.target.value === 'all' ? 'all' : Number(e.target.value))}
-          className="focus-ring-primary rounded-[10px] border border-border bg-white px-3.5 py-2.5 text-sm text-gray-800"
+          className="focus-ring-primary rounded-[10px] border border-border bg-input px-3.5 py-2.5 text-sm text-text"
           data-testid="overdue-report-month-filter"
         >
           <option value="all">ทุกเดือน</option>
@@ -260,7 +261,7 @@ export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchase
         <select
           value={filters.year}
           onChange={(e) => updateFilter('year', e.target.value === 'all' ? 'all' : Number(e.target.value))}
-          className="focus-ring-primary rounded-[10px] border border-border bg-white px-3.5 py-2.5 text-sm text-gray-800"
+          className="focus-ring-primary rounded-[10px] border border-border bg-input px-3.5 py-2.5 text-sm text-text"
           data-testid="overdue-report-year-filter"
         >
           <option value="all">ทุกปี</option>
@@ -277,7 +278,7 @@ export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchase
         <select
           value={filters.agingStatus}
           onChange={(e) => updateFilter('agingStatus', e.target.value as OverdueFilterOptions['agingStatus'])}
-          className="focus-ring-primary rounded-[10px] border border-border bg-white px-3.5 py-2.5 text-sm text-gray-800"
+          className="focus-ring-primary rounded-[10px] border border-border bg-input px-3.5 py-2.5 text-sm text-text"
           data-testid="overdue-report-status-filter"
         >
           <option value="all">ทั้งหมด</option>
@@ -291,7 +292,7 @@ export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchase
         <select
           value={filters.vendor}
           onChange={(e) => updateFilter('vendor', e.target.value)}
-          className="focus-ring-primary rounded-[10px] border border-border bg-white px-3.5 py-2.5 text-sm text-gray-800"
+          className="focus-ring-primary rounded-[10px] border border-border bg-input px-3.5 py-2.5 text-sm text-text"
           data-testid="overdue-report-vendor-filter"
         >
           <option value="all">ทุกผู้ขาย</option>
@@ -305,7 +306,7 @@ export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchase
         <div className="relative">
           <Search
             size={16}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-sub"
             aria-hidden="true"
           />
           <input
@@ -313,14 +314,14 @@ export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchase
             value={searchDraft}
             onChange={(e) => setSearchDraft(e.target.value)}
             placeholder="ค้นหาผู้ขาย / รายละเอียด / เลขที่อ้างอิง"
-            className="focus-ring-primary w-64 rounded-[10px] border border-border bg-white py-2.5 pl-9 pr-3.5 text-sm text-gray-800"
+            className="focus-ring-primary w-64 rounded-[10px] border border-border bg-card-bg py-2.5 pl-9 pr-3.5 text-sm text-text"
             data-testid="overdue-report-search-input"
           />
         </div>
 
         <button
           type="submit"
-          className="btn-press flex items-center gap-1.5 rounded-[10px] bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-hover"
+          className="btn-press flex items-center gap-1.5 rounded-[10px] bg-primary px-4 py-2.5 text-sm font-medium text-on-primary hover:bg-primary-hover"
           data-testid="overdue-report-search-submit"
         >
           <Search size={16} aria-hidden="true" />
@@ -329,7 +330,7 @@ export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchase
         <button
           type="button"
           onClick={handleClearFilters}
-          className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-gray-500 hover:bg-page-bg"
+          className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-card-bg px-4 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg"
           data-testid="overdue-report-clear-filters"
         >
           <X size={16} aria-hidden="true" />
@@ -341,7 +342,7 @@ export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchase
             type="button"
             onClick={handleExportExcel}
             disabled={filteredInvoices.length === 0}
-            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-page-bg disabled:opacity-50"
+            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-card-bg px-4 py-2.5 text-sm font-medium text-text hover:bg-page-bg disabled:opacity-50"
             data-testid="overdue-report-export-excel"
           >
             <FileSpreadsheet size={16} aria-hidden="true" />
@@ -351,7 +352,7 @@ export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchase
             type="button"
             onClick={handleExportPdf}
             disabled={filteredInvoices.length === 0}
-            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-page-bg disabled:opacity-50"
+            className="btn-press flex items-center gap-1.5 rounded-[10px] border border-border bg-card-bg px-4 py-2.5 text-sm font-medium text-text hover:bg-page-bg disabled:opacity-50"
             data-testid="overdue-report-export-pdf"
           >
             <FileText size={16} aria-hidden="true" />
@@ -420,7 +421,7 @@ export default function OverduePurchaseTaxReport({ onNavigate }: OverduePurchase
                           type="button"
                           onClick={() => toggleMonth(group.monthKey)}
                           aria-expanded={isExpanded}
-                          className="btn-press ml-auto flex items-center gap-1 rounded-[10px] border border-border bg-white px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-page-bg"
+                          className="btn-press ml-auto flex items-center gap-1 rounded-[10px] border border-border bg-card-bg px-3 py-1.5 text-xs font-medium text-text-sub hover:bg-page-bg"
                           data-testid={`overdue-report-month-toggle-${group.monthKey}`}
                         >
                           ดูรายละเอียด

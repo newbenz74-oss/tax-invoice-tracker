@@ -85,25 +85,25 @@ export default function ExternalDashboardPage() {
 
   return (
     <div className="min-h-screen bg-page-bg">
-      <header className="border-b border-border bg-white">
+      <header className="border-b border-border bg-card-bg">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-8">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-light">
               <Receipt className="h-4.5 w-4.5 text-primary" strokeWidth={2} aria-hidden="true" />
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900">ใบหัก ณ ที่จ่าย</p>
-              <p className="text-xs text-gray-400">สำหรับบุคคลภายนอก</p>
+              <p className="text-sm font-bold text-text">ใบหัก ณ ที่จ่าย</p>
+              <p className="text-xs text-text-sub">สำหรับบุคคลภายนอก</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {session.user?.email && (
-              <span className="hidden text-sm text-gray-500 sm:inline">{session.user.email}</span>
+              <span className="hidden text-sm text-text-sub sm:inline">{session.user.email}</span>
             )}
             <button
               type="button"
               onClick={handleSignOut}
-              className="flex h-9 items-center gap-1.5 rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-text-sub hover:bg-primary/8"
             >
               <LogOut className="h-4 w-4" aria-hidden="true" />
               ออกจากระบบ
@@ -124,12 +124,12 @@ export default function ExternalDashboardPage() {
         )}
 
         {!companiesLoading && !companiesError && companies.length === 0 && (
-          <div className="rounded-xl border border-dashed border-border bg-white px-6 py-16 text-center">
+          <div className="rounded-xl border border-dashed border-border bg-card-bg px-6 py-16 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary-light">
               <Building2 className="h-6 w-6 text-primary" strokeWidth={2} aria-hidden="true" />
             </div>
-            <p className="text-base font-semibold text-gray-800">รอผู้ดูแลระบบอนุมัติสิทธิ์</p>
-            <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
+            <p className="text-base font-semibold text-text">รอผู้ดูแลระบบอนุมัติสิทธิ์</p>
+            <p className="mx-auto mt-2 max-w-md text-sm text-text-sub">
               บัญชีของคุณสมัครสมาชิกสำเร็จแล้ว แต่ยังไม่ได้รับสิทธิ์เข้าดูใบหัก ณ ที่จ่ายของบริษัทไหนเลย
               กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์เข้าใช้งาน
             </p>
@@ -146,7 +146,7 @@ export default function ExternalDashboardPage() {
                     type="button"
                     onClick={() => setSelectedCompanyId(c.id)}
                     className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                      selectedCompany.id === c.id ? 'bg-primary text-white shadow-sm' : 'bg-white text-gray-600 border border-border hover:text-primary'
+                      selectedCompany.id === c.id ? 'bg-primary text-on-primary shadow-sm' : 'bg-card-bg text-text-sub border border-border hover:text-primary'
                     }`}
                   >
                     {c.name}
@@ -199,7 +199,7 @@ function CompanyCertificateList({ company }: { company: ExternalCompanySummary }
         <select
           value={formTypeFilter}
           onChange={(e) => setFormTypeFilter(e.target.value as WhtFormType | '')}
-          className="h-10 rounded-lg border border-border bg-white px-3 text-sm text-gray-800 focus:border-primary focus:outline-none"
+          className="h-10 rounded-lg border border-border bg-input px-3 text-sm text-text focus:border-primary focus:outline-none"
           data-testid="external-wht-form-type-filter"
         >
           <option value="">-- เลือกประเภท --</option>
@@ -209,7 +209,7 @@ function CompanyCertificateList({ company }: { company: ExternalCompanySummary }
         <select
           value={monthFilter}
           onChange={(e) => setMonthFilter(e.target.value ? Number(e.target.value) : '')}
-          className="h-10 rounded-lg border border-border bg-white px-3 text-sm text-gray-800 focus:border-primary focus:outline-none"
+          className="h-10 rounded-lg border border-border bg-input px-3 text-sm text-text focus:border-primary focus:outline-none"
           data-testid="external-wht-month-filter"
         >
           <option value="">-- เลือกเดือน --</option>
@@ -222,7 +222,7 @@ function CompanyCertificateList({ company }: { company: ExternalCompanySummary }
         <select
           value={yearFilter}
           onChange={(e) => setYearFilter(e.target.value ? Number(e.target.value) : '')}
-          className="h-10 rounded-lg border border-border bg-white px-3 text-sm text-gray-800 focus:border-primary focus:outline-none"
+          className="h-10 rounded-lg border border-border bg-input px-3 text-sm text-text focus:border-primary focus:outline-none"
           data-testid="external-wht-year-filter"
         >
           <option value="">-- เลือกปี --</option>
@@ -244,7 +244,7 @@ function CompanyCertificateList({ company }: { company: ExternalCompanySummary }
 
       {!certLoading && !certError && !filtersComplete && (
         <div
-          className="rounded-xl border border-dashed border-border bg-white px-6 py-10 text-center text-sm text-gray-500"
+          className="rounded-xl border border-dashed border-border bg-card-bg px-6 py-10 text-center text-sm text-text-sub"
           data-testid="external-wht-filters-incomplete"
         >
           กรุณาเลือกประเภท เดือน และปีให้ครบ เพื่อแสดงรายการใบหัก ณ ที่จ่าย
@@ -252,16 +252,16 @@ function CompanyCertificateList({ company }: { company: ExternalCompanySummary }
       )}
 
       {!certLoading && !certError && filtersComplete && activeCertificates.length === 0 && (
-        <div className="rounded-xl border border-dashed border-border bg-white px-6 py-10 text-center text-sm text-gray-500">
+        <div className="rounded-xl border border-dashed border-border bg-card-bg px-6 py-10 text-center text-sm text-text-sub">
           ไม่พบใบหัก ณ ที่จ่ายของบริษัทนี้ในช่วงที่เลือก
         </div>
       )}
 
       {!certLoading && !certError && filtersComplete && activeCertificates.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-border bg-white">
+        <div className="overflow-hidden rounded-xl border border-border bg-card-bg">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-gray-50 text-left text-xs font-medium text-gray-500">
+              <tr className="border-b border-border bg-table-header text-left text-xs font-medium text-text-sub">
                 <th className="px-4 py-3">เลขที่</th>
                 <th className="px-4 py-3">ผู้ถูกหักภาษี</th>
                 <th className="px-4 py-3">วันที่ออก</th>
@@ -272,17 +272,17 @@ function CompanyCertificateList({ company }: { company: ExternalCompanySummary }
             <tbody>
               {activeCertificates.map((cert) => (
                 <tr key={cert.id} className="border-b border-border last:border-0" data-testid={`external-cert-row-${cert.id}`}>
-                  <td className="px-4 py-3 font-medium text-gray-800">{cert.cert_number}</td>
-                  <td className="px-4 py-3 text-gray-700">{cert.payee_name}</td>
-                  <td className="px-4 py-3 text-gray-500">
+                  <td className="px-4 py-3 font-medium text-text">{cert.cert_number}</td>
+                  <td className="px-4 py-3 text-text">{cert.payee_name}</td>
+                  <td className="px-4 py-3 text-text-sub">
                     {new Date(cert.issued_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
                   </td>
-                  <td className="px-4 py-3 text-right text-gray-700">{THB.format(cert.total_wht_amount)}</td>
+                  <td className="px-4 py-3 text-right text-text">{THB.format(cert.total_wht_amount)}</td>
                   <td className="px-4 py-3 text-right">
                     <button
                       type="button"
                       onClick={() => downloadExternalWhtCertificatePdf(cert)}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-text-sub hover:bg-primary/8"
                     >
                       <Download className="h-3.5 w-3.5" aria-hidden="true" />
                       PDF

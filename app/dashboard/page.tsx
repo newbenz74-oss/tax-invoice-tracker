@@ -622,7 +622,7 @@ function ExpenseRecordContent({
               ประการ จึงใช้คลาส entrance-animate/entrance-delay-1/2/3 ชุดเดิมจาก globals.css ไล่ตำแหน่งเดียวกัน
               ตรงๆ ได้เลย (ไม่เพิ่มคลาส/tier ใหม่): ปุ่มกรองสถานะ (delay-1) → ค้นหา/นำเข้า/เพิ่มรายการ
               (delay-2) → ตาราง+pagination (delay-3) */}
-          {/* bg-white/8 + hover:bg-white/15 (แทน bg-white/hover:bg-page-bg ทึบเดิม) ตามธีมกระจกเข้ม
+          {/* bg-primary/6 + hover:bg-primary/12 (แทน bg-white/hover:bg-page-bg ทึบเดิม) ตามธีมกระจกเข้ม
               (dark glassmorphism, 2026-07-18 รอบ 3) — ฟังก์ชันนี้เพิ่งถูกตั้งฐานใหม่จาก GitHub ตอนทำฟีเจอร์
               entrance-animate เมื่อครู่ ทำให้หลุดจากธีมเข้มไปชั่วคราว ใส่กลับให้ตรงกับไฟล์อื่นๆ ในระบบ */}
           <div className="entrance-animate entrance-delay-1 flex flex-wrap gap-2">
@@ -636,8 +636,8 @@ function ExpenseRecordContent({
                 onClick={() => handleStatusFilterChange(s)}
                 className={`btn-press rounded-full px-4 py-2 text-sm font-medium transition-colors duration-[250ms] ${
                   statusFilter === s
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'border border-border bg-white/8 text-text-sub hover:bg-white/15'
+                    ? 'bg-primary text-on-primary shadow-sm'
+                    : 'border border-border bg-primary/6 text-text-sub hover:bg-primary/12'
                 }`}
                 data-testid={`filter-${s}`}
               >
@@ -667,7 +667,7 @@ function ExpenseRecordContent({
                 value={search}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="ค้นหาผู้ขาย / เลขที่อ้างอิง / เลขใบกำกับภาษี"
-                className="focus-ring-primary h-12 w-64 rounded-xl border border-border bg-white/5 pr-4 pl-10 text-sm text-text placeholder:text-text-sub"
+                className="focus-ring-primary h-12 w-64 rounded-xl border border-border bg-primary/5 pr-4 pl-10 text-sm text-text placeholder:text-text-sub"
                 data-testid="search-input"
               />
             </div>
@@ -678,7 +678,7 @@ function ExpenseRecordContent({
             <select
               value={monthFilterDraft}
               onChange={(e) => handleMonthFilterChange(e.target.value ? Number(e.target.value) : '')}
-              className="focus-ring-primary h-12 rounded-xl border border-border bg-white/8 px-3.5 text-sm text-text"
+              className="focus-ring-primary h-12 rounded-xl border border-border bg-primary/6 px-3.5 text-sm text-text"
               data-testid="month-filter"
             >
               <option value="">ทุกเดือน</option>
@@ -691,7 +691,7 @@ function ExpenseRecordContent({
             <select
               value={yearFilterDraft}
               onChange={(e) => handleYearFilterChange(e.target.value ? Number(e.target.value) : '')}
-              className="focus-ring-primary h-12 rounded-xl border border-border bg-white/8 px-3.5 text-sm text-text"
+              className="focus-ring-primary h-12 rounded-xl border border-border bg-primary/6 px-3.5 text-sm text-text"
               data-testid="year-filter"
             >
               <option value="">ทุกปี</option>
@@ -703,7 +703,7 @@ function ExpenseRecordContent({
             </select>
             <button
               onClick={handleApplyDateFilter}
-              className="btn-press h-12 rounded-[10px] bg-primary/90 px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary"
+              className="btn-press h-12 rounded-[10px] bg-primary/90 px-4 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary"
               data-testid="apply-date-filter"
             >
               ตกลง
@@ -713,7 +713,7 @@ function ExpenseRecordContent({
                 setShowImportPanel(true);
                 setShowForm(false);
               }}
-              className="btn-press h-12 rounded-[10px] border border-border bg-white/8 px-4 text-sm font-medium text-text hover:bg-white/15"
+              className="btn-press h-12 rounded-[10px] border border-border bg-primary/6 px-4 text-sm font-medium text-text hover:bg-primary/12"
               data-testid="open-import-panel"
             >
               นำเข้าจาก Excel
@@ -724,7 +724,7 @@ function ExpenseRecordContent({
                 setShowForm(true);
                 setShowImportPanel(false);
               }}
-              className="btn-press h-12 rounded-[10px] bg-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover"
+              className="btn-press h-12 rounded-[10px] bg-primary px-4 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover"
               data-testid="open-add-form"
             >
               + เพิ่มรายการ
@@ -831,7 +831,7 @@ function ExpenseRecordContent({
                   <select
                     value={pageSize}
                     onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                    className="rounded-[8px] border border-border bg-white/8 px-2 py-1 text-xs text-text focus:outline-none"
+                    className="rounded-[8px] border border-border bg-primary/6 px-2 py-1 text-xs text-text focus:outline-none"
                     data-testid="pagination-page-size"
                   >
                     {PAGE_SIZE_OPTIONS.map((size) => (
@@ -848,7 +848,7 @@ function ExpenseRecordContent({
                   type="button"
                   disabled={safePage <= 1}
                   onClick={() => setPage(safePage - 1)}
-                  className="btn-press rounded-[10px] border border-border bg-white/8 px-3.5 py-2 text-sm font-medium text-text hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-press rounded-[10px] border border-border bg-primary/6 px-3.5 py-2 text-sm font-medium text-text hover:bg-primary/12 disabled:cursor-not-allowed disabled:opacity-50"
                   data-testid="pagination-prev"
                 >
                   ก่อนหน้า
@@ -860,7 +860,7 @@ function ExpenseRecordContent({
                   type="button"
                   disabled={safePage >= totalPages}
                   onClick={() => setPage(safePage + 1)}
-                  className="btn-press rounded-[10px] border border-border bg-white/8 px-3.5 py-2 text-sm font-medium text-text hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-press rounded-[10px] border border-border bg-primary/6 px-3.5 py-2 text-sm font-medium text-text hover:bg-primary/12 disabled:cursor-not-allowed disabled:opacity-50"
                   data-testid="pagination-next"
                 >
                   ถัดไป

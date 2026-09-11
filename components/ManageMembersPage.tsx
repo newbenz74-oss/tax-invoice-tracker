@@ -68,7 +68,7 @@ export default function ManageMembersPage() {
     return (
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-8">
         <div
-          className="rounded-xl border border-dashed border-border bg-white px-6 py-10 text-center text-sm text-gray-500"
+          className="rounded-xl border border-dashed border-border bg-card-bg px-6 py-10 text-center text-sm text-text-sub"
           data-testid="manage-members-forbidden"
         >
           หน้านี้สำหรับผู้ดูแลระบบเท่านั้น
@@ -105,7 +105,7 @@ export default function ManageMembersPage() {
 
       {!loading && !loadError && pendingUsers.length === 0 && (
         <div
-          className="rounded-xl border border-dashed border-border bg-white px-6 py-10 text-center text-sm text-gray-500"
+          className="rounded-xl border border-dashed border-border bg-card-bg px-6 py-10 text-center text-sm text-text-sub"
           data-testid="manage-members-empty"
         >
           ไม่มีคำขอสมัครที่รอดำเนินการตอนนี้
@@ -119,19 +119,19 @@ export default function ManageMembersPage() {
               {approveError}
             </p>
           )}
-          {/* แก้บั๊กตัวหนังสือมองไม่เห็น (2026-08-10) — การ์ดแถวนี้ตั้งใจใช้ bg-white ทึบล้วน (ไม่ใช่กระจก
+          {/* แก้บั๊กตัวหนังสือมองไม่เห็น (2026-08-10) — การ์ดแถวนี้ตั้งใจใช้ bg-card-bg ทึบล้วน (ไม่ใช่กระจก
               เข้มเหมือนพื้นหลังหน้าอื่นๆ) ตอนแรกใช้ text-text/text-text-sub (สีเกือบขาว ออกแบบมาให้อ่านออก
               บนพื้นเข้มเท่านั้น) ผิดคู่กัน ทำให้ตัวหนังสือแทบมองไม่เห็นบนพื้นขาว — เปลี่ยนเป็น text-gray-800/
-              text-gray-500 ตรงๆ แทน (ค่าเดิมก่อนธีมมืดของ --text/--text-sub ตามคอมเมนต์ใน app/globals.css) */}
+              text-text-sub ตรงๆ แทน (ค่าเดิมก่อนธีมมืดของ --text/--text-sub ตามคอมเมนต์ใน app/globals.css) */}
           {pendingUsers.map((user) => (
             <div
               key={user.id}
-              className="flex flex-col gap-3 rounded-xl border border-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-3 rounded-xl border border-border bg-card-bg p-4 sm:flex-row sm:items-center sm:justify-between"
               data-testid={`manage-members-row-${user.id}`}
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-gray-800">{user.email}</p>
-                <p className="text-xs text-gray-500">
+                <p className="truncate text-sm font-medium text-text">{user.email}</p>
+                <p className="text-xs text-text-sub">
                   สมัครเมื่อ{' '}
                   {new Date(user.createdAt).toLocaleDateString('th-TH', {
                     year: 'numeric',
@@ -144,7 +144,7 @@ export default function ManageMembersPage() {
                 <select
                   value={companyForUser(user.id)}
                   onChange={(e) => setSelectedCompanyByUser((prev) => ({ ...prev, [user.id]: e.target.value }))}
-                  className="h-10 rounded-lg border border-border bg-white px-3 text-sm text-gray-800 focus:border-primary focus:outline-none"
+                  className="h-10 rounded-lg border border-border bg-input px-3 text-sm text-text focus:border-primary focus:outline-none"
                   data-testid={`manage-members-company-select-${user.id}`}
                 >
                   {companies.map((c) => (
@@ -157,7 +157,7 @@ export default function ManageMembersPage() {
                   type="button"
                   onClick={() => handleApprove(user.id)}
                   disabled={approvingId === user.id || !companyForUser(user.id)}
-                  className="h-10 rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-10 rounded-lg bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                   data-testid={`manage-members-approve-${user.id}`}
                 >
                   {approvingId === user.id ? 'กำลังอนุมัติ...' : 'อนุมัติ'}

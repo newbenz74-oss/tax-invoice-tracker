@@ -427,13 +427,13 @@ export default function ContactForm({
       {/* Modal Footer — คงที่เสมอ ไม่เลื่อนตาม Body (sticky เพิ่มไว้เป็น defensive styling ตามสเปก
           แม้ในโครงสร้าง flex นี้ header/footer จะไม่เลื่อนอยู่แล้วเพราะอยู่นอก scroll container) */}
       <div
-        className="sticky bottom-0 z-10 grid flex-none grid-cols-2 gap-2.5 border-t border-border bg-white px-6 py-4 sm:px-7 md:flex md:justify-end"
+        className="sticky bottom-0 z-10 grid flex-none grid-cols-2 gap-2.5 border-t border-border bg-card-bg px-6 py-4 sm:px-7 md:flex md:justify-end"
         data-testid="contact-form-footer"
       >
         <button
           type="button"
           onClick={onCancel}
-          className="btn-press w-full rounded-[10px] border border-border bg-white px-5 py-2.5 text-sm font-medium text-gray-500 hover:bg-page-bg md:w-auto"
+          className="btn-press w-full rounded-[10px] border border-border bg-card-bg px-5 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg md:w-auto"
         >
           {readOnly ? 'ปิด' : 'ยกเลิก'}
         </button>
@@ -443,7 +443,7 @@ export default function ContactForm({
               key="switch-to-edit-button"
               type="button"
               onClick={onRequestEdit}
-              className="btn-press w-full rounded-[10px] bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover md:w-auto"
+              className="btn-press w-full rounded-[10px] bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover md:w-auto"
               data-testid="switch-to-edit"
             >
               แก้ไข
@@ -454,7 +454,7 @@ export default function ContactForm({
             key="submit-contact-form-button"
             type="submit"
             disabled={submitting}
-            className="btn-press w-full rounded-[10px] bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover disabled:opacity-60 md:w-auto"
+            className="btn-press w-full rounded-[10px] bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover disabled:opacity-60 md:w-auto"
             data-testid="submit-contact-form"
           >
             {submitting ? 'กำลังบันทึก...' : editingContact ? 'บันทึกการแก้ไข' : 'เพิ่มรายชื่อ'}
@@ -465,9 +465,9 @@ export default function ContactForm({
   );
 }
 
-// ช่องกรอก (input/select/textarea) มี bg-white ของตัวเอง ไม่ติด .card-surface จึงเป็นกล่องขาวทึบจริง ใช้
+// ช่องกรอก (input/select/textarea) มี bg-card-bg ของตัวเอง ไม่ติด .card-surface จึงเป็นกล่องขาวทึบจริง ใช้
 // text-gray-800/placeholder:text-gray-400 ถูกต้องแล้ว (2026-08-12) — Modal Body ที่ครอบฟอร์มนี้ (บรรทัดถัดไป)
-// ไม่มี bg-white ของตัวเอง จึงวางอยู่บนพื้น .card-surface ของการ์ด modal ตรงๆ (กระจกเข้มเสมอ ดู
+// ไม่มี bg-card-bg ของตัวเอง จึงวางอยู่บนพื้น .card-surface ของการ์ด modal ตรงๆ (กระจกเข้มเสมอ ดู
 // app/globals.css) หัวข้อ Section/label ของ Field ด้านล่างจึงต้องใช้สีอ่อน text-text/text-text-sub แทน
 /** ช่องกรอกทั่วไป (input/select) — ความสูงคงที่ 44px ตามสเปก (ลดจากเดิมที่ใช้ padding แนวตั้งอย่างเดียว) */
 function inputClass(hasError: boolean): string {
@@ -479,7 +479,7 @@ function inputClass(hasError: boolean): string {
   // ด้วยเช่นกัน ไม่ใช่สลับไปใช้โทนเข้มของธีมทั้งหน้า — เปลี่ยนเป็นเทาอ่อนกล่องเทาอ่อน + ตัวหนังสือเทาเข้มอ่านง่าย
   // ชัดเจน (ไม่ใช้ opacity ลดทั้งกล่องอีกต่อไป เพราะลดทั้งตัวหนังสือไปด้วยเสมอ ไม่ว่าพื้นหลังจะเป็นสีอะไร)
   const base =
-    'h-11 w-full rounded-[10px] border bg-white px-3.5 text-sm text-gray-800 placeholder:text-gray-400 transition-colors duration-[250ms] focus:outline-none disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-700';
+    'h-11 w-full rounded-[10px] border bg-input px-3.5 text-sm text-text placeholder:text-text-sub transition-colors duration-[250ms] focus:outline-none disabled:cursor-not-allowed disabled:border-border disabled:bg-primary/6 disabled:text-text-sub';
   if (hasError) {
     return `${base} border-danger focus:border-danger focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]`;
   }
@@ -492,7 +492,7 @@ function textareaClass(hasError: boolean): string {
   // ดูคอมเมนต์เต็มที่ inputClass ด้านบน — บั๊กเดียวกัน (ตัวหนังสือเข้มบนพื้นเข้มตอน disabled) แก้ด้วยวิธี
   // เดียวกัน
   const base =
-    'min-h-[96px] w-full resize-y rounded-[10px] border bg-white px-3.5 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 transition-colors duration-[250ms] focus:outline-none disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-700';
+    'min-h-[96px] w-full resize-y rounded-[10px] border bg-input px-3.5 py-2.5 text-sm text-text placeholder:text-text-sub transition-colors duration-[250ms] focus:outline-none disabled:cursor-not-allowed disabled:border-border disabled:bg-primary/6 disabled:text-text-sub';
   if (hasError) {
     return `${base} border-danger focus:border-danger focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]`;
   }

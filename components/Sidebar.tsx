@@ -107,7 +107,12 @@ export default function Sidebar({ activeId, onSelect, isOpen, onClose, isAdmin =
         // กันอย่างนุ่มนวล ตั้งใจไม่แตะ transform เลย (ดูเหตุผลเต็มที่คอมเมนต์ .dashboard-content-entrance
         // ใน globals.css) จึงไม่ชนกับ transition-transform ที่ควบคุมเปิด/ปิดบนมือถือด้านล่างนี้เลย
         // (animation คนละ property กัน อยู่ร่วมกันได้ปกติ)
-        className={`dashboard-sidebar-entrance fixed inset-y-0 left-0 z-50 flex w-[250px] flex-col overflow-hidden bg-linear-to-b from-sidebar-start to-sidebar-end text-gray-50 shadow-xl transition-transform duration-[250ms] ease-in-out min-[992px]:!translate-x-0 ${
+        // (2026-09-11 — ธีมชมพูพาสเทล) เดิม text-gray-50 (เกือบขาว) เพราะแถบเมนูเป็นกรมท่าเข้ม ตอนนี้แถบ
+        // เมนูเป็นชมพูพาสเทล (--sidebar-start/end) ตัวหนังสือขาวจะได้ contrast แค่ ~1.6:1 มองแทบไม่เห็น
+        // จึงสลับเป็น text-text (พลัมเข้ม) ซึ่งได้ 6.5:1 บนชมพูเข้มสุดของแถบ — ทุกจุดในไฟล์นี้ที่เคยใช้
+        // โทนขาว/เทาอ่อน (text-on-primary, text-gray-400, group-hover:text-gray-100, hover:bg-white/[0.08])
+        // ถูกสลับเป็นโทนเข้มคู่กันทั้งหมดในรอบเดียวกัน ไม่ได้แก้แค่บรรทัดนี้บรรทัดเดียว
+        className={`dashboard-sidebar-entrance fixed inset-y-0 left-0 z-50 flex w-[250px] flex-col overflow-hidden bg-linear-to-b from-sidebar-start to-sidebar-end text-text shadow-xl transition-transform duration-[250ms] ease-in-out min-[992px]:!translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         onTouchStart={handleTouchStart}
@@ -123,22 +128,24 @@ export default function Sidebar({ activeId, onSelect, isOpen, onClose, isAdmin =
                 src={selectedCompany.logo_url}
                 alt=""
                 aria-hidden="true"
-                className="h-10 w-10 shrink-0 rounded-xl bg-white object-contain p-1 shadow-[0_4px_14px_-2px_rgba(47,167,226,0.55)]"
+                className="h-10 w-10 shrink-0 rounded-xl bg-white object-contain p-1 shadow-[0_4px_14px_-2px_rgba(176,58,103,0.35)]"
               />
             ) : (
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-primary to-brand text-base font-bold text-white shadow-[0_4px_14px_-2px_rgba(47,167,226,0.55)]">
+              // เดิมไล่สี from-primary to-brand — ตอนนี้ --brand เป็นชมพูอ่อน (#ffb9d3) ถ้ายังไล่ไปหามัน
+              // ตัวอักษรย่อสีขาวจะจมหายไปครึ่งหนึ่งของกล่อง จึงใช้ --primary ทึบล้วนแทน (ขาวบนโรส = 5.76:1)
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-base font-bold text-on-primary shadow-[0_4px_14px_-2px_rgba(176,58,103,0.35)]">
                 {sidebarInitial}
               </div>
             )}
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold tracking-wide text-white">{sidebarTitle}</p>
-              <p className="truncate text-[11px] text-gray-400">ระบบบัญชีและกระทบยอด</p>
+              <p className="truncate text-sm font-bold tracking-wide text-text">{sidebarTitle}</p>
+              <p className="truncate text-[11px] text-text-sub">ระบบบัญชีและกระทบยอด</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-md p-1 text-gray-400 transition-colors duration-[250ms] hover:bg-white/[0.08] min-[992px]:hidden"
+            className="shrink-0 rounded-md p-1 text-text-sub transition-colors duration-[250ms] hover:bg-primary/10 hover:text-text min-[992px]:hidden"
             aria-label="ปิดเมนู"
             data-testid="sidebar-close"
           >
@@ -204,21 +211,21 @@ function NavItem({
         <button
           type="button"
           onClick={() => onToggleSection(entry.id)}
-          className="group flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-sm font-medium text-gray-50 transition-all duration-[250ms] hover:translate-x-[3px] hover:bg-primary/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className="group flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-sm font-medium text-text transition-all duration-[250ms] hover:translate-x-[3px] hover:bg-primary/12 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           data-testid={`nav-section-${entry.id}`}
           aria-expanded={isExpanded}
           aria-controls={panelId}
         >
           <Icon
             size={18}
-            className="shrink-0 text-gray-400 transition-colors duration-[250ms] group-hover:text-gray-100"
+            className="shrink-0 text-text-sub transition-colors duration-[250ms] group-hover:text-primary"
             aria-hidden="true"
           />
           <span className="flex-1">{entry.label}</span>
           <ChevronDown
             size={16}
             aria-hidden="true"
-            className={`shrink-0 text-gray-400 transition-transform duration-[250ms] group-hover:text-gray-100 ${
+            className={`shrink-0 text-text-sub transition-transform duration-[250ms] group-hover:text-primary ${
               isExpanded ? 'rotate-180' : ''
             }`}
           />
@@ -229,7 +236,9 @@ function NavItem({
             แล้ว (ดูคอมเมนต์ .nav-accordion-panel ใน globals.css) จึงไม่ต้องกังวลเรื่อง focus หลุดไปโดน
             เมนูที่มองไม่เห็น */}
         <div id={panelId} className={`nav-accordion-panel ${isExpanded ? 'is-expanded' : ''}`}>
-          <div className="ml-3.5 flex flex-col gap-0.5 border-l border-white/[0.08] pt-0.5 pl-2.5">
+          {/* เส้นคั่นเมนูย่อย: เดิมเป็นขาวโปร่งแสง (มองเห็นได้เฉพาะบนพื้นเข้ม) — บนแถบเมนูชมพูอ่อนตอนนี้
+              ต้องใช้โทนเข้มโปร่งแสงแทน ไม่งั้นเส้นจะหายไปสนิท */}
+          <div className="ml-3.5 flex flex-col gap-0.5 border-l border-primary/20 pt-0.5 pl-2.5">
             {entry.children.map((child) => (
               <NavItem
                 key={child.id}
@@ -271,8 +280,8 @@ function NavLeafButton({
       onClick={() => onSelect(entry.id)}
       className={`group flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-sm font-medium transition-all duration-[250ms] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
         isActive
-          ? 'bg-primary text-white shadow-[0_0_14px_1px_rgba(47,167,226,0.5)]'
-          : 'text-gray-50 hover:translate-x-[3px] hover:bg-primary/15 hover:text-white'
+          ? 'bg-primary text-on-primary shadow-[0_0_14px_1px_rgba(176,58,103,0.35)]'
+          : 'text-text hover:translate-x-[3px] hover:bg-primary/12 hover:text-primary'
       }`}
       data-testid={`nav-item-${entry.id}`}
       aria-current={isActive ? 'page' : undefined}
@@ -281,8 +290,8 @@ function NavLeafButton({
         size={18}
         className={
           isActive
-            ? 'shrink-0 text-white'
-            : 'shrink-0 text-gray-400 transition-colors duration-[250ms] group-hover:text-gray-100'
+            ? 'shrink-0 text-on-primary'
+            : 'shrink-0 text-text-sub transition-colors duration-[250ms] group-hover:text-primary'
         }
         aria-hidden="true"
       />

@@ -15,12 +15,14 @@ export default function MonthlyVatSummary({ rows, onViewAllReport }: MonthlyVatS
   return (
     <div className="card-surface overflow-hidden rounded-2xl">
       <div className="flex items-center justify-between gap-3 bg-linear-to-r from-sidebar-start to-sidebar-end px-6 py-4">
-        <h2 className="text-sm font-bold text-white">สรุป VAT รายเดือน</h2>
+        {/* (2026-09-11) แถบหัวการ์ดใช้ไล่เฉด --sidebar-start/end ซึ่งตอนนี้เป็นชมพูพาสเทลแล้ว ตัวหนังสือขาว
+            บนนั้นได้ contrast แค่ ~1.6:1 จึงสลับเป็นโทนเข้มคู่กัน เหมือนที่ทำกับแถบเมนูใน Sidebar.tsx */}
+        <h2 className="text-sm font-bold text-text">สรุป VAT รายเดือน</h2>
         {onViewAllReport && (
           <button
             type="button"
             onClick={onViewAllReport}
-            className="btn-press flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium text-white/90 transition-colors duration-[250ms] hover:bg-white/10 hover:text-white"
+            className="btn-press flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium text-text-sub transition-colors duration-[250ms] hover:bg-primary/12 hover:text-primary"
           >
             ดูรายงานทั้งหมด
             <ArrowRight size={14} aria-hidden="true" />

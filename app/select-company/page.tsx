@@ -116,9 +116,14 @@ function SelectCompanyContent() {
   const showEmpty = !loading && !error && companies.length === 0;
 
   return (
-    <div className="relative flex min-h-screen flex-1 flex-col overflow-hidden bg-[#0b1220]">
-      <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#0a3a5c] via-[#0b1220] to-[#031f33]" />
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 z-0 h-[600px] rounded-[50%] bg-[#2fa4d7]/10 blur-3xl" />
+    // (2026-09-11 — ธีมชมพูพาสเทล) หน้านี้เคยเป็นจอเข้มแยกต่างหากของตัวเอง (กรมท่า #0b1220 ไล่เฉดฟ้า)
+    // เปลี่ยนเป็นชมพูอ่อนให้ต่อเนื่องกับ Dashboard — ผู้ใช้เห็นหน้านี้คั่นระหว่าง login กับ dashboard ทุกครั้ง
+    // ที่เป็นสมาชิกหลายบริษัท ถ้าปล่อยเป็นจอเข้มไว้จะเหมือนหลุดออกจากธีมไปหนึ่งจอกลางทาง
+    <div className="relative flex min-h-screen flex-1 flex-col overflow-hidden bg-page-bg">
+      {/* ใช้คลาสรวมจาก globals.css (.auth-gradient-bg) แทนการเขียนค่าสีตายตัว เพื่อให้สลับเป็นโหมด
+          กลางคืนได้จากจุดเดียว (2026-09-11) */}
+      <div className="auth-gradient-bg pointer-events-none absolute inset-0 z-0" />
+      <div className="pointer-events-none absolute inset-x-0 top-1/2 z-0 h-[600px] rounded-[50%] bg-primary/10 blur-3xl" />
 
       {/* แถบบนสุด */}
       <header className="relative z-10 flex items-center justify-between px-5 py-4 sm:px-8">
@@ -132,17 +137,17 @@ function SelectCompanyContent() {
 
         {session?.user?.email && (
           <div className="flex items-center gap-3">
-            <div className="hidden items-center gap-2 rounded-full border border-white/15 bg-white/5 py-1 pl-1 pr-3 sm:flex">
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--login-primary)]/25 text-[11px] font-semibold text-[var(--login-primary)]">
+            <div className="hidden items-center gap-2 rounded-full border border-border bg-white/70 py-1 pl-1 pr-3 sm:flex">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--login-primary)]/15 text-[11px] font-semibold text-[var(--login-primary)]">
                 {session.user.email.charAt(0).toUpperCase()}
               </div>
-              <span className="text-xs text-white/70">{session.user.email}</span>
+              <span className="text-xs text-text-sub">{session.user.email}</span>
             </div>
             <button
               type="button"
               onClick={handleSignOut}
               aria-label="ออกจากระบบ"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-white/50 transition-colors hover:bg-white/10 hover:text-white/90"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-text-sub transition-colors hover:bg-primary/10 hover:text-primary"
             >
               <LogOut className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -153,16 +158,17 @@ function SelectCompanyContent() {
       {/* เนื้อหาหลัก */}
       <main className="relative z-10 flex flex-1 flex-col items-center px-5 py-8 sm:px-8">
         <div className="mb-8 text-center sm:mb-10">
-          <h1 className="bg-gradient-to-r from-white to-[var(--login-primary)] bg-clip-text text-3xl font-semibold text-transparent sm:text-4xl">
+          {/* เดิมไล่เฉดจากขาวไปฟ้า (อ่านออกเฉพาะบนพื้นเข้ม) — บนพื้นชมพูอ่อนต้องไล่จากพลัมเข้มไปโรสแทน */}
+          <h1 className="bg-gradient-to-r from-text to-[var(--login-primary)] bg-clip-text text-3xl font-semibold text-transparent sm:text-4xl">
             เลือกบริษัท
           </h1>
-          <p className="mt-2 text-sm text-white/50">เลือกบริษัทที่ต้องการเข้าใช้งาน</p>
+          <p className="mt-2 text-sm text-text-sub">เลือกบริษัทที่ต้องการเข้าใช้งาน</p>
         </div>
 
         <div className="w-full max-w-4xl">
           {loading && (
             <div
-              className="flex flex-col items-center gap-2 py-16 text-white/60"
+              className="flex flex-col items-center gap-2 py-16 text-text-sub"
               data-testid="select-company-loading"
             >
               <Loader2 className="h-6 w-6 animate-spin" />
@@ -174,7 +180,7 @@ function SelectCompanyContent() {
             <p
               role="alert"
               data-testid="select-company-error"
-              className="mx-auto max-w-md rounded-lg border border-red-400/30 bg-red-500/10 px-4 py-3 text-center text-sm text-red-300"
+              className="mx-auto max-w-md rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-center text-sm text-danger"
             >
               {error}
             </p>
@@ -188,7 +194,7 @@ function SelectCompanyContent() {
             // กริดด้านล่าง (showPicker) ได้ตามปกติ ไม่ถูกปิด — จำกัดเฉพาะกรณี 0 บริษัทเท่านั้น
             <div className="mx-auto max-w-md text-center" data-testid="select-company-empty">
               <div
-                className="rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-8 text-sm text-white/60"
+                className="rounded-2xl border border-dashed border-primary/25 bg-white/70 px-6 py-8 text-sm text-text-sub"
               >
                 สมัครสมาชิกสำเร็จแล้ว แต่บัญชีนี้ยังไม่ได้รับอนุมัติให้เข้าใช้งานบริษัทใดเลย กรุณาแจ้งผู้ดูแลระบบ
                 (หรือเพื่อนร่วมบริษัท) ให้เข้าไปอนุมัติที่เมนู &quot;อนุมัติสมาชิกใหม่&quot;
@@ -219,10 +225,10 @@ function SelectCompanyContent() {
                         handleCardClick(company.id);
                       }
                     }}
-                    className={`flex cursor-pointer flex-col items-center rounded-2xl border bg-white px-4 py-6 text-center transition-all ${
+                    className={`flex cursor-pointer flex-col items-center rounded-2xl border bg-card-bg px-4 py-6 text-center transition-all ${
                       isHighlighted
                         ? 'border-[var(--login-primary)] ring-2 ring-[var(--login-primary)]/40'
-                        : 'border-transparent hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-8px_rgba(0,0,0,0.35)]'
+                        : 'border-border hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-8px_rgba(176,58,103,0.25)]'
                     }`}
                     data-testid={`select-company-option-${company.id}`}
                   >
@@ -240,7 +246,7 @@ function SelectCompanyContent() {
                         {company.name.replace('บริษัท', '').replace('ห้างหุ้นส่วน', '').trim().charAt(0) || '?'}
                       </div>
                     )}
-                    <p className="mt-3 line-clamp-2 text-sm font-medium text-gray-800">{company.name}</p>
+                    <p className="mt-3 line-clamp-2 text-sm font-medium text-text">{company.name}</p>
 
                     {isHighlighted && (
                       <div className="mt-3.5 w-full border-t border-gray-100 pt-3.5">
@@ -250,7 +256,7 @@ function SelectCompanyContent() {
                             e.stopPropagation();
                             handleEnter(company.id);
                           }}
-                          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--login-primary)] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[var(--login-primary-hover)]"
+                          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--login-primary)] px-3 py-2 text-xs font-semibold text-on-primary transition-colors hover:bg-[var(--login-primary-hover)]"
                           data-testid={`select-company-confirm-enter-${company.id}`}
                         >
                           <Check className="h-3.5 w-3.5" aria-hidden="true" />
@@ -265,7 +271,7 @@ function SelectCompanyContent() {
               <button
                 type="button"
                 onClick={openAddModal}
-                className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/25 bg-white/5 px-4 py-6 text-center text-white/60 transition-colors hover:border-white/40 hover:bg-white/10 hover:text-white/85"
+                className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-white/60 px-4 py-6 text-center text-text-sub transition-colors hover:border-primary/60 hover:bg-white/90 hover:text-primary"
                 data-testid="select-company-add-toggle"
               >
                 <Plus className="h-6 w-6" aria-hidden="true" />
@@ -281,16 +287,16 @@ function SelectCompanyContent() {
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 px-4">
           <form
             onSubmit={handleCreateCompany}
-            className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#111a2c] p-5 shadow-xl"
+            className="w-full max-w-sm rounded-2xl border border-border bg-card-bg p-5 shadow-xl"
             data-testid="select-company-add-form"
           >
             <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-semibold text-white">เพิ่มบริษัทใหม่</span>
+              <span className="text-sm font-semibold text-text">เพิ่มบริษัทใหม่</span>
               <button
                 type="button"
                 onClick={closeAddModal}
                 aria-label="ปิดหน้าต่างเพิ่มบริษัทใหม่"
-                className="text-white/40 hover:text-white/80"
+                className="text-text-sub hover:text-primary"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -302,18 +308,18 @@ function SelectCompanyContent() {
               placeholder="ชื่อบริษัท เช่น บริษัท ตัวอย่าง จำกัด"
               disabled={creating}
               autoFocus
-              className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-[var(--login-primary)] focus:outline-none disabled:opacity-60"
+              className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-text placeholder:text-text-sub focus:border-[var(--login-primary)] focus:outline-none disabled:opacity-60"
               data-testid="select-company-add-input"
             />
             {createError && (
-              <p role="alert" data-testid="select-company-add-error" className="mt-2 text-xs text-red-400">
+              <p role="alert" data-testid="select-company-add-error" className="mt-2 text-xs text-danger">
                 {createError}
               </p>
             )}
             <button
               type="submit"
               disabled={creating || !newCompanyName.trim()}
-              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--login-primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--login-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--login-primary)] px-4 py-2.5 text-sm font-semibold text-on-primary transition-colors hover:bg-[var(--login-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               data-testid="select-company-add-submit"
             >
               {creating ? (

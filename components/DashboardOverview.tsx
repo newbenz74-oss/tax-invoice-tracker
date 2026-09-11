@@ -135,7 +135,7 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
             />
           </div>
 
-          {/* Quick Actions — ปุ่ม bg-white/8 (แทน bg-white ทึบเดิม) ตามธีมกระจกเข้ม (dark glassmorphism,
+          {/* Quick Actions — ปุ่ม bg-primary/6 (แทน bg-white ทึบเดิม) ตามธีมกระจกเข้ม (dark glassmorphism,
               2026-07-18 รอบ 3) เพื่อไม่ให้เป็นกล่องขาวทึบแปลกตาบนพื้นหลังเข้ม — ปรับกลับมาจุดนี้เพราะไฟล์นี้
               เพิ่งถูกตั้งฐานใหม่จาก GitHub ตอนทำฟีเจอร์ entrance-animate เมื่อครู่ (ดูคอมเมนต์ entrance-animate
               ด้านบน) ทำให้หลุดจากธีมเข้มที่เคยทำไว้ก่อนหน้าไปชั่วคราว รอบนี้ใส่กลับให้ตรงกับไฟล์อื่นๆ ในระบบ */}
@@ -145,7 +145,7 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
               <button
                 type="button"
                 onClick={() => goToRecordExpense({ type: 'open-form' })}
-                className="btn-press flex flex-col items-center gap-2 rounded-[10px] border border-border bg-white/8 px-3 py-4 text-center text-xs font-medium text-text hover:border-primary/50 hover:bg-primary-light"
+                className="btn-press flex flex-col items-center gap-2 rounded-[10px] border border-border bg-primary/6 px-3 py-4 text-center text-xs font-medium text-text hover:border-primary/50 hover:bg-primary-light"
                 data-testid="quick-action-add-expense"
               >
                 <PlusCircle size={20} className="text-primary" aria-hidden="true" />
@@ -154,7 +154,7 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
               <button
                 type="button"
                 onClick={() => goToRecordExpense({ type: 'open-import' })}
-                className="btn-press flex flex-col items-center gap-2 rounded-[10px] border border-border bg-white/8 px-3 py-4 text-center text-xs font-medium text-text hover:border-primary/50 hover:bg-primary-light"
+                className="btn-press flex flex-col items-center gap-2 rounded-[10px] border border-border bg-primary/6 px-3 py-4 text-center text-xs font-medium text-text hover:border-primary/50 hover:bg-primary-light"
                 data-testid="quick-action-import-excel"
               >
                 <FileSpreadsheet size={20} className="text-primary" aria-hidden="true" />
@@ -163,7 +163,7 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
               <button
                 type="button"
                 onClick={() => onNavigate?.('purchase-tax-report')}
-                className="btn-press flex flex-col items-center gap-2 rounded-[10px] border border-border bg-white/8 px-3 py-4 text-center text-xs font-medium text-text hover:border-primary/50 hover:bg-primary-light"
+                className="btn-press flex flex-col items-center gap-2 rounded-[10px] border border-border bg-primary/6 px-3 py-4 text-center text-xs font-medium text-text hover:border-primary/50 hover:bg-primary-light"
                 data-testid="quick-action-purchase-tax-report"
               >
                 <FileInput size={20} className="text-primary" aria-hidden="true" />
@@ -172,7 +172,7 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
               <button
                 type="button"
                 onClick={() => onNavigate?.('sales-tax-report')}
-                className="btn-press flex flex-col items-center gap-2 rounded-[10px] border border-border bg-white/8 px-3 py-4 text-center text-xs font-medium text-text hover:border-primary/50 hover:bg-primary-light"
+                className="btn-press flex flex-col items-center gap-2 rounded-[10px] border border-border bg-primary/6 px-3 py-4 text-center text-xs font-medium text-text hover:border-primary/50 hover:bg-primary-light"
                 data-testid="quick-action-sales-tax-report"
               >
                 <FileOutput size={20} className="text-primary" aria-hidden="true" />

@@ -353,14 +353,14 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
         <button
           type="button"
           onClick={onCancel}
-          className="btn-press rounded-[10px] border border-border bg-white px-5 py-2.5 text-sm font-medium text-gray-500 hover:bg-page-bg"
+          className="btn-press rounded-[10px] border border-border bg-card-bg px-5 py-2.5 text-sm font-medium text-text-sub hover:bg-page-bg"
         >
           ยกเลิก
         </button>
         <button
           type="submit"
           disabled={submitting}
-          className="btn-press rounded-[10px] bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover disabled:opacity-60"
+          className="btn-press rounded-[10px] bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover disabled:opacity-60"
           data-testid="submit-invoice-form"
         >
           {submitting ? 'กำลังบันทึก...' : editingInvoice ? 'บันทึกการแก้ไข' : 'เพิ่มรายการ'}
@@ -371,14 +371,14 @@ export default function InvoiceForm({ editingInvoice, onSubmit, onCancel }: Invo
 }
 
 // แก้บั๊กตัวหนังสือมองไม่เห็น (2026-08-11) — ช่องกรอกในฟอร์มนี้เป็น "กล่องขาวบนการ์ดกระจกเข้ม" โดยตั้งใจ
-// (bg-white เฉพาะตัว input เอง ไม่ใช่ทั้งการ์ด) แต่เดิมใช้ text-text/text-text-sub (สีเกือบขาว ออกแบบมา
+// (bg-card-bg เฉพาะตัว input เอง ไม่ใช่ทั้งการ์ด) แต่เดิมใช้ text-text/text-text-sub (สีเกือบขาว ออกแบบมา
 // สำหรับพื้นกระจกเข้มเท่านั้น) ทำให้ตัวหนังสือที่พิมพ์ในช่องกรอกมองไม่เห็นบนพื้นขาวของช่องนั้นเอง (บั๊กเดียวกัน
 // กับที่เจอใน ContactForm.tsx แต่คนละสาเหตุเชิงโครงสร้าง — ที่นี่การ์ดรอบนอกยังเป็นกระจกเข้มถูกต้องอยู่ ปัญหา
 // อยู่ที่ตัว input เอง) — label ของฟิลด์ (ฟังก์ชัน Field ด้านล่าง) ยังใช้ text-text ตามเดิมถูกต้อง เพราะ label
 // อยู่บนพื้นการ์ดกระจกเข้ม ไม่ได้อยู่บนกล่องขาว ไม่ต้องแก้
 function inputClass(hasError: boolean): string {
   const base =
-    'w-full rounded-[10px] border bg-white px-3.5 py-3.5 text-sm text-gray-800 placeholder:text-gray-400 transition-colors duration-[250ms] focus:outline-none';
+    'w-full rounded-[10px] border bg-input px-3.5 py-3.5 text-sm text-text placeholder:text-text-sub transition-colors duration-[250ms] focus:outline-none';
   if (hasError) {
     return `${base} border-danger focus:border-danger focus:shadow-[0_0_0_4px_rgba(239,68,68,0.14)]`;
   }

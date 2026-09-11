@@ -159,7 +159,9 @@ export default function LoginPage() {
     // จึงตัด justify-end/padding-right และบล็อก branding ฝั่งซ้ายออกทั้งหมด กลับไปใช้ justify-center เดิม
     // (คงไว้แค่ 2 อย่างจากรอบก่อน: ขนาดการ์ดที่เล็กลงเหลือ 420px และความโปร่งแสง — ปรับให้โปร่งใสขึ้นอีกที่
     // การ์ดด้านล่าง)
-    <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-[#1a5f85] px-4 py-10 sm:py-12">
+    // สีพื้นสำรองใต้วิดีโอ (เห็นชั่ววินาทีตอนวิดีโอยังโหลดไม่ขึ้น) — เดิมฟ้าเข้ม #1a5f85 เปลี่ยนเป็น
+    // เบอร์กันดีอมชมพูให้เข้าชุดกับ overlay ด้านล่าง ไม่ให้เห็นสีฟ้าแวบขึ้นมาหลุดธีม (2026-09-11)
+    <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-[#5c1f38] px-4 py-10 sm:py-12">
       {/* พื้นหลังวิดีโอหน้า login แบบสลับ 4 คลิปวนลูป (อัปเดตชุดวิดีโอ 2026-07-18 — เปลี่ยนจากชุดเดิม
           5 คลิปธีมทะเล/ฉลาม/โลมา เป็นชุดใหม่ที่ผู้ใช้ระบุเอง 4 คลิป วนลูปคลิป 1→2→3→4 แล้วกลับไปคลิปแรก
           เล่นแบบ crossfade ไม่กระพริบระหว่างเปลี่ยนคลิป — ดู logic เต็มที่
@@ -188,10 +190,14 @@ export default function LoginPage() {
         ) : (
           <LoginBackgroundVideoCarousel />
         )}
-        {/* overlay ไล่สีน้ำเงินเข้มทับวิดีโอ เพื่อให้การ์ดขาวตรงกลางและตัวอักษรสีขาวด้านล่างยังคมชัด
+        {/* overlay ไล่สีเข้มทับวิดีโอ เพื่อให้การ์ดขาวตรงกลางและตัวอักษรสีขาวด้านล่างยังคมชัด
             อ่านง่ายเหมือนพื้นหลังไล่สีเดิม ไม่ว่าเฟรมวิดีโอ ณ ขณะนั้นจะสว่าง/มืดแค่ไหน (เข้มขึ้นด้านล่าง
-            เพราะมีตัวอักษรขนาดเล็กวางอยู่) */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0a3a5c]/50 via-[#0a3a5c]/25 to-[#031f33]/65" />
+            เพราะมีตัวอักษรขนาดเล็กวางอยู่)
+            (2026-09-11 — ธีมชมพูพาสเทล) เปลี่ยนจากน้ำเงินเข้ม #0a3a5c/#031f33 เป็นเบอร์กันดีอมชมพูให้เข้าธีม
+            ใหม่ — ยังต้องเป็นโทน "เข้ม" อยู่ตรงนี้เท่านั้น เพราะ overlay นี้มีหน้าที่กดวิดีโอให้มืดลงพอที่
+            ตัวหนังสือขาวด้านล่างจะอ่านออก ถ้าใช้ชมพูอ่อนตามพาเลตจะไม่เหลือคอนทราสต์ให้ตัวหนังสือขาวเลย
+            (หน้านี้เป็นจอเดียวของระบบที่ยังมีพื้นเข้ม — โดยเจตนา ไม่ใช่ตกหล่น) */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#5c1f38]/50 via-[#5c1f38]/25 to-[#3d1428]/65" />
       </div>
 
       {/* Light Sweep (2026-07-18): แถบแสงฟ้าพาดจอครั้งเดียวตอนเข้าสู่ระบบสำเร็จ — mount เฉพาะตอน
@@ -218,13 +224,13 @@ export default function LoginPage() {
             แบบการ์ดขาวล้วนเดิมแล้ว — ไม่แตะ globals.css เลยจุดนี้ (ใช้ Tailwind utility ล้วนๆ ในไฟล์นี้) เพราะ
             globals.css ตอนนี้มีงานธีมมืดที่ยังพักไว้ (ไม่ได้ apply เข้าเครื่องผู้ใช้) ปะปนอยู่ ไม่อยากให้งาน
             สองชิ้นที่ไม่เกี่ยวกันไปปนกันในไฟล์เดียว */}
-        <div className="rounded-2xl border border-white/40 bg-white/65 p-6 shadow-[0_20px_50px_-12px_rgba(15,64,105,0.35)] backdrop-blur-xl sm:p-8 md:p-10">
+        <div className="login-card-surface rounded-2xl p-6 shadow-[0_20px_50px_-12px_rgba(92,31,56,0.35)] backdrop-blur-xl sm:p-8 md:p-10">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--login-primary-light)]">
               <Receipt className="h-6 w-6 text-[var(--login-primary)]" strokeWidth={2} />
             </div>
             <h1 className="text-2xl font-bold text-[var(--login-primary)]">ACC Reconcile</h1>
-            <p className="mt-1.5 text-sm text-gray-500">ระบบสำหรับทีมภายใน</p>
+            <p className="mt-1.5 text-sm text-text-sub">ระบบสำหรับทีมภายใน</p>
           </div>
 
           <div className="mb-6 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 text-sm font-medium">
@@ -236,7 +242,7 @@ export default function LoginPage() {
                 setInfoMessage(null);
               }}
               className={`rounded-md py-2.5 transition-colors ${
-                mode === 'signin' ? 'bg-white text-[var(--login-primary)] shadow' : 'text-gray-500'
+                mode === 'signin' ? 'bg-card-bg text-[var(--login-primary)] shadow' : 'text-text-sub'
               }`}
             >
               เข้าสู่ระบบ
@@ -249,7 +255,7 @@ export default function LoginPage() {
                 setInfoMessage(null);
               }}
               className={`rounded-md py-2.5 transition-colors ${
-                mode === 'signup' ? 'bg-white text-[var(--login-primary)] shadow' : 'text-gray-500'
+                mode === 'signup' ? 'bg-card-bg text-[var(--login-primary)] shadow' : 'text-text-sub'
               }`}
             >
               สมัครสมาชิก
@@ -258,7 +264,7 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
             <div>
-              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-text">
                 อีเมล
               </label>
               <input
@@ -267,12 +273,12 @@ export default function LoginPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-14 w-full rounded-lg border border-[var(--login-border)] px-4 text-base text-gray-800 placeholder:text-gray-400 focus:border-[var(--login-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--login-primary-light)]"
+                className="h-14 w-full rounded-lg border border-[var(--login-border)] bg-input px-4 text-base text-text placeholder:text-text-sub focus:border-[var(--login-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--login-primary-light)]"
                 placeholder="name@example.com"
               />
             </div>
             <div>
-              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-text">
                 รหัสผ่าน
               </label>
               <div className="relative">
@@ -282,13 +288,13 @@ export default function LoginPage() {
                   autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-14 w-full rounded-lg border border-[var(--login-border)] px-4 pr-12 text-base text-gray-800 placeholder:text-gray-400 focus:border-[var(--login-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--login-primary-light)]"
+                  className="h-14 w-full rounded-lg border border-[var(--login-border)] bg-input px-4 pr-12 text-base text-text placeholder:text-text-sub focus:border-[var(--login-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--login-primary-light)]"
                   placeholder="กรอกรหัสผ่าน"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-400 hover:text-gray-600"
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-text-sub hover:text-primary"
                   // หมายเหตุ: ห้ามใช้คำว่า "รหัสผ่าน" เต็มคำใน aria-label ตรงนี้ — Playwright
                   // getByLabel('รหัสผ่าน') ที่ใช้ใน e2e/auth.spec.ts เดิม (ห้ามแก้ไฟล์นั้น) จะจับคู่
                   // แบบ substring จึงชนกับ label ของ input รหัสผ่านเอง ทำให้ selector เจอ 2 element
@@ -324,7 +330,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={busy}
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-[var(--login-primary)] text-base font-semibold text-white transition-colors hover:bg-[var(--login-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-[var(--login-primary)] text-base font-semibold text-on-primary transition-colors hover:bg-[var(--login-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {busy && <Loader2 className="h-5 w-5 animate-spin" />}
               {busy ? busyLabel : mode === 'signin' ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก'}
@@ -332,7 +338,7 @@ export default function LoginPage() {
           </form>
 
           {mode === 'signin' && (
-            <p className="mt-5 text-center text-sm text-gray-600">
+            <p className="mt-5 text-center text-sm text-text-sub">
               ยังไม่มีบัญชีกับเรา?{' '}
               <button
                 type="button"
