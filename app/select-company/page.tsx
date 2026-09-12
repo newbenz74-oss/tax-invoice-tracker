@@ -125,8 +125,10 @@ function SelectCompanyContent() {
       <div className="auth-gradient-bg pointer-events-none absolute inset-0 z-0" />
       <div className="pointer-events-none absolute inset-x-0 top-1/2 z-0 h-[600px] rounded-[50%] bg-primary/10 blur-3xl" />
 
-      {/* แถบบนสุด */}
-      <header className="relative z-10 flex items-center justify-between px-5 py-4 sm:px-8">
+      {/* แถบบนสุด — .zoom-125 ขยายเนื้อหาขึ้นอีก 25% จากค่าพื้นฐานของทั้งเว็บ (2026-09-12 ตามคำขอผู้ใช้)
+          ใส่ที่ header กับ main แยกกัน จงใจไม่ครอบทั้งหน้า เพื่อกัน modal ที่เป็น fixed ไม่ให้โดนย่อ/ขยายตาม
+          — เหตุผลเต็มอยู่ที่คลาส .zoom-125 ใน app/globals.css */}
+      <header className="zoom-125 relative z-10 flex items-center justify-between px-5 py-4 sm:px-8">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--login-primary)]/20">
             <Building2 className="h-4.5 w-4.5 text-[var(--login-primary)]" strokeWidth={2.2} />
@@ -156,7 +158,7 @@ function SelectCompanyContent() {
       </header>
 
       {/* เนื้อหาหลัก */}
-      <main className="relative z-10 flex flex-1 flex-col items-center px-5 py-8 sm:px-8">
+      <main className="zoom-125 relative z-10 flex flex-1 flex-col items-center px-5 py-8 sm:px-8">
         <div className="mb-8 text-center sm:mb-10">
           {/* เดิมไล่เฉดจากขาวไปฟ้า (อ่านออกเฉพาะบนพื้นเข้ม) — บนพื้นชมพูอ่อนต้องไล่จากพลัมเข้มไปโรสแทน */}
           <h1 className="bg-gradient-to-r from-text to-[var(--login-primary)] bg-clip-text text-3xl font-semibold text-transparent sm:text-4xl">
