@@ -99,18 +99,19 @@ test.describe('Sidebar navigation', () => {
     await page.goto('/dashboard');
 
     // ยุบหมวด "ข้อมูลหลัก (Master Data)" ไว้ก่อน (ไม่เกี่ยวกับเมนูที่กำลังจะเลือกต่อไป เพื่อพิสูจน์ว่า
-    // สถานะยุบ/ขยายเป็นอิสระจากเมนูที่เลือกไว้เหมือนเดิมทุกประการ) — "Bank Reconcile" เป็นเมนูเดี่ยว
-    // ระดับบนสุดแล้วตั้งแต่รอบปรับโครงสร้าง Sidebar (2026-07-17, เดิมซ้อนอยู่ใต้หมวด "กระทบยอด") จึงคลิก
-    // ได้ทันทีไม่ขึ้นกับสถานะ accordion ของหมวดใดเลย
+    // สถานะยุบ/ขยายเป็นอิสระจากเมนูที่เลือกไว้เหมือนเดิมทุกประการ) — อัปเดต 2026-09-11: เมนู
+    // 'bank-reconcile' เปลี่ยนชื่อเป็น "กระทบยอด" และย้ายไปอยู่ใต้หมวดใหม่ "Bank Reconcile"
+    // (nav-section-bank-reconcile-group) ซึ่งกางไว้เป็นค่าเริ่มต้น จึงยังคลิกได้ทันทีโดยไม่ต้องกางก่อน
+    // และยังเป็นคนละหมวดกับ "ข้อมูลหลัก" ที่ยุบไว้ด้านบน ซึ่งเป็นประเด็นที่เทสต์นี้ต้องการพิสูจน์
     await page.getByTestId('nav-section-master-data').click(); // ยุบหมวด "ข้อมูลหลัก (Master Data)"
-    await page.getByTestId('nav-item-bank-reconcile').click(); // เลือกเมนู "Bank Reconcile" (เมนูเดี่ยว)
+    await page.getByTestId('nav-item-bank-reconcile').click(); // เลือกเมนู "กระทบยอด"
 
-    await expect(page.getByRole('heading', { level: 1, name: 'Bank Reconcile' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'กระทบยอด' })).toBeVisible();
 
     await page.reload();
 
     await expect(page.getByTestId('nav-item-bank-reconcile')).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByRole('heading', { level: 1, name: 'Bank Reconcile' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'กระทบยอด' })).toBeVisible();
     await expect(page.getByTestId('nav-section-master-data')).toHaveAttribute('aria-expanded', 'false');
 
     expect(errors).toEqual([]);

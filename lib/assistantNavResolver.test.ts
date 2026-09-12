@@ -6,7 +6,9 @@ describe('resolveNavTarget', () => {
     const result = resolveNavTarget('bank-reconcile');
     expect(result).not.toBeNull();
     expect(result?.implemented).toBe(true);
-    expect(result?.label).toBe('Bank Reconcile');
+    // label เปลี่ยนจาก 'Bank Reconcile' เป็น 'กระทบยอด' (2026-09-11) — ชื่อ "Bank Reconcile" ย้ายขึ้นไป
+    // เป็นชื่อหมวดที่ครอบเมนูนี้ไว้แทน ส่วน id ยังเป็น 'bank-reconcile' เหมือนเดิมทุกประการ
+    expect(result?.label).toBe('กระทบยอด');
   });
 
   it('คืนค่า null สำหรับ id ที่ไม่มีจริงในระบบ', () => {

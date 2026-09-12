@@ -1,4 +1,5 @@
 import {
+  ArrowLeftRight,
   BookUser,
   Building2,
   Calculator,
@@ -89,7 +90,8 @@ export type NavIntent =
 // (2) เพิ่ม field ใหม่ `hidden: true` ให้ 3 เมนูที่ผู้ใช้ขอเอาออกจาก Sidebar (ดูคอมเมนต์ NavLeaf.hidden
 // ด้านบน) — โครงสร้างใหม่ที่ผู้ใช้ระบุมา:
 //   Dashboard
-//   Bank Reconcile (ย้ายออกมาเป็นเมนูเดี่ยวระดับบนสุด ไม่ซ้อนใต้หมวดใดๆ อีกต่อไป)
+//   Bank Reconcile (ย้ายออกมาเป็นเมนูเดี่ยวระดับบนสุด ไม่ซ้อนใต้หมวดใดๆ อีกต่อไป — อัปเดตอีกครั้ง
+//     2026-09-11: กลายเป็น "หมวด" ที่ครอบ "กระทบยอด" กับ "ประวัติการกระทบยอด" ดูคอมเมนต์ในตัวโครงสร้าง)
 //   บัญชี (Accounting) [หมวดใหม่]
 //     ├── บันทึกการจ่ายเงิน
 //     └── รายงานภาษีซื้อ
@@ -104,20 +106,48 @@ export type NavIntent =
 // นำทางตรงไปหน้าเหล่านี้โดยไม่ผ่าน Sidebar)
 export const NAV_STRUCTURE: NavEntry[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, implemented: true },
-  // เดิมซ้อนอยู่ใต้หมวด "กระทบยอด" (reconcile) — ย้ายขึ้นมาเป็นเมนูเดี่ยวระดับบนสุดตามคำขอ ("This should
-  // be a standalone menu. No submenu.") id/label/icon/implemented เดิมทุกประการ ไม่แตะเลย เนื้อหาหน้านี้
-  // ยังเป็น placeholder รอออกแบบใหม่เหมือนเดิม (ดู case 'bank-reconcile' ใน app/dashboard/page.tsx)
-  { id: 'bank-reconcile', label: 'Bank Reconcile', icon: Landmark, implemented: true },
-  // เมนูใหม่ (2026-07-19) พร้อมฟีเจอร์ "จับคู่เอง + บันทึกประวัติ" — วางเป็นเมนูเดี่ยวระดับบนสุดต่อจาก
-  // 'bank-reconcile' โดยตรง (ไม่ซ้อนใต้เมนูใดๆ) ตามที่ผู้ใช้ระบุ ("ไปอยู่ในเมนูใหม่เลยเลย") สอดคล้องกับที่
-  // 'bank-reconcile' เองก็ถูกจงใจวางเป็นเมนูเดี่ยวไม่มี submenu อยู่แล้วเช่นกัน ไอคอน History ยังไม่เคยถูกใช้
-  // ที่ไหนใน NAV_STRUCTURE นี้มาก่อน เลือกเพราะสื่อความหมาย "บันทึกของกิจกรรมที่ผ่านมา" ตรงตัว
-  { id: 'reconcile-history', label: 'ประวัติการกระทบยอด', icon: History, implemented: true },
+  // อัปเดต 2026-09-11 ตามคำขอผู้ใช้ ("Bank Reconcile ฉันอยากให้เป็นแค่หัวข้อ เมื่อกดจะมีสไลด์ -กระทบยอด
+  // -ประวัติการกระทบยอด ออกมา"): เดิม 'bank-reconcile' กับ 'reconcile-history' เป็นเมนูเดี่ยวระดับบนสุด
+  // วางคู่กัน 2 อัน — ตอนนี้รวมเป็นหมวดเดียวกัน เพราะเนื้อหาผูกกันโดยตรง (ประวัติคือรายการกระทบยอดที่ทำผ่าน
+  // หน้ากระทบยอดแล้วกด "บันทึกเป็นประวัติ") จัดซ้อนกันจึงอ่านความสัมพันธ์ออกทันทีจากตัวเมนูเอง
+  //
+  // สิ่งที่ "ไม่" เปลี่ยนเลยแม้แต่ค่าเดียว: id ของทั้งสองหน้า ('bank-reconcile' / 'reconcile-history') —
+  // สำคัญมาก เพราะทุกอย่างในระบบอ้างถึงหน้าด้วย id ไม่ใช่ label: app/dashboard/page.tsx (switch case),
+  // lib/assistantNavResolver.ts, NavIntent 'open-reconcile-report', activeId ที่ผู้ใช้เดิมเก็บค้างไว้ใน
+  // localStorage และ e2e ทุกตัวที่คลิก nav-item-<id> — ทั้งหมดยังทำงานได้ครบถ้วนเหมือนเดิมทุกประการ
+  //
+  // สิ่งที่เปลี่ยน: label ของ 'bank-reconcile' จาก "Bank Reconcile" เป็น "กระทบยอด" (ชื่อ "Bank Reconcile"
+  // ขยับขึ้นไปเป็นชื่อหมวดแทน จะได้ไม่ซ้ำกันสองที่) — label ถูกใช้เป็นหัวข้อ h1 ของหน้าด้วย (ดู
+  // app/dashboard/page.tsx: title = activeEntry?.label) หัวหน้าเพจจึงเปลี่ยนตามไปด้วยโดยตั้งใจ และต้องแก้
+  // คีย์ PAGE_META ใน components/Header.tsx ให้ตรงกันเป๊ะ (คีย์นั้น lookup ด้วย label ตรงๆ)
+  //
+  // id ของหมวดตั้งเป็น 'bank-reconcile-group' ไม่ใช่ 'bank-reconcile' โดยตั้งใจ — id ของหมวดใช้เป็นคีย์เก็บ
+  // สถานะกาง/พับใน localStorage เท่านั้น ถ้าตั้งชนกับ id ของหน้าลูกจะสับสนทันที และ findNavLeaf ก็จะเจอ
+  // รายการผิดตัว (หมวดไม่ใช่หน้า — ดูคอมเมนต์ findNavLeaf ด้านล่าง)
+  {
+    id: 'bank-reconcile-group',
+    label: 'Bank Reconcile',
+    icon: Landmark,
+    children: [
+      // หน้าเดิมทั้งหมดของ "Bank Reconcile" ย้ายมาอยู่ใต้ชื่อ "กระทบยอด" — component/business logic/หน้าจอ
+      // ไม่ถูกแตะเลยแม้แต่บรรทัดเดียว (ยังเป็น BankReconcilePage ตัวเดิมผ่าน case 'bank-reconcile') ไอคอน
+      // เปลี่ยนจาก Landmark (ย้ายไปเป็นไอคอนของหมวดแล้ว) เป็น ArrowLeftRight ซึ่งสื่อ "เทียบสองฝั่ง
+      // Bank Statement กับ GL" ตรงกับสิ่งที่หน้านี้ทำจริง และยังไม่เคยถูกใช้ที่ไหนใน NAV_STRUCTURE มาก่อน
+      { id: 'bank-reconcile', label: 'กระทบยอด', icon: ArrowLeftRight, implemented: true },
+      // เมนูเดิม (2026-07-19) พร้อมฟีเจอร์ "จับคู่เอง + บันทึกประวัติ" — id/label/icon/implemented เดิม
+      // ทุกประการ เปลี่ยนแค่ตำแหน่ง (จากระดับบนสุด มาเป็นลูกของหมวดนี้)
+      { id: 'reconcile-history', label: 'ประวัติการกระทบยอด', icon: History, implemented: true },
+    ],
+  },
   {
     // หมวดใหม่ทั้งหมด (2026-07-17) — ไอคอน Calculator เลือกใหม่เพราะยังไม่เคยถูกใช้ที่ไหนในระบบ (ไอคอน
     // เดิมของหมวด "กระทบยอด"/RefreshCw และ "VAT Reconcile"/FileCheck2 เลิกใช้ไปพร้อมการยุบทั้งสองหมวดนี้)
+    // label เปลี่ยนจาก "บัญชี" เป็น "Tax Invoice" (2026-09-11 ตามคำขอผู้ใช้) — คง id 'accounting' ไว้
+    // เหมือนเดิมทุกประการ เพราะใช้เป็นคีย์เก็บสถานะกาง/พับใน localStorage (เปลี่ยน id จะทำให้ผู้ใช้เดิมที่
+    // เคยยุบหมวดนี้ไว้เสียสถานะไปเฉยๆ) และเป็น testid ที่ e2e ทุกตัวอ้างถึง (nav-section-accounting)
+    // หมวดเป็นหัวข้อเปล่าไม่มีหน้าเนื้อหา จึงไม่มีคีย์ใน PAGE_META ของ Header.tsx ให้ต้องแก้ตาม
     id: 'accounting',
-    label: 'บัญชี',
+    label: 'Tax Invoice',
     icon: Calculator,
     children: [
       // เดิมเป็นเมนูเดี่ยวระดับบนสุด — ย้ายเข้ามาอยู่ในหมวด "บัญชี" ตามคำขอ id/label/icon/implemented

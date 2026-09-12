@@ -82,17 +82,21 @@ export async function gotoOverduePurchaseTax(page: Page) {
   await gotoHiddenNavItem(page, 'overdue-purchase-tax');
 }
 
-/** ไปหน้า "Bank Reconcile" (เวอร์ชันออกแบบใหม่ทั้งหมด 2026-07-17) โดยตรง — เมนูนี้เป็นเมนูระดับบนสุดแบบ
- * standalone (ไม่ได้ซ้อนอยู่ใต้หมวดใดๆ ตั้งแต่รอบปรับโครงสร้าง Sidebar) จึงคลิก nav-item ได้ทันทีเหมือน
- * gotoAddressBook ไม่ต้องขยายหมวดก่อน */
+/** ไปหน้ากระทบยอด (เวอร์ชันออกแบบใหม่ทั้งหมด 2026-07-17) โดยตรง — อัปเดต 2026-09-11: เมนูนี้เปลี่ยนชื่อ
+ * จาก "Bank Reconcile" เป็น "กระทบยอด" และย้ายไปอยู่ใต้หมวดใหม่ "Bank Reconcile" คู่กับ "ประวัติการ
+ * กระทบยอด" — id ยังเป็น 'bank-reconcile' เหมือนเดิมทุกประการ จึงคลิก nav-item ได้ทันทีเหมือน
+ * gotoAddressBook ไม่ต้องขยายหมวดก่อน (ทุกหมวดกางไว้เป็นค่าเริ่มต้น และเทสต์แต่ละเคสเริ่มด้วย
+ * localStorage ว่างเสมอ) */
 export async function gotoBankReconcile(page: Page) {
   await page.goto('/dashboard');
   await page.getByTestId('nav-item-bank-reconcile').click();
 }
 
 /** ไปหน้า "ประวัติการกระทบยอด" (เพิ่มเข้ามา 2026-07-19 พร้อมฟีเจอร์ "จับคู่เอง + บันทึกประวัติ") โดยตรง —
- * เมนูนี้เป็นเมนูระดับบนสุดแบบ standalone เช่นเดียวกับ 'bank-reconcile' (วางต่อกันใน NAV_STRUCTURE) จึงคลิก
- * nav-item ได้ทันทีเหมือน gotoBankReconcile ไม่ต้องขยายหมวดก่อน */
+ * อัปเดต 2026-09-11: เมนูนี้ย้ายจากเมนูระดับบนสุดแบบ standalone มาเป็นเมนูย่อยของหมวดใหม่
+ * "Bank Reconcile" (คู่กับ "กระทบยอด") — ยังคลิก nav-item ได้ทันทีเหมือนเดิมไม่ต้องกางหมวดก่อน เพราะ
+ * ค่าเริ่มต้นของทุกหมวดคือ "กางไว้" (allSectionIds/defaultExpandedState ใน components/Sidebar.tsx)
+ * และเทสต์แต่ละเคสเริ่มด้วย localStorage ว่างเสมอ */
 export async function gotoBankReconcileHistory(page: Page) {
   await page.goto('/dashboard');
   await page.getByTestId('nav-item-reconcile-history').click();

@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ArrowLeftRight,
   Building2,
   BookUser,
   FileClock,
@@ -8,7 +9,6 @@ import {
   FileOutput,
   FileText,
   History,
-  Landmark,
   LayoutDashboard,
   Menu,
   Moon,
@@ -54,8 +54,12 @@ const PAGE_META: Record<string, { icon: LucideIcon; description: string }> = {
     icon: BookUser,
     description: 'จัดการข้อมูลลูกค้าและผู้จัดจำหน่าย',
   },
-  'Bank Reconcile': {
-    icon: Landmark,
+  // คีย์เปลี่ยนจาก 'Bank Reconcile' เป็น 'กระทบยอด' (2026-09-11) ตาม label ใหม่ของ NavLeaf 'bank-reconcile'
+  // ใน lib/navigation.ts — ชื่อ "Bank Reconcile" ขยับขึ้นไปเป็นชื่อ "หมวด" ที่ครอบเมนูนี้กับ "ประวัติการ
+  // กระทบยอด" แทน ซึ่งเป็นหัวข้อเปล่าไม่มีหน้าเนื้อหา จึงไม่มีคีย์ใน PAGE_META (ไม่เคยมีหมวดไหนมี) —
+  // ต้องตรงกับ label เป๊ะเสมอเพราะ lookup ด้วย title (=label) ตรงๆ ไอคอนเปลี่ยนตาม Sidebar ตามกฎเดิม
+  กระทบยอด: {
+    icon: ArrowLeftRight,
     description: 'กระทบยอดรายการธนาคารกับรายการบัญชี',
   },
   // เพิ่มพร้อมฟีเจอร์ "จับคู่เอง + บันทึกประวัติ" (2026-07-19) — ไอคอนตัวเดียวกับ NavLeaf ของเมนูนี้ใน
