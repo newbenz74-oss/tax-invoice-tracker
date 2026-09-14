@@ -20,6 +20,7 @@ import BankReconcilePage from '@/components/BankReconcilePage';
 import BankReconcileHistoryPage from '@/components/BankReconcileHistoryPage';
 import ManageMembersPage from '@/components/ManageMembersPage';
 import ManageExternalViewersPage from '@/components/ManageExternalViewersPage';
+import ActivityLogPage from '@/components/ActivityLogPage';
 import CompanySettingsPage from '@/components/CompanySettingsPage';
 import WhtCertificateHistoryPage from '@/components/WhtCertificateHistoryPage';
 import { useAuth } from '@/lib/AuthContext';
@@ -268,6 +269,11 @@ function renderActiveContent(
     // ไม่รับ prop ใดๆ เพิ่ม (ดึงข้อมูลเองผ่าน useCompany()/SWR ภายในตัวเอง เหมือน ManageMembersPage.tsx)
     case 'manage-external-viewers':
       return <ManageExternalViewersPage />;
+    // เมนูใหม่ (2026-09-14) พร้อมฟีเจอร์ "ประวัติการใช้งาน" (Audit Log) — ดู
+    // supabase/migration_026_audit_logs.sql (ที่มาของข้อมูล) และ components/ActivityLogPage.tsx
+    // ไม่รับ prop ใดๆ เพิ่ม (ดึงข้อมูลเองผ่าน useCompany()/SWR ภายในตัวเอง เหมือน ManageMembersPage.tsx)
+    case 'activity-log':
+      return <ActivityLogPage />;
     default:
       return <ComingSoon label={title} />;
   }

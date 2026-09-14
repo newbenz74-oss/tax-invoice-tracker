@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Menu,
   Moon,
+  ScrollText,
   SearchCheck,
   Send,
   Sun,
@@ -85,6 +86,12 @@ const PAGE_META: Record<string, { icon: LucideIcon; description: string }> = {
   ตรวจสอบข้อมูล: {
     icon: SearchCheck,
     description: 'ตรวจสอบความถูกต้องของข้อมูลในระบบ',
+  },
+  // เพิ่มพร้อมฟีเจอร์ "ประวัติการใช้งาน" (2026-09-14) — ไอคอนตัวเดียวกับ NavLeaf ของเมนูนี้ใน
+  // lib/navigation.ts (id: 'activity-log') ตามกฎเดิมของไฟล์นี้
+  ประวัติการใช้งาน: {
+    icon: ScrollText,
+    description: 'ใครเพิ่ม แก้ไข หรือลบข้อมูลอะไรบ้าง ย้อนหลังได้ทั้งหมด',
   },
 };
 

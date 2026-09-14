@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabaseClient';
+import { beginRestoreAuditWindow, cancelRestoreAuditWindow, endRestoreAuditWindow } from './auditLogApi';
 import {
   arrayBufferToBase64,
   base64ToUint8Array,
@@ -206,72 +207,130 @@ export async function restoreCompanyBackup(
 ): Promise<RestoreResult> {
   const supabase = getSupabaseClient();
 
-  if (mode === 'replace') {
-    await wipeCompanyData(companyId, onProgress);
-  }
+  // เปิดหน้าต่างพักการบันทึกประวัติก่อนเริ่มเขียนอะไรทั้งสิ้น (เพิ่ม 2026-09-14 พร้อมฟีเจอร์ประวัติการใช้งาน)
+  // — ถ้าไม่พัก trigger จะบันทึกทีละแถว ได้ประวัติหลายพันแถวจากการกดปุ่มครั้งเดียวจนกลบรายการจริงของวันนั้น
+  // ไปหมด ผู้ใช้เลือกไว้ว่าต้องการเห็นเป็น "เหตุการณ์เดียว" แทน (สรุปเขียนตอนจบด้านล่าง)
+  //
+  // ตั้งใจไม่ครอบด้วย try/catch ตรงนี้ — ถ้าจองหน้าต่างไม่ได้ (เช่น ยังไม่ได้รัน migration_026) ต้องให้
+  // ล้มตั้งแต่ต้นก่อนแตะข้อมูลจริง ดีกว่ากู้คืนไปครึ่งทางแล้วค่อยรู้ว่าประวัติเละ
+  await beginRestoreAuditWindow(companyId);
 
-  const rowsByTable = Object.fromEntries(BACKUP_TABLES.map((t) => [t, 0])) as Record<BackupTable, number>;
-
-  for (const table of restoreWriteOrder()) {
-    const rows = prepareRowsForRestore(table, file.tables[table] ?? [], companyId);
-    if (rows.length === 0) continue;
-    onProgress?.(`กำลังกู้คืน ${table} (${rows.length} แถว)...`);
-    for (const part of chunk(rows, WRITE_CHUNK_SIZE)) {
-      const { error } = await supabase.from(table).upsert(part, { onConflict: conflictTargetFor(table) });
-      if (error) throw error;
-      rowsByTable[table] += part.length;
+  try {
+    if (mode === 'replace') {
+      await wipeCompanyData(companyId, onProgress);
     }
-  }
 
-  onProgress?.('กำลังกู้คืนข้อมูลตั้งค่าบริษัท...');
-  const { error: companyError } = await supabase
-    .from('companies')
-    .update({
-      // ไม่กู้คืน "ชื่อบริษัท" ทับของเดิมโดยเจตนา — ชื่อคือสิ่งที่ผู้ใช้ใช้แยกบริษัทในหน้าเลือกบริษัท การเขียน
-      // ทับอาจทำให้เหลือบริษัทชื่อซ้ำกันสองอันจนแยกไม่ออกว่าอันไหนคืออันไหน (ดูชื่อเดิมในไฟล์ได้จาก
-      // file.company.name ที่หน้าจอแสดงให้ก่อนกดยืนยันอยู่แล้ว)
-      tax_id: file.company.tax_id ?? null,
-      branch_type: file.company.branch_type ?? 'head_office',
-      branch_number: file.company.branch_type === 'branch' ? (file.company.branch_number ?? null) : null,
-      address: file.company.address ?? null,
-      subdistrict: file.company.subdistrict ?? null,
-      district: file.company.district ?? null,
-      province: file.company.province ?? null,
-      postal_code: file.company.postal_code ?? null,
-      default_signer_name: file.company.default_signer_name ?? null,
-    })
-    .eq('id', companyId);
-  if (companyError) throw companyError;
+    const rowsByTable = Object.fromEntries(BACKUP_TABLES.map((t) => [t, 0])) as Record<BackupTable, number>;
 
-  let logoRestored = false;
-  if (file.logo) {
-    onProgress?.('กำลังกู้คืนโลโก้บริษัท...');
+    for (const table of restoreWriteOrder()) {
+      const rows = prepareRowsForRestore(table, file.tables[table] ?? [], companyId);
+      if (rows.length === 0) continue;
+      onProgress?.(`กำลังกู้คืน ${table} (${rows.length} แถว)...`);
+      for (const part of chunk(rows, WRITE_CHUNK_SIZE)) {
+        const { error } = await supabase.from(table).upsert(part, { onConflict: conflictTargetFor(table) });
+        if (error) throw error;
+        rowsByTable[table] += part.length;
+      }
+    }
+
+    onProgress?.('กำลังกู้คืนข้อมูลตั้งค่าบริษัท...');
+    const { error: companyError } = await supabase
+      .from('companies')
+      .update({
+        // ไม่กู้คืน "ชื่อบริษัท" ทับของเดิมโดยเจตนา — ชื่อคือสิ่งที่ผู้ใช้ใช้แยกบริษัทในหน้าเลือกบริษัท การเขียน
+        // ทับอาจทำให้เหลือบริษัทชื่อซ้ำกันสองอันจนแยกไม่ออกว่าอันไหนคืออันไหน (ดูชื่อเดิมในไฟล์ได้จาก
+        // file.company.name ที่หน้าจอแสดงให้ก่อนกดยืนยันอยู่แล้ว)
+        tax_id: file.company.tax_id ?? null,
+        branch_type: file.company.branch_type ?? 'head_office',
+        branch_number: file.company.branch_type === 'branch' ? (file.company.branch_number ?? null) : null,
+        address: file.company.address ?? null,
+        subdistrict: file.company.subdistrict ?? null,
+        district: file.company.district ?? null,
+        province: file.company.province ?? null,
+        postal_code: file.company.postal_code ?? null,
+        default_signer_name: file.company.default_signer_name ?? null,
+      })
+      .eq('id', companyId);
+    if (companyError) throw companyError;
+
+    let logoRestored = false;
+    if (file.logo) {
+      onProgress?.('กำลังกู้คืนโลโก้บริษัท...');
+      try {
+        const bytes = base64ToUint8Array(file.logo.base64);
+        const path = `${companyId}/logo.png`;
+        const { error: uploadError } = await supabase.storage
+          .from(LOGO_BUCKET)
+          .upload(path, bytes, { contentType: 'image/png', upsert: true, cacheControl: '3600' });
+        if (uploadError) throw uploadError;
+        const { data: publicUrlData } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
+        const { error: logoUpdateError } = await supabase
+          .from('companies')
+          .update({ logo_url: `${publicUrlData.publicUrl}?v=${Date.now()}` })
+          .eq('id', companyId);
+        if (logoUpdateError) throw logoUpdateError;
+        logoRestored = true;
+      } catch {
+        // โลโก้กู้ไม่สำเร็จไม่ควรทำให้การกู้คืนข้อมูลทั้งบริษัทที่สำเร็จไปแล้วถือว่าล้มเหลว — รายงานผลว่า
+        // logoRestored=false ให้หน้าจอบอกผู้ใช้ว่าอัปโหลดโลโก้ใหม่เองได้ที่หน้านี้
+        logoRestored = false;
+      }
+    }
+
+    const totalRows = countBackupRows(file.tables);
+
+    // ปิดหน้าต่างพักการบันทึก แล้วเขียนประวัติ "หนึ่งเหตุการณ์" แทนหลายพันแถว — ทำหลังทุกอย่างสำเร็จ
+    // เพื่อให้ประวัติสะท้อนผลจริง ไม่ใช่ความตั้งใจ
+    //
+    // ครอบ try/catch ของตัวเองแยกจาก try ก้อนใหญ่โดยตั้งใจ: ถึงจุดนี้ข้อมูลถูกกู้คืนครบแล้วจริงๆ ถ้าปล่อยให้
+    // error ของการ "เขียนบันทึกประวัติ" ตกไปถึง catch ด้านล่าง ผู้ใช้จะเห็นว่า "กู้คืนไม่สำเร็จ" ทั้งที่สำเร็จ
+    // ไปแล้วทุกแถว แล้วอาจกดกู้คืนซ้ำหรือแตกตื่นโดยไม่จำเป็น — การบันทึกประวัติเป็นงานรอง ห้ามกลบผลของงานหลัก
+    const modeLabel = mode === 'replace' ? 'เขียนทับของเดิมทั้งหมด' : 'เพิ่ม/อัปเดตทับรายการเดิม';
     try {
-      const bytes = base64ToUint8Array(file.logo.base64);
-      const path = `${companyId}/logo.png`;
-      const { error: uploadError } = await supabase.storage
-        .from(LOGO_BUCKET)
-        .upload(path, bytes, { contentType: 'image/png', upsert: true, cacheControl: '3600' });
-      if (uploadError) throw uploadError;
-      const { data: publicUrlData } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
-      const { error: logoUpdateError } = await supabase
-        .from('companies')
-        .update({ logo_url: `${publicUrlData.publicUrl}?v=${Date.now()}` })
-        .eq('id', companyId);
-      if (logoUpdateError) throw logoUpdateError;
-      logoRestored = true;
+      await endRestoreAuditWindow(
+        companyId,
+        `กู้คืนข้อมูลจากไฟล์สำรอง (${modeLabel}) รวม ${totalRows.toLocaleString('th-TH')} รายการ`,
+        {
+          mode,
+          totalRows,
+          rowsByTable,
+          logoRestored,
+          // เก็บที่มาของไฟล์ไว้ด้วย เพื่อให้ตอบได้ภายหลังว่า "ข้อมูลชุดนี้ย้อนกลับไปเป็นสภาพของวันไหน และ
+          // ไฟล์นั้นใครเป็นคนสร้าง" ซึ่งเป็นคำถามแรกเสมอเวลามีคนสงสัยว่าข้อมูลหายไปไหน
+          backupExportedAt: file.exported_at,
+          backupExportedByEmail: file.exported_by_email,
+          sourceCompanyId: file.source_company_id,
+        }
+      );
     } catch {
-      // โลโก้กู้ไม่สำเร็จไม่ควรทำให้การกู้คืนข้อมูลทั้งบริษัทที่สำเร็จไปแล้วถือว่าล้มเหลว — รายงานผลว่า
-      // logoRestored=false ให้หน้าจอบอกผู้ใช้ว่าอัปโหลดโลโก้ใหม่เองได้ที่หน้านี้
-      logoRestored = false;
+      // เขียนสรุปไม่สำเร็จก็ยังถือว่ากู้คืนสำเร็จ (เหตุผลด้านบน) — พยายามปิดหน้าต่างพักการบันทึกให้ได้เป็น
+      // อย่างน้อย ไม่งั้นการแก้ข้อมูลต่อจากนี้อีก 15 นาทีจะไม่ถูกบันทึกโดยที่ผู้ใช้ไม่รู้ตัว
+      try {
+        await cancelRestoreAuditWindow();
+      } catch {
+        // หมดทางแล้ว — หน้าต่างจะหมดอายุเองใน 15 นาที ปล่อยผ่านเพื่อไม่ให้กลบผลการกู้คืนที่สำเร็จไปแล้ว
+      }
     }
-  }
 
-  return {
-    mode,
-    rowsByTable,
-    totalRows: countBackupRows(file.tables),
-    companySettingsRestored: true,
-    logoRestored,
-  };
+    return {
+      mode,
+      rowsByTable,
+      totalRows,
+      companySettingsRestored: true,
+      logoRestored,
+    };
+  } catch (err) {
+    // ล้มกลางคัน: ปิดหน้าต่างทิ้งทันที ไม่ปล่อยให้ค้างจนหมดอายุเอง 15 นาที ไม่งั้นการแก้ข้อมูลอื่นๆ ที่ผู้ใช้
+    // ทำต่อจากนี้จะไม่ถูกบันทึกประวัติโดยที่เขาไม่รู้ตัว — ตั้งใจไม่เขียนสรุปลงประวัติ เพราะการกู้คืนไม่สำเร็จ
+    // (แต่ร่องรอย restore_begin ยังอยู่ จึงยังเห็นได้ว่ามีความพยายามกู้คืนตอนไหน)
+    //
+    // ถ้าปิดหน้าต่างเองก็ไม่สำเร็จอีก (เช่น เน็ตหลุดไปแล้ว) กลืน error ตัวนั้นทิ้งโดยเจตนา แล้วโยน error
+    // ต้นทางต่อ — ผู้ใช้ต้องเห็นสาเหตุจริงที่ทำให้กู้คืนไม่สำเร็จ ไม่ใช่ error ของขั้นตอนทำความสะอาด
+    try {
+      await cancelRestoreAuditWindow();
+    } catch {
+      // เงียบไว้โดยตั้งใจ — หน้าต่างจะหมดอายุเองใน 15 นาทีอยู่แล้ว
+    }
+    throw err;
+  }
 }
