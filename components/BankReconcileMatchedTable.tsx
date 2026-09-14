@@ -4,14 +4,13 @@ import { Fragment, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { MatchGroup } from '@/types/bankReconcileMatch';
 import BankReconcilePagination from './BankReconcilePagination';
+import { formatThaiDate } from '@/lib/thaiDate';
 
 const THB2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 const DEFAULT_PAGE_SIZE = 20;
 
-function formatDateDisplay(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  return y && m && d ? `${d}/${m}/${y}` : iso;
-}
+// เดิมแสดงปี ค.ศ. — ดูคอมเมนต์ formatThaiDate ใน lib/thaiDate.ts (แก้ 2026-09-14)
+const formatDateDisplay = formatThaiDate;
 
 function sumOf(rows: Array<{ amount: number }>): number {
   return rows.reduce((total, row) => total + row.amount, 0);

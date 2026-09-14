@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import { ArrowLeft, CheckCircle2, FileSpreadsheet, FileText, Pencil, Printer } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { getReportDetail, RECONCILE_REPORTS_SWR_KEY } from '@/lib/bankReconcileReportApi';
-import { thaiMonthName } from '@/lib/thaiDate';
+import { formatThaiDate, thaiMonthName } from '@/lib/thaiDate';
 import {
   buildBankReconcileHistoryExcelBlob,
   buildBankReconcileHistoryPdfBlob,
@@ -19,10 +19,10 @@ import type { NavIntent } from '@/lib/navigation';
 
 const THB2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 
-function formatDateDisplay(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  return y && m && d ? `${d}/${m}/${y}` : iso;
-}
+// เดิมแสดงปี ค.ศ. — วันที่ในโมดูลนี้ถูกแปลง พ.ศ.→ค.ศ. ตั้งแต่ตอนอ่านไฟล์แล้ว (ดู
+// parseDateCellWithEraConversion ใน lib/bankReconcileParse.ts) เก็บเป็น ค.ศ. เหมือนทั้งระบบ จึงต้องแปลง
+// กลับเป็น พ.ศ. ตอนแสดงผลเหมือนกัน — ดูคอมเมนต์ formatThaiDate ใน lib/thaiDate.ts (แก้ 2026-09-14)
+const formatDateDisplay = formatThaiDate;
 
 interface BankReconcileHistoryDetailProps {
   reportId: string;

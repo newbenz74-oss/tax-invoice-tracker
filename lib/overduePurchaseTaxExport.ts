@@ -4,6 +4,7 @@ import { autoTable } from 'jspdf-autotable';
 import { registerThaiFont, THAI_FONT_NAME } from './pdfThaiFont';
 import { getTaxInvoiceStatusLabel } from './invoiceLogic';
 import { getOverdueAging, groupByVendor, groupOverdueByMonth, type OverdueKpis } from './overduePurchaseTaxLogic';
+import { formatThaiDate } from './thaiDate';
 import type { PendingTaxInvoice } from '@/types/invoice';
 
 // ใช้ downloadBlob เดิมจาก lib/reportExport.ts (ไม่ import ที่นี่เพราะ component เรียกใช้ตรงได้อยู่แล้ว
@@ -13,11 +14,8 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-function formatDateForExport(iso: string | null): string {
-  if (!iso) return '-';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-}
+// เดิมส่งออกเป็นปี ค.ศ. ทั้งที่ทั้งระบบใช้ พ.ศ. — ดูคอมเมนต์ formatThaiDate ใน lib/thaiDate.ts (2026-09-14)
+const formatDateForExport = formatThaiDate;
 
 const THB_NUMBER = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 

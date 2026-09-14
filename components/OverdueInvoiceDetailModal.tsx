@@ -4,14 +4,12 @@ import { X } from 'lucide-react';
 import type { PendingTaxInvoice } from '@/types/invoice';
 import { getTaxInvoiceStatusBadgeClass, getTaxInvoiceStatusLabel } from '@/lib/invoiceLogic';
 import { OVERDUE_AGING_BADGE_CLASS, OVERDUE_AGING_LABELS, getOverdueAging } from '@/lib/overduePurchaseTaxLogic';
+import { formatThaiDate } from '@/lib/thaiDate';
 
 const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '-';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-}
+// เดิมแสดงปี ค.ศ. ทั้งที่กรอกเป็น พ.ศ. — ดูคอมเมนต์ formatThaiDate ใน lib/thaiDate.ts (แก้ 2026-09-14)
+const formatDate = formatThaiDate;
 
 interface OverdueInvoiceDetailModalProps {
   invoice: PendingTaxInvoice;

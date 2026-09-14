@@ -19,7 +19,7 @@ import {
 import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
 import { fetchInvoices, INVOICES_SWR_KEY, markReceived } from '@/lib/invoiceApi';
-import { thaiMonthName } from '@/lib/thaiDate';
+import { formatThaiDate, thaiMonthName } from '@/lib/thaiDate';
 import {
   applyOverdueFilters,
   computeOverdueKpis,
@@ -46,11 +46,8 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '-';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-}
+// เดิมแสดงปี ค.ศ. ทั้งที่กรอกเป็น พ.ศ. — ดูคอมเมนต์ formatThaiDate ใน lib/thaiDate.ts (แก้ 2026-09-14)
+const formatDate = formatThaiDate;
 
 const AGING_FILTER_OPTIONS: OverdueAgingStatus[] = ['not_due', 'overdue', 'no_date'];
 

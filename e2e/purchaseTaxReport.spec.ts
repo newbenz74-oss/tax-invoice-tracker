@@ -94,7 +94,9 @@ test.describe('รายงานภาษีซื้อ (บัญชี > Pur
 
     const row = page.getByTestId('report-row-inv-worked-example');
     await expect(row).toBeVisible();
-    await expect(row).toContainText('28/06/2026'); // วันที่ใบกำกับภาษี (ไม่ใช่วันที่ได้รับเอกสาร 05/07)
+    // วันที่ใบกำกับภาษี (ไม่ใช่วันที่ได้รับเอกสาร 05/07) — แสดงเป็น พ.ศ. ตั้งแต่ 2026-09-14
+    // (ค่าในฐานข้อมูลยังเป็น ค.ศ. 2026-06-28 เหมือนเดิม ดู formatThaiDate ใน lib/thaiDate.ts)
+    await expect(row).toContainText('28/06/2569');
     await expect(row).toContainText('TAX-INV-9999');
     await expect(row).toContainText('บริษัท ตัวอย่าง จำกัด');
     await expect(row).toContainText('1234567890123');

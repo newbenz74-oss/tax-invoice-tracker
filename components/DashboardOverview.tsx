@@ -10,6 +10,7 @@ import { AGING_BADGE_CLASS, AGING_LABELS, computeMonthlyVatSummary, computeStats
 import type { NavIntent } from '@/lib/navigation';
 import StatsCards from '@/components/StatsCards';
 import MonthlyVatSummary from '@/components/MonthlyVatSummary';
+import { formatThaiDate } from '@/lib/thaiDate';
 import type { PendingTaxInvoice } from '@/types/invoice';
 
 const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -18,11 +19,8 @@ const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFr
 // หน้า Dashboard กระชับตามเจตนา "หน้าภาพรวม" (ดูรายการที่เหลือทั้งหมดได้ผ่านลิงก์ "ดูทั้งหมด")
 const RECENT_LIST_LIMIT = 5;
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '-';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-}
+// เดิมแสดงปี ค.ศ. ทั้งที่กรอกเป็น พ.ศ. — ดูคอมเมนต์ formatThaiDate ใน lib/thaiDate.ts (แก้ 2026-09-14)
+const formatDate = formatThaiDate;
 
 interface DashboardOverviewProps {
   // เหมือน pattern onNavigate เดิมของ ExpenseRecordContent/MonthlyVatSummary — เผื่อให้ปุ่ม/การ์ด

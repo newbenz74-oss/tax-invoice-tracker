@@ -106,9 +106,11 @@ test.describe('ประวัติการกระทบยอด (บัน
     await expect(page.getByTestId('reconcile-history-detail-status')).toContainText('ทำค้างไว้');
     const detailRows = page.locator('[data-testid^="reconcile-history-detail-row-"]');
     await expect(detailRows).toHaveCount(2);
-    await expect(detailRows.filter({ hasText: '01/07/2026' })).toContainText('DOC-001');
-    await expect(detailRows.filter({ hasText: '01/07/2026' })).toContainText('จับคู่สำเร็จ');
-    await expect(detailRows.filter({ hasText: '10/07/2026' })).toContainText('ยังไม่จับคู่');
+    // วันที่แสดงเป็น พ.ศ. ตั้งแต่ 2026-09-14 (ก่อนหน้านี้แสดง ค.ศ. ทั้งที่ผู้ใช้กรอกเป็น พ.ศ. — ดู
+    // formatThaiDate ใน lib/thaiDate.ts) ค่าในฐานข้อมูลยังเป็น ค.ศ. เหมือนเดิม เปลี่ยนเฉพาะชั้นแสดงผล
+    await expect(detailRows.filter({ hasText: '01/07/2569' })).toContainText('DOC-001');
+    await expect(detailRows.filter({ hasText: '01/07/2569' })).toContainText('จับคู่สำเร็จ');
+    await expect(detailRows.filter({ hasText: '10/07/2569' })).toContainText('ยังไม่จับคู่');
 
     // ตารางไม่มี pagination/กล่องเลื่อนซ้อนอีกชั้นแล้ว (รอบปรับปรุง 2) — ต้องเห็นแถวสรุปยอดรวม รับ/จ่าย
     // ท้ายตาราง (1000+300=1,300 รับ, ไม่มีรายการจ่ายเลยในเทสต์นี้) และแผงตรวจสอบยอดด้วย
@@ -219,16 +221,17 @@ test.describe('ประวัติการกระทบยอด (บัน
     await expect(page.getByTestId('reconcile-history-detail-status')).toContainText('เสร็จสมบูรณ์');
     const detailRows = page.locator('[data-testid^="reconcile-history-detail-row-"]');
     await expect(detailRows).toHaveCount(4);
-    const b1Row = detailRows.filter({ hasText: '01/01/2026' });
+    // วันที่แสดงเป็น พ.ศ. ตั้งแต่ 2026-09-14 (ดู formatThaiDate ใน lib/thaiDate.ts)
+    const b1Row = detailRows.filter({ hasText: '01/01/2569' });
     await expect(b1Row).toContainText('DOC-J01');
     await expect(b1Row).toContainText('จับคู่สำเร็จ');
-    const b2Row = detailRows.filter({ hasText: '02/01/2026' });
+    const b2Row = detailRows.filter({ hasText: '02/01/2569' });
     await expect(b2Row).toContainText('DOC-J02');
     await expect(b2Row).toContainText('จับคู่สำเร็จ');
-    const b3Row = detailRows.filter({ hasText: '03/01/2026' });
+    const b3Row = detailRows.filter({ hasText: '03/01/2569' });
     await expect(b3Row).toContainText('DOC-J02');
     await expect(b3Row).toContainText('จับคู่สำเร็จ');
-    const b4Row = detailRows.filter({ hasText: '10/01/2026' });
+    const b4Row = detailRows.filter({ hasText: '10/01/2569' });
     await expect(b4Row).toContainText('ยังไม่จับคู่');
 
     // 3) กด "แก้ไขในหน้า Bank Reconcile" — ต้อง hydrate ครบทุกอย่างจากสแนปช็อตที่บันทึกไว้ โดยไม่ต้อง

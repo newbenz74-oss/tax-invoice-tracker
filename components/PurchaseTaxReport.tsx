@@ -13,16 +13,13 @@ import {
   toPurchaseTaxReportRows,
 } from '@/lib/vatReportLogic';
 import { buildPurchaseTaxReportExcelBlob, buildPurchaseTaxReportPdfBlob, downloadBlob } from '@/lib/reportExport';
-import { buddhistYearOptions, currentBuddhistYear, currentMonth, thaiMonthName } from '@/lib/thaiDate';
+import { buddhistYearOptions, currentBuddhistYear, currentMonth, formatThaiDate, thaiMonthName } from '@/lib/thaiDate';
 import type { PendingTaxInvoice } from '@/types/invoice';
 
 const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '-';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-}
+// เดิมแสดงปี ค.ศ. ทั้งที่กรอกเป็น พ.ศ. — ดูคอมเมนต์ formatThaiDate ใน lib/thaiDate.ts (แก้ 2026-09-14)
+const formatDate = formatThaiDate;
 
 // หน้า "รายงานภาษีซื้อ" — ใช้ SWR key เดียวกับ DashboardContent (INVOICES_SWR_KEY) จึงอ่านจาก cache
 // ชุดเดียวกัน ไม่ยิง fetch ซ้ำถ้าหน้า "บันทึกค่าใช้จ่าย" โหลดข้อมูลไว้แล้ว — กรองด้วย

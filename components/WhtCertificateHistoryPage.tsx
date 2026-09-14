@@ -10,18 +10,15 @@ import { fetchInvoices, INVOICES_SWR_KEY } from '@/lib/invoiceApi';
 import { CONTACTS_SWR_KEY, fetchContacts } from '@/lib/contactApi';
 import { buildWhtCertificatePdf, whtCertificateFilename } from '@/lib/whtCertificatePdf';
 import { downloadBlob } from '@/lib/reportExport';
-import { buddhistYearOptions, thaiMonthName } from '@/lib/thaiDate';
+import { buddhistYearOptions, formatThaiDate, thaiMonthName } from '@/lib/thaiDate';
 import IssueWhtCertificateModal, { type WhtCertificateFormPrefill } from '@/components/IssueWhtCertificateModal';
 import type { WhtCertificate, WhtFormType } from '@/types/whtCertificate';
 import type { PendingTaxInvoice } from '@/types/invoice';
 
 const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '-';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-}
+// เดิมแสดงปี ค.ศ. ทั้งที่กรอกเป็น พ.ศ. — ดูคอมเมนต์ formatThaiDate ใน lib/thaiDate.ts (แก้ 2026-09-14)
+const formatDate = formatThaiDate;
 
 /** ต่างจาก formatDate ตรงที่รับ timestamptz เต็ม (มีเวลา/timezone ติดมาด้วย เช่น email_sent_at) ไม่ใช่แค่
  * วันที่ล้วน (YYYY-MM-DD) — ใช้ Date object แปลงเป็นเวลาท้องถิ่นของเบราว์เซอร์ผู้ใช้ตรงๆ ปีที่แสดงเป็น พ.ศ.

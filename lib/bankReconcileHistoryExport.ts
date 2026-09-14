@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { registerThaiFont, THAI_FONT_NAME } from './pdfThaiFont';
+import { formatThaiDate } from './thaiDate';
 import type { TransactionType } from '@/types/bankReconcile';
 
 /**
@@ -67,10 +68,9 @@ const EXPORT_HEADERS = ['วันที่', 'รับ', 'จ่าย', 'จ�
 
 const THB_NUMBER = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function formatDateForExport(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  return y && m && d ? `${d}/${m}/${y}` : iso;
-}
+// เดิมส่งออกเป็นปี ค.ศ. ทั้งที่ทั้งระบบใช้ พ.ศ. — ไฟล์ที่ส่งให้ผู้สอบบัญชี/สรรพากรต้องเป็น พ.ศ. เหมือนที่
+// เห็นบนหน้าจอ ไม่งั้นวันที่ในเอกสารจะไม่ตรงกับระบบ ดูคอมเมนต์ formatThaiDate ใน lib/thaiDate.ts (2026-09-14)
+const formatDateForExport = formatThaiDate;
 
 function docsLabel(docs: string[]): string {
   return docs.length > 0 ? docs.join(', ') : '-';

@@ -198,9 +198,11 @@ test.describe('ภาษีซื้อที่ยังไม่ได้ร�
     await expect(rows.nth(1)).toHaveAttribute('data-testid', 'overdue-report-month-row-2026-07');
     await expect(rows.nth(2)).toHaveAttribute('data-testid', 'overdue-report-month-row-2026-06');
     await expect(rows.nth(3)).toHaveAttribute('data-testid', 'overdue-report-month-row-unspecified');
-    await expect(rows.nth(0)).toContainText('สิงหาคม 2026');
-    await expect(rows.nth(1)).toContainText('กรกฎาคม 2026');
-    await expect(rows.nth(2)).toContainText('มิถุนายน 2026');
+    // ป้ายเดือนแสดงเป็น พ.ศ. ตั้งแต่รอบที่ formatMonthLabel เปลี่ยนไปบวก 543 (lib/thaiDate.ts) — ส่วน
+    // data-testid ด้านบนยังเป็น ค.ศ. เพราะเป็นคีย์ภายในสำหรับจัดกลุ่ม ไม่ใช่ข้อความที่ผู้ใช้อ่าน
+    await expect(rows.nth(0)).toContainText('สิงหาคม 2569');
+    await expect(rows.nth(1)).toContainText('กรกฎาคม 2569');
+    await expect(rows.nth(2)).toContainText('มิถุนายน 2569');
     await expect(rows.nth(3)).toContainText('ยังไม่ระบุเดือนที่คาดว่าจะได้รับ');
 
     expect(errors, `พบ console error: ${errors.join(', ')}`).toEqual([]);

@@ -5,14 +5,13 @@ import { FileSpreadsheet } from 'lucide-react';
 import BankReconcilePagination from './BankReconcilePagination';
 import { buildUnmatchedTableExcelBlob } from '@/lib/bankReconcileHistoryExport';
 import { downloadBlob } from '@/lib/reportExport';
+import { formatThaiDate } from '@/lib/thaiDate';
 
 const THB2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 const DEFAULT_PAGE_SIZE = 20;
 
-function formatDateDisplay(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  return y && m && d ? `${d}/${m}/${y}` : iso;
-}
+// เดิมแสดงปี ค.ศ. — ดูคอมเมนต์ formatThaiDate ใน lib/thaiDate.ts (แก้ 2026-09-14)
+const formatDateDisplay = formatThaiDate;
 
 /** รูปร่างแถวขั้นต่ำที่ตารางนี้ต้องใช้ — ทั้ง BankTransaction และ GLTransaction มีฟิลด์ครบตามนี้อยู่แล้ว
  * (โครงสร้างแบบ structural typing ของ TypeScript) จึงส่ง array ของ type ใดก็ได้เข้ามาตรงๆ โดยไม่ต้อง

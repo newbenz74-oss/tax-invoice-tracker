@@ -3,6 +3,7 @@ import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import type { PurchaseTaxReportRow, PurchaseTaxReportSummary } from './vatReportLogic';
 import { registerThaiFont, THAI_FONT_NAME } from './pdfThaiFont';
+import { formatThaiDate } from './thaiDate';
 
 /** หัวคอลัมน์ของรายงานภาษีซื้อ — ใช้ทั้งใน Excel และ PDF export ให้ตรงกัน จัดลำดับตามที่สเปกกำหนด
  * (ใกล้เคียงรูปแบบรายงานภาษีซื้อของกรมสรรพากร) */
@@ -19,11 +20,9 @@ export const PURCHASE_TAX_REPORT_HEADERS = {
 
 const HEADER_ORDER = Object.values(PURCHASE_TAX_REPORT_HEADERS);
 
-function formatDateForExport(iso: string | null): string {
-  if (!iso) return '-';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-}
+// เดิมส่งออกเป็นปี ค.ศ. ทั้งที่ทั้งระบบใช้ พ.ศ. — รายงานภาษีซื้อที่ยื่นสรรพากรต้องเป็น พ.ศ. ให้ตรงกับที่เห็น
+// บนหน้าจอ ดูคอมเมนต์ formatThaiDate ใน lib/thaiDate.ts (แก้ 2026-09-14)
+const formatDateForExport = formatThaiDate;
 
 const THB_NUMBER = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 

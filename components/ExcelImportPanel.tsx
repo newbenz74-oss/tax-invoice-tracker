@@ -8,6 +8,7 @@ import {
   readWorkbookRows,
   type ExcelImportRow,
 } from '@/lib/excelImport';
+import { formatThaiDate } from '@/lib/thaiDate';
 import type { PendingTaxInvoice, TaxType } from '@/types/invoice';
 
 const THB2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
@@ -295,7 +296,10 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
                       </td>
                       <td className="px-3.5 py-2.5 text-text-sub">{r.rowNumber}</td>
                       <td className="px-3.5 py-2.5 text-text">{r.vendor_name || '-'}</td>
-                      <td className="px-3.5 py-2.5 text-text-sub">{r.transaction_date || '-'}</td>
+                      {/* เดิมโชว์ ISO ดิบ (2026-08-17) ในตารางตรวจก่อนนำเข้า ทั้งที่ผู้ใช้กรอก 17/08/2569
+                          มาในไฟล์ Excel — ทำให้ดูเหมือนระบบอ่านวันที่ผิดทั้งที่อ่านถูก แสดงรูปแบบเดียวกับ
+                          ตารางอื่นทั้งระบบแทน (2026-09-14 พร้อมรอบแก้ปี พ.ศ./ค.ศ. ทั้งโปรเจกต์) */}
+                      <td className="px-3.5 py-2.5 text-text-sub">{formatThaiDate(r.transaction_date)}</td>
                       <td className="font-numeric px-3.5 py-2.5 text-right text-text-sub">
                         {r.amount_excl_vat ? amount.toLocaleString('th-TH', THB2) : '-'}
                       </td>

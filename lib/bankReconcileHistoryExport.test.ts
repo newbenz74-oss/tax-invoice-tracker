@@ -120,9 +120,12 @@ describe('buildUnmatchedTableExcelBlob', () => {
 
     expect(String(aoa[0][0])).toBe('Bank Statement ไม่สำเร็จ');
     expect(aoa[2]).toEqual(['วันที่', 'รับ', 'จ่าย', 'สถานะ']);
-    expect(aoa[3]).toEqual(['01/07/2026', 1000, '', 'ยังไม่จับคู่']);
-    expect(aoa[4]).toEqual(['10/07/2026', 300, '', 'ยังไม่จับคู่']);
-    expect(aoa[5]).toEqual(['02/07/2026', '', 500, 'ยังไม่จับคู่']);
+    // ปี พ.ศ. (2569) ไม่ใช่ ค.ศ. (2026) ตั้งแต่ 2026-09-14 — ไฟล์ที่ส่งออกต้องใช้ศักราชเดียวกับที่แสดง
+    // บนหน้าจอและที่ผู้ใช้กรอกเข้ามา ดู formatThaiDate ใน lib/thaiDate.ts (ข้อมูลในฐานข้อมูลยังเป็น ค.ศ.
+    // เหมือนเดิมทุกประการ เปลี่ยนเฉพาะชั้นแสดงผล/ส่งออก)
+    expect(aoa[3]).toEqual(['01/07/2569', 1000, '', 'ยังไม่จับคู่']);
+    expect(aoa[4]).toEqual(['10/07/2569', 300, '', 'ยังไม่จับคู่']);
+    expect(aoa[5]).toEqual(['02/07/2569', '', 500, 'ยังไม่จับคู่']);
 
     // แถวสรุปยอดรวมท้ายไฟล์ — คำนวณจากผลรวมของ 3 แถวข้อมูลข้างบนเป๊ะ (1000+300=1300 รับ, 500 จ่าย) ไม่ใช่
     // ตัวเลขจากที่อื่น (ยืนยันตามที่ผู้ใช้ระบุว่า "ผลรวมจะต้องมาจากในตารางเท่านั้น")
@@ -143,7 +146,7 @@ describe('buildUnmatchedTableExcelBlob', () => {
     const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
 
     expect(aoa[2]).toEqual(['วันที่', 'เลขที่เอกสาร', 'รับ', 'จ่าย', 'สถานะ']);
-    expect(aoa[3]).toEqual(['20/07/2026', 'DOC-003', '', 900, 'ยังไม่จับคู่']);
+    expect(aoa[3]).toEqual(['20/07/2569', 'DOC-003', '', 900, 'ยังไม่จับคู่']);
     const lastRow = aoa[aoa.length - 1];
     expect(lastRow[0]).toContain('1 รายการ');
     expect(lastRow[2]).toBe(0);
@@ -178,8 +181,8 @@ describe('buildUnmatchedTableExcelBlob', () => {
     const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
 
     expect(aoa[2]).toEqual(['วันที่', 'เลขที่เอกสาร', 'คำอธิบาย', 'รับ', 'จ่าย', 'สถานะ']);
-    expect(aoa[3]).toEqual(['20/07/2026', 'DOC-003', 'จ่ายค่าไฟฟ้า', '', 900, 'ยังไม่จับคู่']);
-    expect(aoa[4]).toEqual(['21/07/2026', 'DOC-004', '-', 100, '', 'ยังไม่จับคู่']);
+    expect(aoa[3]).toEqual(['20/07/2569', 'DOC-003', 'จ่ายค่าไฟฟ้า', '', 900, 'ยังไม่จับคู่']);
+    expect(aoa[4]).toEqual(['21/07/2569', 'DOC-004', '-', 100, '', 'ยังไม่จับคู่']);
     const lastRow = aoa[aoa.length - 1];
     expect(lastRow[0]).toContain('2 รายการ');
     expect(lastRow[1]).toBe('');

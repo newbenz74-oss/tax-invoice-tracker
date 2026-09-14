@@ -7,9 +7,39 @@ import {
   daysInMonth,
   formatBuddhistDateInput,
   formatMonthLabel,
+  formatThaiDate,
   parseBuddhistDateInput,
   thaiMonthName,
 } from './thaiDate';
+
+describe('formatThaiDate', () => {
+  it('แปลงปี ค.ศ. ที่เก็บในฐานข้อมูลกลับเป็น พ.ศ. ตอนแสดงผล', () => {
+    // เคสที่ผู้ใช้แจ้ง (2026-09-14): พิมพ์ 14/09/2569 → เก็บเป็น 2026-09-14 → ต้องแสดงกลับเป็น 2569
+    expect(formatThaiDate('2026-09-14')).toBe('14/09/2569');
+    expect(formatThaiDate('2025-01-05')).toBe('05/01/2568');
+  });
+
+  it('เติมศูนย์หน้าวันและเดือนให้ครบ 2 หลักเสมอ เพื่อให้คอลัมน์ในตารางตรงกัน', () => {
+    expect(formatThaiDate('2026-1-5')).toBe('05/01/2569');
+  });
+
+  it("ไม่มีวันที่ แสดง '-' ไม่ใช่ช่องว่างเปล่าที่ดูเหมือนระบบพัง", () => {
+    expect(formatThaiDate(null)).toBe('-');
+    expect(formatThaiDate(undefined)).toBe('-');
+    expect(formatThaiDate('')).toBe('-');
+  });
+
+  it('รูปแบบผิดคืนค่าเดิม ผู้ใช้จะได้ยังเห็นว่าข้อมูลจริงคืออะไร', () => {
+    expect(formatThaiDate('ไม่ใช่วันที่')).toBe('ไม่ใช่วันที่');
+  });
+
+  it('แปลงไปกลับกับ parseBuddhistDateInput ต้องได้ค่าเดิมเสมอ (ไม่มีวันเพี้ยนระหว่างทาง)', () => {
+    const typed = '14/09/2569';
+    const iso = parseBuddhistDateInput(typed).iso;
+    expect(iso).toBe('2026-09-14');
+    expect(formatThaiDate(iso)).toBe(typed);
+  });
+});
 
 describe('thaiMonthName', () => {
   it('คืนชื่อเดือนไทยที่ถูกต้องสำหรับเดือน 1-12', () => {

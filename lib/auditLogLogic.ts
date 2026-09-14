@@ -1,3 +1,4 @@
+import { formatThaiDate } from './thaiDate';
 import type { AuditAction, AuditLogEntry } from '@/types/auditLog';
 
 /**
@@ -188,6 +189,18 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
  * เยอะกว่าและเพิ่มใหม่บ่อยกว่ามาก ถ้าลืมใส่ในบัญชีก็แค่ไม่มีคอมมา (อ่านออก) แต่ถ้าลืมกันคอลัมน์รหัสไว้จะได้
  * ค่าที่ผิดความหมายไปเลย — เลือกให้ผลของการลืมเบาที่สุด
  */
+/** คอลัมน์ที่เก็บเป็นวันที่ ISO (YYYY-MM-DD) — ต้องแสดงเป็น วว/ดด/ปปปป ปี พ.ศ. เหมือนทุกหน้าในระบบ */
+const DATE_FIELDS = new Set([
+  'transaction_date',
+  'expected_date',
+  'received_date',
+  'tax_invoice_date',
+  'issued_date',
+  'payment_date',
+  // จงใจไม่ใส่ voided_at — เป็น timestamptz (มีเวลาต่อท้าย) ไม่ใช่ date เปล่าๆ แปลงด้วย formatThaiDate
+  // ไม่ได้ ปล่อยให้แสดงค่าดิบไปก่อน ดีกว่าแสดงผิด
+]);
+
 const RAW_NUMERIC_FIELDS = new Set([
   'tax_id',
   'payer_tax_id',
@@ -223,6 +236,11 @@ export function formatFieldValue(field: string, value: unknown): string {
   if (mapped) return mapped;
 
   if (typeof value === 'boolean') return value ? 'ใช่' : 'ไม่ใช่';
+
+  // คอลัมน์วันที่เก็บเป็น ISO ค.ศ. ในฐานข้อมูล ต้องแปลงกลับเป็น พ.ศ. ให้ตรงกับที่แสดงในหน้าอื่นทั้งระบบ
+  // (2026-09-14) ไม่งั้นประวัติจะบอกว่า "วันที่ทำรายการ: 2026-09-14 → 2026-09-20" ซึ่งอ่านแล้วสับสนกับ
+  // ตารางใบกำกับภาษีที่แสดง 14/09/2569 อยู่หน้าเดียวกัน
+  if (DATE_FIELDS.has(field) && typeof value === 'string') return formatThaiDate(value);
 
   if (RAW_NUMERIC_FIELDS.has(field)) return String(value);
 

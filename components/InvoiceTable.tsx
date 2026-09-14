@@ -10,17 +10,15 @@ import {
   getTaxInvoiceStatusLabel,
   isWhtCertEligible,
 } from '@/lib/invoiceLogic';
-import { buddhistYearOptions, currentBuddhistYear, currentMonth, thaiMonthName } from '@/lib/thaiDate';
+import { buddhistYearOptions, currentBuddhistYear, currentMonth, formatThaiDate, thaiMonthName } from '@/lib/thaiDate';
 import BuddhistDateInput from '@/components/BuddhistDateInput';
 import InvoiceDetailModal from '@/components/InvoiceDetailModal';
 
 const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '-';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-}
+// เดิมพิมพ์ปีจาก ISO ออกมาตรงๆ ทำให้แสดงเป็น ค.ศ. (2026) ทั้งที่ผู้ใช้กรอกเป็น พ.ศ. (2569) — ย้ายไปใช้
+// formatThaiDate กลางที่ lib/thaiDate.ts แทน (แก้พร้อมกันทั้ง 14 จุดที่เขียนซ้ำกันไว้ 2026-09-14)
+const formatDate = formatThaiDate;
 
 interface InvoiceTableProps {
   invoices: PendingTaxInvoice[];

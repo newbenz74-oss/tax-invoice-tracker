@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { MarkReceivedInput, PendingTaxInvoice } from '@/types/invoice';
 import { getTaxInvoiceStatusBadgeClass, getTaxInvoiceStatusLabel } from '@/lib/invoiceLogic';
-import { buddhistYearOptions, currentBuddhistYear, currentMonth, thaiMonthName } from '@/lib/thaiDate';
+import { buddhistYearOptions, currentBuddhistYear, currentMonth, formatThaiDate, thaiMonthName } from '@/lib/thaiDate';
 import BuddhistDateInput from '@/components/BuddhistDateInput';
 import {
   OVERDUE_AGING_BADGE_CLASS,
@@ -15,11 +15,8 @@ import {
 
 const THB = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '-';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-}
+// เดิมแสดงปี ค.ศ. ทั้งที่กรอกเป็น พ.ศ. — ดูคอมเมนต์ formatThaiDate ใน lib/thaiDate.ts (แก้ 2026-09-14)
+const formatDate = formatThaiDate;
 
 interface OverdueMonthDetailProps {
   group: OverdueMonthGroup;
