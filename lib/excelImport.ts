@@ -84,14 +84,38 @@ function excelSerialToDate(serial: number): Date | null {
  * รองรับ: Date object (เซลล์รูปแบบวันที่จริงของ Excel), เลข serial ของ Excel,
  * string แบบ YYYY-MM-DD, และ string แบบ DD/MM/YYYY (นิยมใช้ในไทย)
  */
+/**
+ * ด่านสุดท้ายก่อนคืนค่า: ถ้าปีที่ได้ยัง "สูงเกินกว่าจะเป็น ค.ศ. จริง" แปลว่าเป็น พ.ศ. ที่หลุดรอดมา ให้ลบ 543
+ *
+ * เพิ่มเข้ามา 2026-09-15 หลังผู้ใช้แจ้งว่านำเข้าไฟล์เทมเพลตที่เป็น พ.ศ. 2569 แล้ววันที่กลายเป็น 3112
+ * (= 2569 + 543 ตอนแสดงผล แปลว่าฐานข้อมูลเก็บปี 2569 ไว้ตรงๆ ซึ่งผิด ต้องเป็น 2026)
+ *
+ * รอบแก้ก่อนหน้า (2026-09-02) แก้ไว้เฉพาะเส้นทาง "ข้อความ วว/ดด/ปปปป" เท่านั้น แต่เซลล์วันที่ใน Excel มาถึง
+ * โค้ดนี้ได้ 4 ทาง — Date object, เลข serial, ข้อความ YYYY-MM-DD และข้อความ วว/ดด/ปปปป — อีก 3 ทางที่เหลือ
+ * ยังเก็บปีตามที่ไฟล์ให้มาตรงๆ ไฟล์บัญชีไทยที่เขียนปีเป็น พ.ศ. ลงในตัววันที่เองจึงยังหลุดเข้ามาได้อยู่ดี
+ *
+ * ย้ายการแปลงมาไว้ที่ทางออกทางเดียวของฟังก์ชันแทนการไล่แก้ทีละเส้นทาง เพื่อไม่ให้พลาดซ้ำอีกเวลาเพิ่มรูปแบบ
+ * ใหม่ — เส้นทาง วว/ดด/ปปปป ที่ลบ 543 ไปแล้วจะไม่โดนลบซ้ำ เพราะผลลัพธ์ตกมาต่ำกว่าเกณฑ์นี้แล้ว
+ *
+ * ใช้เกณฑ์ 2400 (ไม่ใช่ 2200 เท่า GREGORIAN_LOOKING_YEAR_MAX) ให้ตรงกับ parseDateCellWithEraConversion ใน
+ * lib/bankReconcileParse.ts ที่ทำเรื่องเดียวกันกับไฟล์ Bank Statement — ปี ค.ศ. 2200-2399 ไม่มีทางเป็น
+ * เอกสารทางบัญชีจริงอยู่แล้ว แต่ถ้าเผลอแปลงจะเพี้ยนไป 543 ปีแบบเงียบๆ จึงตั้งเกณฑ์ให้ปลอดภัยไว้ก่อน
+ */
+function normalizeBuddhistEra(iso: string): string {
+  const [yStr, mo, d] = iso.split('-');
+  const year = Number(yStr);
+  if (year < 2400) return iso;
+  return `${String(year - BUDDHIST_YEAR_OFFSET).padStart(4, '0')}-${mo}-${d}`;
+}
+
 export function parseExcelDateCell(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? null : toISODate(value);
+    return Number.isNaN(value.getTime()) ? null : normalizeBuddhistEra(toISODate(value));
   }
   if (typeof value === 'number') {
     const d = excelSerialToDate(value);
-    return d ? toISODate(d) : null;
+    return d ? normalizeBuddhistEra(toISODate(d)) : null;
   }
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -99,7 +123,7 @@ export function parseExcelDateCell(value: unknown): string | null {
     const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (isoMatch) {
       const [, y, mo, d] = isoMatch;
-      return isRealDate(Number(y), Number(mo), Number(d)) ? trimmed : null;
+      return isRealDate(Number(y), Number(mo), Number(d)) ? normalizeBuddhistEra(trimmed) : null;
     }
     const dmyMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (dmyMatch) {
