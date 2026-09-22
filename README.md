@@ -18,6 +18,7 @@ Stack: Next.js 16 (App Router, client-heavy) + Supabase (database + auth) + Tail
 8. [รายงานภาษีซื้อ (VAT Reconcile)](#8-รายงานภาษีซื้อ-vat-reconcile)
 9. [ACC Reconcile AI Copilot (ผู้ช่วย AI)](#9-acc-reconcile-ai-copilot-ผู้ช่วย-ai)
 10. [สำรอง / กู้คืนข้อมูล](#10-สำรอง--กู้คืนข้อมูล)
+11. [ความปลอดภัย: RLS และ anon key](#11-ความปลอดภัย-rls-และ-anon-key)
 
 ---
 
@@ -51,8 +52,9 @@ Stack: Next.js 16 (App Router, client-heavy) + Supabase (database + auth) + Tail
    - **Project URL** → ใช้เป็น `NEXT_PUBLIC_SUPABASE_URL`
    - **anon / public key** → ใช้เป็น `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-RLS ที่ตั้งไว้: ทุกคนที่ login แล้ว (authenticated) อ่าน/เพิ่ม/แก้/ลบได้ทุกแถวเท่ากัน — ไม่มีสิทธิ์
-สำหรับผู้ใช้ที่ไม่ได้ login (anon) เลย
+RLS ที่ตั้งไว้: สมาชิกของบริษัทนั้นที่ login แล้ว (authenticated) อ่าน/เพิ่ม/แก้/ลบข้อมูลของบริษัทตัวเองได้
+เท่ากันทุกคน — ผู้ใช้ที่ไม่ได้ login (anon) ไม่มีสิทธิ์แตะอะไรเลย ดูรายละเอียดและ migration ที่ต้องรันเพื่อ
+ปิดช่องทาง anon ให้สนิทที่ [หัวข้อ 11](#11-ความปลอดภัย-rls-และ-anon-key)
 
 ## 2. รันในเครื่องตัวเอง
 
@@ -416,3 +418,64 @@ policy delete จะทำให้คำสั่งลบ **สำเร็จ
 - กู้คืนไฟล์ของบริษัท A เข้าบริษัท B ได้ (ระบบเขียน `company_id` ทับให้เป็นบริษัทที่เลือกอยู่เสมอ) และจะขึ้น
   คำเตือนสีเหลืองก่อนกดยืนยัน — ยกเว้นกรณีเดียวที่จะติด constraint คือ `business_partners.contact_code` ที่
   unique ทั้งระบบ (ไม่ได้ unique แยกรายบริษัท ดู migration_004) ถ้ารหัสผู้ติดต่อชนกับบริษัทอื่นจะกู้คืนไม่ผ่าน
+
+---
+
+## 11. ความปลอดภัย: RLS และ anon key
+
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` เป็นคีย์สาธารณะ ฝังอยู่ในหน้าเว็บ ใครเปิด DevTools ก็ก๊อปไปได้ และยิง
+REST API ของ Supabase ตรงๆ ได้ทันทีโดยไม่ต้องล็อกอิน **นี่เป็นเรื่องปกติของ Supabase ไม่ใช่ความผิดพลาด** —
+แต่มีเงื่อนไขว่าทุกตารางต้องกันคนที่ไม่ได้ล็อกอินออกจริง
+
+### สองด่านที่กั้นอยู่
+
+| ด่าน | กลไก | ค่าตั้งต้นของ Supabase |
+|---|---|---|
+| 1 | สิทธิ์ระดับตาราง (`GRANT`/`REVOKE`) | **เปิดให้ `anon` ทุกตารางใน `public` อัตโนมัติ** — ไม่เคยกันใคร |
+| 2 | RLS policy | ด่านจริงด่านเดียวที่ทำงานอยู่ |
+
+ผลคือ "ตารางไหนที่ RLS ปิดอยู่ หรือ policy เขียนไม่ครอบคลุม = เปิดให้โลกอ่านได้ทันที" ซึ่งพึ่งด่านเดียว
+เกินไปสำหรับข้อมูลทางบัญชี
+
+### migration ที่ต้องรัน
+
+`supabase/migration_028_lock_anon_access.sql` — ปิดด่านที่ 1 ทั้ง schema แทนการไล่ปะทีละตาราง:
+
+1. ถอนสิทธิ์ตาราง/ซีเควนซ์ทั้งหมดใน `public` จาก `anon` (+ `PUBLIC`) แล้วยืนยันสิทธิ์ `authenticated` เท่าเดิม
+2. ถอนสิทธิ์เรียกฟังก์ชันใน `public` จาก `anon` (ข้ามฟังก์ชันของ extension)
+3. ตั้ง default privileges ไม่ให้ตาราง/ฟังก์ชันที่สร้างใหม่ในอนาคตได้สิทธิ์ `anon` กลับมาอีก
+4. ปิด `payment_storage` (ตารางตกค้างที่ไม่มีอยู่ในไฟล์ migration ไหนเลย) ให้สนิทถ้ายังมีตัวตนอยู่จริง
+5. เขียน policy 12 ตัวที่ลืมใส่ `to authenticated` ใหม่ให้ระบุ role ชัดเจน (013, 014, 015, 018, 024)
+6. ถอนสิทธิ์เรียกฟังก์ชัน `security definer` ของ migration_026 จาก `anon` — ข้อที่ 026 ลืมทำ
+
+หลังรันแล้ว คนที่ยิงมาด้วย anon key จะโดนปฏิเสธตั้งแต่ด่านแรก (`permission denied for table ...`) ไม่ว่า RLS
+ของตารางนั้นจะเขียนไว้อย่างไร **การแก้นี้ไม่กระทบผู้ใช้ที่ล็อกอินอยู่เลย** เพราะระบบไม่มีฟีเจอร์ไหนที่อ่าน/
+เขียนข้อมูลก่อนล็อกอินแม้แต่จุดเดียว (การล็อกอิน/สมัครสมาชิกวิ่งผ่าน Supabase Auth ซึ่งอยู่คนละ schema)
+
+### สคริปต์ตรวจสอบ
+
+`supabase/check_rls_security.sql` — อ่านอย่างเดียว ไม่แก้อะไร ใช้ดูว่า `anon` ยังแตะอะไรได้บ้าง (7 query:
+สิทธิ์ตาราง, สถานะ RLS + เจ้าของตาราง, policy ทุกตัวพร้อม role, ฟังก์ชันที่ anon เรียกได้, สิทธิ์ระดับคอลัมน์,
+default privileges, storage bucket ที่เปิดสาธารณะ)
+
+> ⚠️ Supabase SQL Editor แสดงผลของคำสั่งสุดท้ายเท่านั้น — ต้อง **ลากคลุมทีละบล็อกแล้วกด Run** ทำ 7 รอบ
+> ควรรันไฟล์นี้ทั้งก่อนและหลัง `migration_028` เพื่อเทียบผล
+
+### ข้อควรจำหลังรัน migration_028
+
+`migration_028` ข้อ 3 สั่ง `alter default privileges for role postgres revoke execute on routines from public`
+แบบไม่ระบุ schema ซึ่งครอบ **ทุก schema รวมถึงฟังก์ชันที่มากับ `create extension`** ดังนั้นทุกครั้งที่ติดตั้ง
+extension ใหม่ (กด Enable extension ใน Dashboard หรือ `create extension` เอง) ต้องคืนสิทธิ์เองเสมอ:
+
+```sql
+grant execute on all functions in schema extensions to authenticated, service_role;
+```
+
+ไม่งั้นแอปจะพังด้วย `permission denied for function ...` ซึ่งไล่หาสาเหตุยากมากถ้าลืมข้อนี้
+
+### กติกาสำหรับ migration รอบต่อๆ ไป
+
+- ทุก `create policy` **ต้องเขียน `to authenticated` เสมอ** — ถ้าไม่เขียน ค่าเริ่มต้นคือ `PUBLIC` ซึ่งครอบ `anon`
+- ทุกฟังก์ชัน `security definer` ต้องมี `revoke all on routine ... from anon, public;` ตามหลัง `grant execute`
+  เสมอ (การ `grant` เฉยๆ **ไม่ได้** ถอนสิทธิ์ที่ default privilege ของ Supabase ให้ `anon` ไว้ตั้งแต่ตอนสร้าง)
+- ทุกตารางใหม่ต้อง `enable row level security` ทันทีที่สร้าง แม้จะยังไม่มี policy ก็ตาม
