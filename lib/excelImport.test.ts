@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import * as XLSX from 'xlsx';
 import {
   EXCEL_HEADERS,
+  EXCEL_HEADER_ORDER,
   buildTemplateBlob,
   excelRowToWriteInput,
   findDuplicateRowNumbers,
@@ -8,6 +10,7 @@ import {
   parseExcelRow,
   parseExcelRows,
   parseVatCell,
+  readSheetRows,
   readWorkbookRows,
 } from './excelImport';
 import type { PendingTaxInvoice } from '@/types/invoice';
@@ -60,6 +63,37 @@ describe('parseExcelDateCell', () => {
     expect(parseExcelDateCell(46216)).toBe('2026-07-13');
   });
 
+  // บั๊กที่ผู้ใช้แจ้ง 2026-09-22: กรอกเดือนกันยายนในเทมเพลต แต่ระบบบันทึกเป็นสิงหาคม
+  // ต้นเหตุคือการแปลงวันที่ขึ้นกับโซนเวลาของเครื่อง เทสต์ชุดนี้ต้องผ่านในทุกโซนเวลา
+  // (รันตรวจจริงมาแล้วที่ UTC, Asia/Bangkok, America/New_York, Pacific/Kiritimati)
+  it('เลข serial ต้องให้วันที่เดิมเสมอ ไม่ว่าเครื่องจะตั้งโซนเวลาอะไร', () => {
+    expect(parseExcelDateCell(46266)).toBe('2026-09-01'); // เคสของผู้ใช้: 1 ก.ย. 2026
+    expect(parseExcelDateCell(46265)).toBe('2026-08-31');
+    expect(parseExcelDateCell(45658)).toBe('2025-01-01'); // ขึ้นปีใหม่ — จุดที่เลื่อน 1 วันแล้วข้ามปี
+    expect(parseExcelDateCell(46022)).toBe('2025-12-31');
+  });
+
+  it('serial ที่มีเศษทศนิยมติดมา (บางเครื่องมือเขียนแบบนี้) ต้องได้วันที่ถูกต้อง', () => {
+    // 46265.9997 คือ "1 ก.ย. ลบไปเสี้ยววินาที" — ถ้าปัดลงตรงๆ จะกลายเป็น 31 ส.ค. แบบเงียบๆ
+    expect(parseExcelDateCell(46265.999768518515)).toBe('2026-09-01');
+    expect(parseExcelDateCell(46266.0000462963)).toBe('2026-09-01');
+  });
+
+  it('เซลล์วันที่ที่มี "เวลา" ติดมาด้วย (statement ธนาคาร) ต้องคงวันเดิม ไม่ปัดขึ้นวันถัดไป', () => {
+    expect(parseExcelDateCell(46266.25)).toBe('2026-09-01'); // 06:00
+    expect(parseExcelDateCell(46266.5)).toBe('2026-09-01'); // 12:00 — จุดที่การปัดแบบ round จะพัง
+    expect(parseExcelDateCell(46266.625)).toBe('2026-09-01'); // 15:00
+    expect(parseExcelDateCell(46266.99)).toBe('2026-09-01'); // 23:45
+  });
+
+  it('ข้อจำกัดที่ยอมรับไว้: เวลาในช่วง 23:58-23:59 จะถูกนับเป็นวันถัดไป', () => {
+    // เป็นผลจากการเผื่อ 2 นาทีให้ความคลาดเคลื่อนของ serial (ดูคอมเมนต์ใน excelSerialToDate)
+    // เลขตัวเดียวถูกใช้แทนทั้ง "เศษความคลาดเคลื่อน" และ "เวลาจริงในวัน" จึงแยกสองอย่างนี้ใกล้เที่ยงคืนไม่ได้
+    // เขียนเป็นเทสต์ไว้ให้เป็นพฤติกรรมที่ตั้งใจและตรวจสอบได้ ไม่ใช่ผลข้างเคียงที่ไม่มีใครรู้
+    expect(parseExcelDateCell(46266 + 1437 / 1440)).toBe('2026-09-01'); // 23:57 — ยังเป็นวันเดิม
+    expect(parseExcelDateCell(46266 + 1438 / 1440)).toBe('2026-09-02'); // 23:58 — ขยับเป็นวันถัดไป
+  });
+
   // ผู้ใช้แจ้ง 2026-09-15: นำเข้าไฟล์เทมเพลตที่วันที่เป็น พ.ศ. แล้วได้ปี 3112 บนหน้าจอ (= 2569 + 543 ตอน
   // แสดงผล แปลว่าฐานข้อมูลเก็บ 2569 ไว้ตรงๆ) — รอบแก้ 2026-09-02 ครอบคลุมเฉพาะเส้นทางข้อความ วว/ดด/ปปปป
   // อีก 3 เส้นทางยังหลุด เทสต์ชุดนี้ปิดช่องที่เหลือทั้งหมด
@@ -76,6 +110,29 @@ describe('parseExcelDateCell', () => {
     expect(parseExcelDateCell(new Date(2026, 7, 30))).toBe('2026-08-30');
   });
 
+  // ปิดช่องโหว่ "ค่าผิดแบบเงียบ" (2026-09-22): เลขลอยๆ ที่ผู้ใช้เผลอพิมพ์ลงช่องวันที่ เคยถูกตีความเป็น
+  // serial date ของ Excel แล้วได้วันที่ปี 1900 กลับมาโดยไม่มี error — รายการจะหายจากรายงานภาษีแบบเงียบๆ
+  it('ปีที่หลุดช่วงเอกสารจริง (พ.ศ. 2500-2700) ต้องคืน null ไม่ใช่รับค่าผิดเข้าระบบ', () => {
+    expect(parseExcelDateCell(9)).toBeNull(); // เลขเดือนที่พิมพ์ผิดช่อง → 1900-01-08
+    expect(parseExcelDateCell(2569)).toBeNull(); // เลขปีที่พิมพ์ผิดช่อง → 1907
+    expect(parseExcelDateCell(0)).toBeNull();
+    expect(parseExcelDateCell(new Date(1900, 0, 8))).toBeNull();
+    expect(parseExcelDateCell('1900-01-08')).toBeNull();
+  });
+
+  it('ขอบเขตช่วงปีที่ยอมรับ — พ.ศ. 2500 ถึง 2700 พอดี', () => {
+    expect(parseExcelDateCell('01/01/2500')).toBe('1957-01-01');
+    expect(parseExcelDateCell('31/12/2700')).toBe('2157-12-31');
+    expect(parseExcelDateCell('31/12/2499')).toBeNull();
+    expect(parseExcelDateCell('01/01/2701')).toBeNull();
+  });
+
+  it('วันที่ทำบัญชีจริงในช่วงปกติต้องไม่ถูกปฏิเสธ', () => {
+    for (const year of [2560, 2569, 2580, 2600]) {
+      expect(parseExcelDateCell(`15/06/${year}`), `พ.ศ. ${year} ต้องผ่าน`).toBe(`${year - 543}-06-15`);
+    }
+  });
+
   it('คืนค่า null สำหรับค่าว่าง/ไม่ถูกต้อง', () => {
     expect(parseExcelDateCell('')).toBeNull();
     expect(parseExcelDateCell(null)).toBeNull();
@@ -84,6 +141,219 @@ describe('parseExcelDateCell', () => {
     expect(parseExcelDateCell('2026-13-99')).toBeNull();
     expect(parseExcelDateCell('35/13/2026')).toBeNull();
     expect(parseExcelDateCell('30/2/2026')).toBeNull(); // กุมภาพันธ์ไม่มีวันที่ 30
+  });
+});
+
+/* ---- คอลัมน์รับใบกำกับภาษีในเทมเพลต (เพิ่ม 2026-09-21) ----
+ * ผู้ใช้ระบุว่า "บางทีฉันจ่ายเงินออกไปก็ได้รับใบกำกับภาษีเลย ฉันจะได้ไม่ต้องไปนั่งกรอกรับใบกำกับภาษีทีละใบ"
+ * ชุดเทสต์นี้ยึดกติกา 4 ข้อที่ตกลงกันไว้ (ดู resolveTaxInvoiceReceipt ใน lib/excelImport.ts) */
+describe('การรับใบกำกับภาษีจากไฟล์ Excel', () => {
+  /** แถวดิบที่ผ่านตรวจสอบพื้นฐานแน่นอน (มี VAT) — ทับค่าเฉพาะคอลัมน์ที่เทสต์แต่ละเคสสนใจ */
+  function rawRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      [EXCEL_HEADERS.vendor_name]: 'บริษัท ทดสอบ จำกัด',
+      [EXCEL_HEADERS.transaction_date]: '21/09/2569',
+      [EXCEL_HEADERS.amount_excl_vat]: 1000,
+      [EXCEL_HEADERS.vat_amount]: 70,
+      ...overrides,
+    };
+  }
+
+  it('เว้น 4 ช่องท้ายว่าง = พฤติกรรมเดิมทุกประการ (รอรับใบกำกับภาษี)', () => {
+    const row = parseExcelRow(rawRow(), 2)!;
+    expect(row.errors).toEqual([]);
+    expect(row.tax_invoice_number).toBe('');
+    expect(row.received_date).toBe('');
+    expect(row.vat_claim_month).toBe('');
+    expect(excelRowToWriteInput(row).status).toBe('pending');
+  });
+
+  it('กรอกเลขที่ + วันที่ใบกำกับภาษี → บันทึกเป็น "ได้รับแล้ว" ทันที', () => {
+    const row = parseExcelRow(
+      rawRow({
+        [EXCEL_HEADERS.tax_invoice_number]: 'INV-0001',
+        [EXCEL_HEADERS.tax_invoice_date]: '21/09/2569',
+      }),
+      2
+    )!;
+    expect(row.errors).toEqual([]);
+    const input = excelRowToWriteInput(row);
+    expect(input.status).toBe('received');
+    expect(input.tax_invoice_number).toBe('INV-0001');
+    expect(input.tax_invoice_date).toBe('2026-09-21');
+  });
+
+  it('เว้นวันที่ได้รับว่างไว้ → ใช้วันที่ใบกำกับภาษีแทน', () => {
+    const row = parseExcelRow(
+      rawRow({
+        [EXCEL_HEADERS.tax_invoice_number]: 'INV-0001',
+        [EXCEL_HEADERS.tax_invoice_date]: '21/09/2569',
+      }),
+      2
+    )!;
+    expect(row.received_date).toBe('2026-09-21');
+  });
+
+  it('เว้นเดือน/ปีที่ใช้เครดิต VAT ว่างไว้ → เดาจากวันที่ได้รับ และต้องเป็นปี พ.ศ.', () => {
+    const row = parseExcelRow(
+      rawRow({
+        [EXCEL_HEADERS.tax_invoice_number]: 'INV-0001',
+        [EXCEL_HEADERS.tax_invoice_date]: '21/09/2569',
+        [EXCEL_HEADERS.received_date]: '05/10/2569',
+      }),
+      2
+    )!;
+    expect(row.received_date).toBe('2026-10-05');
+    expect(row.vat_claim_month).toBe(10);
+    // ต้องเป็น 2569 (พ.ศ.) ไม่ใช่ 2026 — vat_claim_year เก็บเป็น พ.ศ. ตาม migration_002
+    expect(row.vat_claim_year).toBe(2569);
+  });
+
+  it('กรอกเดือน/ปีที่ใช้เครดิตเองได้ (กรณีเลื่อนไปใช้เดือนถัดไป)', () => {
+    const row = parseExcelRow(
+      rawRow({
+        [EXCEL_HEADERS.tax_invoice_number]: 'INV-0001',
+        [EXCEL_HEADERS.tax_invoice_date]: '21/09/2569',
+        [EXCEL_HEADERS.vat_claim_period]: '10/2569',
+      }),
+      2
+    )!;
+    expect(row.vat_claim_month).toBe(10);
+    expect(row.vat_claim_year).toBe(2569);
+  });
+
+  it('กรอกเลขที่แต่ไม่กรอกวันที่ใบกำกับภาษี → error (รายงานภาษีซื้อใช้วันที่นี้)', () => {
+    const row = parseExcelRow(rawRow({ [EXCEL_HEADERS.tax_invoice_number]: 'INV-0001' }), 2)!;
+    expect(row.errors.join(' ')).toContain('วันที่ใบกำกับภาษี');
+  });
+
+  it('กรอกวันที่ใบกำกับภาษีมาแต่ลืมเลขที่ → error บอกให้เว้นว่างทั้ง 4 ช่องถ้ายังไม่ได้รับ', () => {
+    const row = parseExcelRow(rawRow({ [EXCEL_HEADERS.tax_invoice_date]: '21/09/2569' }), 2)!;
+    expect(row.errors.join(' ')).toContain('เลขที่ใบกำกับภาษี');
+    expect(row.tax_invoice_date).toBe('');
+  });
+
+  // ผู้ใช้แจ้ง 2026-09-22: พิมพ์ 09/2569 แล้วกด Enter — Excel แปลงเป็นเซลล์วันที่ให้เอง แสดงเป็น "ก.ย.-69"
+  // ทำให้นำเข้าไม่ผ่านทั้งที่กรอกถูก ตัวอ่านต้องรับเซลล์วันที่ได้ด้วย ไม่ใช่รับแค่ข้อความ ดด/ปปปป
+  it('Excel แปลงช่องเดือน/ปีเป็นวันที่ให้เอง → ต้องอ่านเดือน/ปีออกได้ ไม่ขึ้น error', () => {
+    const base = {
+      [EXCEL_HEADERS.tax_invoice_number]: 'INV-0001',
+      [EXCEL_HEADERS.tax_invoice_date]: '21/09/2569',
+    };
+
+    // กรณีที่ Excel เก็บเป็นวันที่ ค.ศ. (1 ก.ย. 2026) — เครื่องที่ใช้ปฏิทินสากล
+    const gregorian = parseExcelRow(
+      rawRow({ ...base, [EXCEL_HEADERS.vat_claim_period]: new Date(2026, 8, 1) }),
+      2
+    )!;
+    expect(gregorian.errors).toEqual([]);
+    expect(gregorian.vat_claim_month).toBe(9);
+    expect(gregorian.vat_claim_year).toBe(2569);
+
+    // กรณีที่ Excel เก็บปีเป็น 2569 ตรงๆ — เครื่องที่ตั้งปฏิทินพุทธ (ต้องไม่กลายเป็น 3112)
+    const buddhist = parseExcelRow(
+      rawRow({ ...base, [EXCEL_HEADERS.vat_claim_period]: new Date(2569, 8, 1) }),
+      2
+    )!;
+    expect(buddhist.errors).toEqual([]);
+    expect(buddhist.vat_claim_month).toBe(9);
+    expect(buddhist.vat_claim_year).toBe(2569);
+  });
+
+  it('อ่านจากไฟล์ .xlsx จริงที่เซลล์เป็นวันที่ (เลข serial) ต้องได้เดือนตรง ไม่เลื่อนไปเดือนก่อนหน้า', () => {
+    // จำลองไฟล์ที่ Excel บันทึกจริง: เซลล์วันที่เก็บเป็น "เลข serial" ไม่ใช่ข้อความ
+    // 46266 = 1 ก.ย. 2026 (ตรงกับที่ผู้ใช้พิมพ์ 09/2569 แล้ว Excel แปลงเป็น "ก.ย.-69")
+    const sheet = XLSX.utils.aoa_to_sheet([
+      [...EXCEL_HEADER_ORDER],
+      ['21/09/2569', 'บริษัท ทดสอบ จำกัด', '', '', '', 1000, 70, '', '', '', '', 'INV-0001', 46266, '', 46266],
+    ]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, 'รายการ');
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
+
+    const rows = parseExcelRows(readWorkbookRows(buffer));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].errors).toEqual([]);
+    expect(rows[0].tax_invoice_date).toBe('2026-09-01');
+    expect(rows[0].vat_claim_month).toBe(9); // ต้องเป็นกันยายน ไม่ใช่สิงหาคม
+    expect(rows[0].vat_claim_year).toBe(2569);
+  });
+
+  it('พิมพ์เป็นข้อความ ดด/ปปปป ตามปกติก็ยังต้องได้ผลเหมือนกันเป๊ะ', () => {
+    const row = parseExcelRow(
+      rawRow({
+        [EXCEL_HEADERS.tax_invoice_number]: 'INV-0001',
+        [EXCEL_HEADERS.tax_invoice_date]: '21/09/2569',
+        [EXCEL_HEADERS.vat_claim_period]: '09/2569',
+      }),
+      2
+    )!;
+    expect(row.errors).toEqual([]);
+    expect(row.vat_claim_month).toBe(9);
+    expect(row.vat_claim_year).toBe(2569);
+  });
+
+  it('พิมพ์เลขลอยๆ ลงช่องเดือน/ปี (เช่น 9 หรือ 2569) ต้องขึ้น error ไม่ใช่รับไปเงียบๆ', () => {
+    // Excel มองตัวเลขทุกตัวเป็น serial date ได้หมด ถ้าไม่คุมช่วงปี "9" จะกลายเป็นปี 2443 แล้วผ่านฉลุย
+    // ทำให้รายการหายจากรายงาน ภ.พ.30 โดยไม่มีอะไรเตือน
+    for (const bad of [9, 2569, 42, 0, 99999]) {
+      const row = parseExcelRow(
+        rawRow({
+          [EXCEL_HEADERS.tax_invoice_number]: 'INV-0001',
+          [EXCEL_HEADERS.tax_invoice_date]: '21/09/2569',
+          [EXCEL_HEADERS.vat_claim_period]: bad,
+        }),
+        2
+      )!;
+      expect(row.errors.join(' '), `ค่า ${bad} ควรถูกปฏิเสธ`).toContain('เดือน/ปีที่ใช้เครดิต VAT');
+    }
+  });
+
+  it('เดือนที่ใช้เครดิตนอกช่วง 1-12 หรือรูปแบบผิด → error', () => {
+    const bad = parseExcelRow(
+      rawRow({
+        [EXCEL_HEADERS.tax_invoice_number]: 'INV-0001',
+        [EXCEL_HEADERS.tax_invoice_date]: '21/09/2569',
+        [EXCEL_HEADERS.vat_claim_period]: '13/2569',
+      }),
+      2
+    )!;
+    expect(bad.errors.join(' ')).toContain('เดือน/ปีที่ใช้เครดิต VAT');
+  });
+
+  it('รายการไม่มี VAT ที่เผลอกรอกข้อมูลใบกำกับภาษีมา → เตือนแล้วมองข้าม ไม่บล็อกการนำเข้า', () => {
+    const row = parseExcelRow(
+      rawRow({
+        [EXCEL_HEADERS.vat_amount]: '',
+        [EXCEL_HEADERS.tax_invoice_number]: 'INV-0001',
+        [EXCEL_HEADERS.tax_invoice_date]: '21/09/2569',
+      }),
+      2
+    )!;
+    expect(row.tax_type).toBe('no_vat');
+    expect(row.errors).toEqual([]);
+    expect(row.warnings.join(' ')).toContain('ไม่มี VAT');
+    expect(row.tax_invoice_number).toBe('');
+  });
+
+  it('ได้รับใบกำกับภาษีแล้ว จะไม่เก็บ "วันที่คาดว่าจะได้รับ" ไว้อีก (ไม่เหลืออะไรให้รอ)', () => {
+    const row = parseExcelRow(
+      rawRow({
+        [EXCEL_HEADERS.expected_date]: '30/09/2569',
+        [EXCEL_HEADERS.tax_invoice_number]: 'INV-0001',
+        [EXCEL_HEADERS.tax_invoice_date]: '21/09/2569',
+      }),
+      2
+    )!;
+    expect(row.expected_date).toBe('');
+    expect(excelRowToWriteInput(row).expected_date).toBeNull();
+  });
+
+  it('ไฟล์เทมเพลตเก่าที่ไม่มี 4 คอลัมน์นี้เลย ต้องยังนำเข้าได้ปกติ', () => {
+    // จำลองไฟล์เก่า: ไม่มี key ของคอลัมน์ใหม่อยู่ใน object เลย (ไม่ใช่แค่ค่าว่าง)
+    const row = parseExcelRow(rawRow(), 2)!;
+    expect(row.errors).toEqual([]);
+    expect(excelRowToWriteInput(row).status).toBe('pending');
   });
 });
 
@@ -416,6 +686,64 @@ describe('parseExcelRows', () => {
   });
 });
 
+describe('readSheetRows (หาแถวหัวคอลัมน์จริงให้เอง)', () => {
+  // เรียงตาม EXCEL_HEADER_ORDER: วันที่ทำรายการ, ผู้ขาย, เลขผู้เสียภาษี, เลขที่อ้างอิง, รายละเอียด,
+  // ยอดก่อน VAT, VAT
+  const dataRow = ['21/09/2569', 'บริษัท ก จำกัด', '', '', '', 1000, 70];
+
+  it('ไฟล์แบบเดิมที่หัวคอลัมน์อยู่แถวแรก ยังอ่านได้เหมือนเดิม', () => {
+    const sheet = XLSX.utils.aoa_to_sheet([[...EXCEL_HEADER_ORDER], dataRow]);
+    const rows = readSheetRows(sheet);
+    expect(rows).toHaveLength(1);
+    expect(rows[0][EXCEL_HEADERS.vendor_name]).toBe('บริษัท ก จำกัด');
+  });
+
+  it('เทมเพลตใหม่ที่มีแถวหัวข้อกลุ่มคร่อมอยู่ ต้องข้ามแถวนั้นไปหาหัวคอลัมน์จริง', () => {
+    const groupRow = ['① ฝั่งบันทึกการจ่ายเงิน', '', '', '', '', '', '', '', '', '', '', '② ฝั่งบันทึกใบกำกับภาษี'];
+    const sheet = XLSX.utils.aoa_to_sheet([groupRow, [...EXCEL_HEADER_ORDER], dataRow]);
+    const rows = readSheetRows(sheet);
+    expect(rows).toHaveLength(1);
+    expect(rows[0][EXCEL_HEADERS.vendor_name]).toBe('บริษัท ก จำกัด');
+  });
+
+  it('ไฟล์ที่ผู้ใช้แทรกแถวชื่อรายงานของตัวเองไว้ด้านบน ก็นำเข้าได้ (เดิมทำไม่ได้เลย)', () => {
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ['รายงานค่าใช้จ่ายประจำเดือน กันยายน 2569'],
+      ['บริษัท แอซ เท็ก จำกัด'],
+      [],
+      [...EXCEL_HEADER_ORDER],
+      dataRow,
+    ]);
+    expect(readSheetRows(sheet)).toHaveLength(1);
+  });
+
+  it('ชีทที่ !ref ไม่ได้เริ่มที่ A1 (Excel บันทึกแถวว่างนำหน้าไว้จริง) ต้องยังอ่านถูกแถว', () => {
+    // จำลองไฟล์ที่ Excel เขียน dimension ref="A3:P4" — แถวจริงของหัวคอลัมน์คือแถวที่ 3 ของชีท แต่เป็น
+    // aoa[0] เมื่ออ่านแบบ header:1 ถ้าไม่แปลงระบบนับแถวให้ตรงกันก่อน จะอ่านหัวคอลัมน์ผิดแถวจนได้ 0 รายการ
+    //
+    // ต้องทำสองอย่างคู่กันถึงจะจำลองได้จริง:
+    //   1. วางเซลล์ไว้ที่ A3 จริงๆ ด้วย sheet_add_aoa({origin:'A3'})
+    //   2. เขียนทับ !ref เอง เพราะตัวช่วยของไลบรารีปรับ !ref กลับมาเริ่มที่ A1 เสมอ
+    // ขาดข้อใดข้อหนึ่งเทสต์จะไม่มีความหมาย — ถ้าตั้งแต่ !ref อย่างเดียวโดยเซลล์ยังอยู่ A1 จะได้ชีทที่
+    // ขัดแย้งในตัวเอง (dimension ชี้ไปยังแถวที่ไม่มีเซลล์) ซึ่งไม่มีทางเกิดจากไฟล์ Excel จริง แล้วผลลัพธ์
+    // จะกลับข้างจนเทสต์ "ผ่านเมื่อโค้ดผิด" แทน
+    const sheet = XLSX.utils.sheet_add_aoa({}, [[...EXCEL_HEADER_ORDER], dataRow], { origin: 'A3' });
+    sheet['!ref'] = 'A3:O4'; // 15 คอลัมน์ = A..O
+    // ยืนยันว่าจำลองสถานการณ์ได้จริงก่อน ทั้งตำแหน่งเซลล์และ dimension
+    expect(XLSX.utils.decode_range(sheet['!ref']!).s.r).toBe(2);
+    expect(sheet['A3']?.v).toBe(EXCEL_HEADERS.transaction_date);
+
+    const rows = readSheetRows(sheet);
+    expect(rows).toHaveLength(1);
+    expect(rows[0][EXCEL_HEADERS.vendor_name]).toBe('บริษัท ก จำกัด');
+  });
+
+  it('หาหัวคอลัมน์ไม่เจอเลย คืนพฤติกรรมเดิม (ใช้แถวแรกเป็นหัว) ไม่ throw', () => {
+    const sheet = XLSX.utils.aoa_to_sheet([['ก', 'ข'], [1, 2]]);
+    expect(() => readSheetRows(sheet)).not.toThrow();
+  });
+});
+
 describe('excelRowToWriteInput', () => {
   it('แถวมี VAT แปลงเป็น payload พร้อมบันทึก — สถานะ pending (รอรับใบกำกับภาษี) ตามขั้นตอนเดิม', () => {
     const parsed = parseExcelRow(row(), 2)!; // row() default VAT=70 > 0 → มี VAT
@@ -434,6 +762,13 @@ describe('excelRowToWriteInput', () => {
       vendor_tax_id: null,
       tax_type: 'claimable_vat',
       status: 'pending',
+      // 5 ฟิลด์ที่เพิ่มมาพร้อมคอลัมน์รับใบกำกับภาษีในเทมเพลต (2026-09-21) — แถวนี้ไม่ได้กรอกมา จึงเป็น
+      // null ทั้งหมด ต้องระบุใน toEqual ด้วยเพราะ toEqual ไม่มองข้าม null (ต่างจาก undefined)
+      tax_invoice_number: null,
+      tax_invoice_date: null,
+      received_date: null,
+      vat_claim_month: null,
+      vat_claim_year: null,
     });
   });
 
@@ -460,19 +795,95 @@ describe('excelRowToWriteInput', () => {
 });
 
 describe('buildTemplateBlob + readWorkbookRows (round-trip)', () => {
-  it('เทมเพลตที่สร้างขึ้นอ่านกลับมาได้ และแถวตัวอย่างทั้งสองแถว (มี VAT / ไม่มี VAT) ผ่านการตรวจสอบ', async () => {
+  // ปรับใหม่ 2026-09-21: เทมเพลตแยกเป็น 3 ชีทแล้ว (รายการ = ว่างเปล่ามีแต่หัวคอลัมน์ / ตัวอย่าง / วิธีใช้)
+  // เดิมตัวอย่างอยู่ปนในชีทเดียวกับข้อมูลจริง ซึ่งผู้ใช้ลืมลบแล้วหลุดเข้าระบบเป็นประจำ
+  it('ชีทแรก (รายการ) ต้องว่างเปล่า — ป้องกันตัวอย่างหลุดเข้าระบบโดยไม่ตั้งใจ', async () => {
     const blob = buildTemplateBlob();
     expect(blob.size).toBeGreaterThan(0);
     const arrayBuffer = await blob.arrayBuffer();
-    const rawRows = readWorkbookRows(arrayBuffer);
-    expect(rawRows.length).toBeGreaterThanOrEqual(2);
-    const parsed = parseExcelRows(rawRows);
-    expect(parsed).toHaveLength(2);
+    // readWorkbookRows อ่านชีทแรกเสมอ ซึ่งตอนนี้คือชีท "รายการ" ที่ไม่มีแถวข้อมูลเลย
+    expect(readWorkbookRows(arrayBuffer)).toHaveLength(0);
+  });
+
+  it('แถวแรกเป็นหัวข้อกลุ่ม 2 ฝั่ง และรวมเซลล์คลุมช่วงคอลัมน์ถูกต้อง', async () => {
+    const blob = buildTemplateBlob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+    const sheet = workbook.Sheets['รายการ'];
+
+    const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: true });
+    expect(String(aoa[0][0])).toContain('บันทึกการจ่ายเงิน');
+    expect(String(aoa[0][11])).toContain('บันทึกใบกำกับภาษี');
+    // แถวที่ 2 ต้องเป็นหัวคอลัมน์จริงครบทุกคอลัมน์
+    expect(aoa[1]).toEqual(EXCEL_HEADER_ORDER);
+
+    // หัวข้อกลุ่มต้องรวมเซลล์คลุม 11 คอลัมน์แรก (ฝั่งจ่ายเงิน) และ 4 คอลัมน์ที่เหลือ (ฝั่งใบกำกับภาษี)
+    expect(sheet['!merges']).toEqual([
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+      { s: { r: 0, c: 11 }, e: { r: 0, c: 14 } },
+    ]);
+  });
+
+  it('ลำดับคอลัมน์ต้องตรงกับที่ผู้ใช้ระบุ และไม่มีช่อง "วันที่คาดว่าจะได้รับใบกำกับภาษี" แล้ว', () => {
+    expect(EXCEL_HEADER_ORDER).toEqual([
+      'วันที่ทำรายการ',
+      'ผู้ขาย',
+      'เลขประจำตัวผู้เสียภาษี',
+      'เลขที่อ้างอิง',
+      'รายละเอียด',
+      'ยอดก่อน VAT',
+      'VAT',
+      'หัก ณ ที่จ่าย',
+      'ยอดรวม',
+      'ผู้ติดต่อ',
+      'หมายเหตุ',
+      'เลขที่ใบกำกับภาษี',
+      'วันที่ใบกำกับภาษี',
+      'วันที่ได้รับใบกำกับภาษี',
+      'เดือน/ปีที่ใช้เครดิต VAT',
+    ]);
+    expect(EXCEL_HEADER_ORDER).not.toContain(EXCEL_HEADERS.expected_date);
+  });
+
+  it('ไฟล์เก่าที่ยังมีคอลัมน์ "วันที่คาดว่าจะได้รับใบกำกับภาษี" ต้องยังอ่านค่านั้นเข้ามาได้ ไม่ทิ้งเงียบๆ', () => {
+    const row = parseExcelRow(
+      {
+        [EXCEL_HEADERS.vendor_name]: 'บริษัท ทดสอบ จำกัด',
+        [EXCEL_HEADERS.transaction_date]: '21/09/2569',
+        [EXCEL_HEADERS.amount_excl_vat]: 1000,
+        [EXCEL_HEADERS.vat_amount]: 70,
+        [EXCEL_HEADERS.expected_date]: '30/09/2569',
+      },
+      2
+    )!;
+    expect(row.errors).toEqual([]);
+    expect(row.expected_date).toBe('2026-09-30');
+  });
+
+  it('ชีท "ตัวอย่าง" มี 3 แถวที่ผ่านการตรวจสอบครบ ครอบคลุมทั้ง 3 กรณีที่ผู้ใช้เจอจริง', async () => {
+    const blob = buildTemplateBlob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+    expect(workbook.SheetNames).toEqual(['รายการ', 'ตัวอย่าง', 'วิธีใช้']);
+
+    // ใช้ readSheetRows ไม่ใช่ sheet_to_json ตรงๆ เพราะทั้งสองชีทมีแถว "หัวข้อกลุ่ม" คร่อมอยู่เหนือ
+    // แถวหัวคอลัมน์ (2026-09-21) — readSheetRows หาแถวหัวคอลัมน์จริงให้เอง
+    const parsed = parseExcelRows(readSheetRows(workbook.Sheets['ตัวอย่าง']));
+    expect(parsed).toHaveLength(3);
     expect(parsed.every((r) => r.errors.length === 0)).toBe(true);
-    expect(parsed[0].vendor_name).toBe('บริษัท ตัวอย่าง จำกัด');
-    expect(parsed[0].tax_type).toBe('claimable_vat'); // ตัวอย่างแถวแรก: กรอก VAT มา → มี VAT
-    expect(parsed[1].vendor_name).toBe('ร้านค้า ตัวอย่าง 2');
-    expect(parsed[1].tax_type).toBe('no_vat'); // ตัวอย่างแถวสอง: เว้นว่างช่อง VAT → ไม่มี VAT
+
+    // แถว 1: มี VAT + ได้รับใบกำกับภาษีมาแล้ว (สาธิตคอลัมน์ใหม่)
+    expect(parsed[0].tax_type).toBe('claimable_vat');
+    expect(parsed[0].tax_invoice_number).toBe('INV-0001');
+    expect(excelRowToWriteInput(parsed[0]).status).toBe('received');
+
+    // แถว 2: มี VAT แต่ยังไม่ได้รับใบกำกับภาษี
+    expect(parsed[1].tax_type).toBe('claimable_vat');
+    expect(parsed[1].tax_invoice_number).toBe('');
+    expect(excelRowToWriteInput(parsed[1]).status).toBe('pending');
+
+    // แถว 3: ไม่มี VAT
+    expect(parsed[2].tax_type).toBe('no_vat');
   });
 });
 

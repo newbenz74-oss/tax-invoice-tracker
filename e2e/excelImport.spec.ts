@@ -2,13 +2,16 @@ import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 import * as XLSX from 'xlsx';
 import { attachConsoleErrorCollector, gotoRecordExpense, isoDaysFromNow, setupMockSupabase } from './helpers';
-import { EXCEL_HEADERS, EXCEL_HEADER_ORDER } from '../lib/excelImport';
+import { EXCEL_HEADERS, EXCEL_HEADER_ORDER, readSheetRows } from '../lib/excelImport';
 
 const OWNER = 'user@example.com';
 
 /** สร้างไฟล์ Excel (.xlsx) เป็น Buffer ในหน่วยความจำ สำหรับอัปโหลดผ่าน setInputFiles โดยไม่ต้องเขียนลงดิสก์ */
 function buildWorkbookBuffer(rows: Record<string, unknown>[]): Buffer {
-  const worksheet = XLSX.utils.json_to_sheet(rows, { header: EXCEL_HEADER_ORDER });
+  // ส่งสำเนาเสมอ ([...]) — json_to_sheet ของ xlsx แก้อาร์เรย์ header ที่รับมาในที่ ถ้าเจอคีย์นอกลิสต์
+  // ถ้าส่งตัวจริงเข้าไป EXCEL_HEADER_ORDER จะถูกแก้ถาวรทั้ง process แล้วกระทบเทสต์เคสอื่นที่รันต่อจากนี้
+  // (เหตุผลเดียวกับที่ buildTemplateBlob ใน lib/excelImport.ts ก็ส่งสำเนา)
+  const worksheet = XLSX.utils.json_to_sheet(rows, { header: [...EXCEL_HEADER_ORDER] });
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'รายการ');
   return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer;
@@ -40,13 +43,26 @@ test.describe('นำเข้ารายการจาก Excel', () => {
     const downloadedBuffer = readFileSync(downloadPath!);
     expect(downloadedBuffer.byteLength).toBeGreaterThan(0);
     const downloadedWorkbook = XLSX.read(downloadedBuffer, { type: 'buffer' });
-    const downloadedSheet = downloadedWorkbook.Sheets[downloadedWorkbook.SheetNames[0]];
-    const downloadedRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(downloadedSheet, { defval: '' });
-    // เทมเพลตมีตัวอย่าง 2 แถวเสมอ: แถวแรกมี VAT (สอน "มี VAT"), แถวสองเว้น VAT ว่างไว้ (สอน "ไม่มี VAT")
-    // ไม่มีคอลัมน์ "ประเภทภาษี" ให้กรอกเองอีกต่อไปแล้ว
-    expect(downloadedRows).toHaveLength(2);
-    expect(downloadedRows[0][EXCEL_HEADERS.vendor_name]).toBe('บริษัท ตัวอย่าง จำกัด');
-    expect(downloadedRows[1][EXCEL_HEADERS.vendor_name]).toBe('ร้านค้า ตัวอย่าง 2');
+    // อัปเดต 2026-09-21: เทมเพลตแยกเป็น 3 ชีทแล้ว — ชีทแรก "รายการ" ว่างเปล่ามีแต่หัวคอลัมน์ (ที่กรอกจริง)
+    // ตัวอย่างย้ายไปชีท "ตัวอย่าง" เพราะผู้ใช้ลืมลบแถวตัวอย่างแล้วหลุดเข้าระบบเป็นประจำ ส่วน readWorkbookRows
+    // อ่านชีทแรกเสมอ จึงไม่มีทางนำเข้าตัวอย่างโดยไม่ตั้งใจได้อีก
+    expect(downloadedWorkbook.SheetNames).toEqual(['รายการ', 'ตัวอย่าง', 'วิธีใช้']);
+    const dataSheet = downloadedWorkbook.Sheets[downloadedWorkbook.SheetNames[0]];
+    expect(readSheetRows(dataSheet)).toHaveLength(0);
+    // แถวแรกของชีทต้องเป็นหัวข้อกลุ่ม 2 ฝั่ง (ไม่ใช่หัวคอลัมน์) — เป็นตัวแบ่งสายตาแทนการใส่สี
+    const dataAoa = XLSX.utils.sheet_to_json<unknown[]>(dataSheet, { header: 1, blankrows: true });
+    expect(String(dataAoa[0][0])).toContain('บันทึกการจ่ายเงิน');
+    expect(String(dataAoa[0][11])).toContain('บันทึกใบกำกับภาษี');
+
+    // ใช้ readSheetRows เพราะทั้งสองชีทมีแถว "หัวข้อกลุ่ม" (ฝั่งจ่ายเงิน | ฝั่งใบกำกับภาษี) คร่อมอยู่เหนือ
+    // แถวหัวคอลัมน์ตั้งแต่ 2026-09-21 — ฟังก์ชันนี้หาแถวหัวคอลัมน์จริงให้เอง
+    const exampleRows = readSheetRows(downloadedWorkbook.Sheets['ตัวอย่าง']);
+    // 3 ตัวอย่าง: มี VAT + ได้รับใบกำกับภาษีแล้ว / มี VAT แต่ยังไม่ได้รับ / ไม่มี VAT
+    expect(exampleRows).toHaveLength(3);
+    expect(exampleRows[0][EXCEL_HEADERS.vendor_name]).toBe('บริษัท ตัวอย่าง จำกัด');
+    expect(exampleRows[0][EXCEL_HEADERS.tax_invoice_number]).toBe('INV-0001');
+    expect(exampleRows[1][EXCEL_HEADERS.tax_invoice_number]).toBe('');
+    expect(exampleRows[2][EXCEL_HEADERS.vendor_name]).toBe('ร้านค้า ตัวอย่าง 3');
 
     const buffer = buildWorkbookBuffer([
       {

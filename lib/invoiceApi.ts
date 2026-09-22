@@ -49,8 +49,21 @@ export interface InvoiceWriteInput {
   status?: InvoiceStatus;
   // ใช้เฉพาะกรณี non_claimable_vat ที่กรอกเลขที่/วันที่ใบกำกับภาษีมาโดยตรงตอนสร้าง/แก้ไขรายการ
   // (ไม่ผ่านขั้นตอน "รอรับใบกำกับภาษี" เดิม) เป็น optional เพื่อไม่กระทบผู้เรียกเดิม
+  //
+  // อัปเดต 2026-09-21: การนำเข้าจาก Excel ใช้สองฟิลด์นี้ด้วยแล้ว สำหรับรายการ claimable_vat ที่ไฟล์กรอก
+  // ข้อมูลใบกำกับภาษีมาพร้อมกันเลย (ดู resolveTaxInvoiceReceipt ใน lib/excelImport.ts) — ไม่ใช่ของเฉพาะ
+  // non_claimable_vat อีกต่อไป
   tax_invoice_number?: string | null;
   tax_invoice_date?: string | null;
+  // 3 ฟิลด์ที่เหลือของการ "รับใบกำกับภาษี" (เพิ่ม 2026-09-21 พร้อมการนำเข้าใบกำกับภาษีจาก Excel) — ชุดเดียว
+  // กับที่ markInvoiceReceived() เขียน ต่างกันแค่เส้นทาง: อันนั้นอัปเดตรายการที่มีอยู่แล้ว ส่วนชุดนี้เขียน
+  // ตั้งแต่ตอนสร้างรายการใหม่ ทั้งคู่ต้องตั้ง status เป็น 'received' คู่กันเสมอ ไม่งั้นรายการจะค้างอยู่ใน
+  // "รอรับใบกำกับภาษี" ทั้งที่มีเลขที่ใบกำกับครบแล้ว
+  //
+  // vat_claim_year เป็นปี **พ.ศ.** (ไม่ใช่ ค.ศ. เหมือนคอลัมน์วันที่อื่น) ตามที่ migration_002 กำหนดไว้
+  received_date?: string | null;
+  vat_claim_month?: number | null;
+  vat_claim_year?: number | null;
 }
 
 export async function createInvoice(

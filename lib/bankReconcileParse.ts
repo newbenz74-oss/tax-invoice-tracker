@@ -296,8 +296,12 @@ function decodeCsvBuffer(buffer: ArrayBuffer): string {
  * หัวตารางจริงไม่รู้ล่วงหน้า (ดูคอมเมนต์ detectHeaderRow) — ใช้ XLSX.read ตัวเดียวกันทั้ง Excel และ CSV
  * (CSV ผ่าน type:'string' หลัง decode ด้วย decodeCsvBuffer, Excel ผ่าน type:'array' ตรงๆ) */
 function readRowsAsTable(buffer: ArrayBuffer, ext: string): unknown[][] {
+  // เอา cellDates: true ออก (2026-09-22) — บั๊กเดียวกับที่พบในเส้นทางนำเข้าใบกำกับภาษี: ไลบรารี xlsx สร้าง
+  // Date ที่คลาดไป 4 วินาทีในเครื่องที่ตั้งโซนเวลาเป็นไทย ทำให้วันที่ทุกใบเลื่อนไปวันก่อนหน้าแบบเงียบๆ
+  // (เหตุผลเต็มอยู่ที่ WORKBOOK_READ_OPTIONS ใน lib/excelImport.ts) — รับเป็นเลข serial ดิบแล้วให้
+  // parseExcelDateCell แปลงเองด้วยคณิตศาสตร์ UTC ล้วน ซึ่งไม่ขึ้นกับโซนเวลาของเครื่องเลย
   const workbook =
-    ext === 'csv' ? XLSX.read(decodeCsvBuffer(buffer), { type: 'string', raw: true }) : XLSX.read(buffer, { type: 'array', cellDates: true });
+    ext === 'csv' ? XLSX.read(decodeCsvBuffer(buffer), { type: 'string', raw: true }) : XLSX.read(buffer, { type: 'array' });
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) return [];
   return XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], { header: 1, defval: '', raw: true });

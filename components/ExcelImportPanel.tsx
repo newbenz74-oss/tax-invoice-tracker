@@ -8,7 +8,7 @@ import {
   readWorkbookRows,
   type ExcelImportRow,
 } from '@/lib/excelImport';
-import { formatThaiDate } from '@/lib/thaiDate';
+import { formatThaiDate, thaiMonthName } from '@/lib/thaiDate';
 import type { PendingTaxInvoice, TaxType } from '@/types/invoice';
 
 const THB2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
@@ -150,6 +150,10 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
     <div className="space-y-4" data-testid="excel-import-panel">
       <p className="text-sm text-text-sub">
         นำเข้ารายการยอดซื้อหลายรายการพร้อมกันจากไฟล์ Excel — ดาวน์โหลดเทมเพลต กรอกข้อมูล แล้วอัปโหลดกลับมา
+        <br />
+        รายการที่ได้รับใบกำกับภาษีมาแล้ว กรอก 4 ช่องท้าย (เลขที่/วันที่ใบกำกับภาษี) มาในไฟล์ได้เลย ระบบจะบันทึกเป็น
+        &quot;ได้รับใบกำกับภาษีแล้ว&quot; ให้ทันที ไม่ต้องมากดทีละรายการ — ดูรายละเอียดในชีท &quot;วิธีใช้&quot; ของเทมเพลต
+        <br />
         ระบบจะตรวจจากยอดในคอลัมน์ &quot;VAT&quot; ให้อัตโนมัติเสมอ: กรอกยอด VAT มา (มากกว่า 0) ถือเป็น
         &quot;มี VAT&quot; ส่วนเว้นว่างไว้ หรือใส่ 0 หรือเครื่องหมาย &quot;-&quot; ถือเป็น &quot;ไม่มี VAT&quot; — คอลัมน์
         &quot;หัก ณ ที่จ่าย&quot; ไม่บังคับกรอก เว้นว่างไว้ถือว่าไม่มีการหัก ณ ที่จ่ายสำหรับรายการนั้น —
@@ -263,6 +267,10 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
                   <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">หัก ณ ที่จ่าย</th>
                   <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">ยอดรวม</th>
                   <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">ประเภทที่ระบบตรวจพบ</th>
+                  {/* เพิ่ม 2026-09-21 พร้อมคอลัมน์รับใบกำกับภาษีในเทมเพลต — ต้องเห็นก่อนกดยืนยันว่าแถวไหน
+                      จะถูกบันทึกเป็น "ได้รับแล้ว" บ้าง เพราะมันเปลี่ยนทั้งสถานะและการเข้ารายงานภาษีซื้อ
+                      ถ้าไม่โชว์ ผู้ใช้จะรู้ตัวก็ต่อเมื่อนำเข้าไปแล้ว */}
+                  <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">ใบกำกับภาษี</th>
                   <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">สถานะตรวจสอบ</th>
                   <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">ข้อผิดพลาด</th>
                 </tr>
@@ -341,6 +349,27 @@ export default function ExcelImportPanel({ onImport, onClose, existingInvoices }
                           <span className="text-xs text-text-sub" data-testid={`import-row-tax-type-${r.rowNumber}`}>
                             -
                           </span>
+                        )}
+                      </td>
+                      <td className="px-3.5 py-2.5" data-testid={`import-row-receipt-${r.rowNumber}`}>
+                        {r.tax_invoice_number ? (
+                          <>
+                            <span className="rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success">
+                              ได้รับแล้ว
+                            </span>
+                            <span className="mt-1 block text-xs text-text-sub">
+                              {r.tax_invoice_number} · {formatThaiDate(r.tax_invoice_date)}
+                            </span>
+                            {r.vat_claim_month !== '' && r.vat_claim_year !== '' && (
+                              <span className="block text-xs text-text-sub">
+                                ใช้เครดิต {thaiMonthName(r.vat_claim_month)} {r.vat_claim_year}
+                              </span>
+                            )}
+                          </>
+                        ) : r.tax_type === 'claimable_vat' ? (
+                          <span className="text-xs text-text-sub">รอรับ</span>
+                        ) : (
+                          <span className="text-xs text-text-sub">-</span>
                         )}
                       </td>
                       <td className="px-3.5 py-2.5">

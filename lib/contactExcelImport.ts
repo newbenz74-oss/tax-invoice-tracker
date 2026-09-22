@@ -300,7 +300,14 @@ export function contactRowToWriteInput(row: ContactImportRow): ContactWriteInput
 /** อ่านไฟล์ Excel (ArrayBuffer) แล้วแปลงชีทแรกให้เป็น array ของแถวดิบ — สำเนาของ readWorkbookRows ใน
  * lib/excelImport.ts ตั้งใจทำแยกไว้ต่างหาก (ไม่ import ข้ามไฟล์กัน) ตามที่อธิบายไว้ด้านบนของไฟล์นี้ */
 export function readContactWorkbookRows(data: ArrayBuffer): Record<string, unknown>[] {
-  const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+  // เอา cellDates: true ออก (2026-09-22) ให้ตรงกับกติกาใหม่ของทั้งระบบ — ไลบรารี xlsx สร้าง Date ที่คลาด
+  // ไปเสี้ยววินาทีในบางโซนเวลา (ไทยคลาด 4 วินาที) ทำให้วันที่เลื่อนไปวันก่อนหน้า เหตุผลเต็มอยู่ที่
+  // WORKBOOK_READ_OPTIONS ใน lib/excelImport.ts
+  //
+  // สมุดรายชื่อไม่มีคอลัมน์วันที่เลย จึงไม่เคยได้รับผลกระทบจากบั๊กนั้น — แก้เพื่อไม่ให้เหลือจุดที่ยังใช้
+  // cellDates ค้างไว้ให้คนหยิบไปลอกในอนาคต (ผลข้างเคียงเดียวคือ ถ้ามีใครจัดรูปแบบเซลล์ข้อความเป็นวันที่
+  // ค่าที่อ่านได้จะเป็นเลข serial แทนข้อความวันที่ ซึ่งทั้งสองแบบก็ผิดอยู่ดีสำหรับคอลัมน์ที่ควรเป็นข้อความ)
+  const workbook = XLSX.read(data, { type: 'array' });
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) return [];
   const worksheet = workbook.Sheets[sheetName];
