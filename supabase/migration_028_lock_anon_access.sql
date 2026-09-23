@@ -353,6 +353,26 @@ begin
 end;
 $$;
 
+/* ============================== 6.5 ฟังก์ชัน trigger ไม่ต้องให้ใครเรียกได้เลย ==============================
+   ข้อ 2 grant execute คืนให้ authenticated ทั้ง schema ซึ่งพลอยครอบฟังก์ชัน trigger (log_audit_event,
+   set_updated_at) ไปด้วย — ฟังก์ชันพวกนี้ไม่ควรถูกเรียกจากภายนอกเลย และ Supabase security advisor ก็ขึ้น
+   เตือนตรงๆ ว่า "authenticated เรียก SECURITY DEFINER ตัวนี้ได้ผ่าน /rest/v1/rpc/log_audit_event"
+
+   ถอนได้อย่างปลอดภัยเพราะ PostgreSQL ตรวจสิทธิ์ EXECUTE ของฟังก์ชัน trigger แค่ตอน CREATE TRIGGER ไม่ได้
+   ตรวจซ้ำตอน trigger ทำงานจริง (ทดสอบยืนยันบนเซิร์ฟเวอร์จริงแล้ว — ถอนทิ้งหมดแล้ว trigger ยังยิงปกติ) */
+do $$
+declare fn record;
+begin
+  for fn in
+    select p.oid::regprocedure as sig
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prorettype = 'trigger'::regtype
+  loop
+    execute format('revoke all on routine %s from anon, public, authenticated', fn.sig);
+  end loop;
+end;
+$$;
+
 /* ============================== 7. ตรวจผลทันทีหลังรัน ==============================
    ต้องได้ผลลัพธ์ "0 แถว" (Success. No rows returned) — ถ้ามีแถวโผล่มา แปลว่ายังมีตารางที่ anon แตะได้
    เหลืออยู่ (น่าจะเป็นตารางที่ postgres ไม่มี grant option พอจะถอนสิทธิ์ได้ ดูคำเตือนเรื่อง WARNING ที่หัวไฟล์)

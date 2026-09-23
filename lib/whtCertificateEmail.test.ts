@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildWhtCertificateEmailContent, isEmailSendConfigured } from './whtCertificateEmail';
+import { buildWhtCertificateEmailContent, isEmailSendConfigured, shouldVerifyTlsCertificate } from './whtCertificateEmail';
 
 describe('isEmailSendConfigured', () => {
   afterEach(() => {
@@ -32,5 +32,43 @@ describe('buildWhtCertificateEmailContent', () => {
     expect(text).toContain('บริษัท เอ็น วาย ฟิล์ม จำกัด');
     expect(text).toContain('บริษัท ซีบีซอฟท์ จำกัด');
     expect(text).toContain('53-6904002');
+  });
+});
+
+/**
+ * เทสต์ชุดนี้คุมพฤติกรรมความปลอดภัยที่แก้เมื่อ 2026-09-23 — เดิมโค้ดตั้ง tls.rejectUnauthorized = false ตายตัว
+ * ซึ่งแปลว่ายอมรับใบรับรองปลอมจากใครก็ได้ที่แทรกกลางเส้นทาง (รหัส App Password ของ Gmail หลุดไปกับการ
+ * เชื่อมต่อนั้นได้เลย) โค้ดชุดเดียวกันนี้รันบน Vercel ด้วย ไม่ใช่แค่เครื่อง dev
+ *
+ * กฎที่ต้องไม่ถูกทำให้หลวมลงโดยไม่ตั้งใจในอนาคต: บน production ต้องตรวจใบรับรองเสมอ ต่อให้มีคนเผลอไปตั้ง
+ * SMTP_ALLOW_SELF_SIGNED=true ที่ Vercel ไว้ก็ตาม
+ */
+describe('shouldVerifyTlsCertificate', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('ตรวจใบรับรองเสมอถ้าไม่ได้ตั้ง SMTP_ALLOW_SELF_SIGNED ไว้', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('SMTP_ALLOW_SELF_SIGNED', '');
+    expect(shouldVerifyTlsCertificate()).toBe(true);
+  });
+
+  it('ยอมข้ามการตรวจได้เฉพาะตอน dev และต้องตั้ง SMTP_ALLOW_SELF_SIGNED=true ตรงตัวเท่านั้น', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('SMTP_ALLOW_SELF_SIGNED', 'true');
+    expect(shouldVerifyTlsCertificate()).toBe(false);
+  });
+
+  it('ค่าอื่นที่ไม่ใช่ "true" เป๊ะๆ ไม่ปิดการตรวจ (เช่น "1"/"yes" ที่คนมักพิมพ์)', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('SMTP_ALLOW_SELF_SIGNED', '1');
+    expect(shouldVerifyTlsCertificate()).toBe(true);
+  });
+
+  it('บน production ตรวจใบรับรองเสมอ แม้จะตั้ง SMTP_ALLOW_SELF_SIGNED=true ไว้', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('SMTP_ALLOW_SELF_SIGNED', 'true');
+    expect(shouldVerifyTlsCertificate()).toBe(true);
   });
 });

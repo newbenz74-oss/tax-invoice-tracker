@@ -18,6 +18,28 @@ export type WhtDeductionType = 'withholding' | 'pay_forever' | 'pay_once' | 'oth
 
 export type WhtCertificateStatus = 'issued' | 'voided';
 
+/** ผลของการพยายามส่งอีเมลหนึ่งครั้ง — 'success' หมายถึง SMTP รับเรื่องไปแล้วเท่านั้น ไม่ได้แปลว่าถึงกล่อง
+ * ขาเข้าของผู้รับจริง (ระบบไม่มี bounce/delivery tracking) ส่วน 'failed' ครอบทุกสาเหตุที่ส่งไม่ออก */
+export type WhtSendLogStatus = 'success' | 'failed';
+
+/** แถวประวัติการส่งอีเมลใบหัก ณ ที่จ่าย — ดู supabase/migration_029_wht_send_logs.sql
+ * บันทึกโดย app/api/wht-certificate/send/route.ts ทุกครั้งที่มีการกดส่ง ไม่ว่าผลจะเป็นอย่างไร */
+export interface WhtSendLog {
+  id: string;
+  company_id: string;
+  certificate_id: string;
+  status: WhtSendLogStatus;
+  /** ที่อยู่ปลายทาง ณ ตอนนั้น — null ได้เฉพาะกรณีที่ล้มเหลวตั้งแต่ก่อนรู้ปลายทาง (ยังไม่มีอีเมลในสมุดรายชื่อ) */
+  sent_to: string | null;
+  /** รหัส error ที่ API ใช้ภายใน แปลเป็นภาษาไทยด้วย SEND_ERROR_MESSAGES ใน lib/whtCertificateApi.ts */
+  error_code: string | null;
+  /** ข้อความดิบจาก SMTP สำหรับผู้ดูแลระบบไล่ปัญหา (ตัดที่ 500 ตัวอักษรก่อนเขียนลงฐานข้อมูล) */
+  error_message: string | null;
+  actor_id: string | null;
+  actor_email: string | null;
+  created_at: string;
+}
+
 /** แถวข้อมูลจากตาราง wht_certificates — ดู supabase/migration_015_wht_certificates.sql
  * คอลัมน์ payer_ และ payee_ ทั้งหมดเป็น snapshot ณ วันที่ออกใบ ไม่ใช่ live reference ไปยัง companies/
  * business_partners (แก้ข้อมูลบริษัท/สมุดรายชื่อภายหลัง ใบที่ออกไปแล้วจะไม่เปลี่ยนตาม) */
@@ -61,8 +83,10 @@ export interface WhtCertificate {
   status: WhtCertificateStatus;
   voided_at: string | null;
   void_reason: string | null;
-  // เพิ่มพร้อมปุ่ม "ส่งอีเมล" (migration_017, 2026-08-11) — email_sent_at = null หมายถึงยังไม่เคยส่งอีเมล
-  // ใบนี้เลย ส่งซ้ำได้เรื่อยๆ ไม่มีการล็อก ค่านี้อัปเดตเป็นครั้งล่าสุดเสมอ (ไม่เก็บประวัติการส่งทุกครั้ง)
+  // เพิ่มพร้อมปุ่ม "ส่งอีเมล" (2026-08-11) — DDL อยู่ที่ migration_029 ซึ่งเขียนย้อนหลังให้ เพราะรอบที่เพิ่ม
+  // ฟีเจอร์นี้ลืมทำ migration ไว้ (คอมเมนต์เดิมอ้าง migration_017 ผิด ไฟล์นั้นเป็นเรื่องโลโก้บริษัท)
+  // email_sent_at = null หมายถึงยังไม่เคยส่งสำเร็จเลย ส่งซ้ำได้เรื่อยๆ ไม่มีการล็อก ค่านี้เป็น "ครั้งล่าสุด"
+  // เสมอ — ประวัติทุกครั้ง (รวมครั้งที่ล้มเหลว) อยู่ที่ตาราง wht_certificate_send_logs ดู WhtSendLog ด้านล่าง
   // email_sent_to เป็น snapshot ที่อยู่อีเมล ณ ตอนส่งจริง ไม่ใช่ live reference ไปยังสมุดรายชื่อ
   email_sent_at: string | null;
   email_sent_to: string | null;

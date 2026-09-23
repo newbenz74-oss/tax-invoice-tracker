@@ -7,6 +7,7 @@ import type {
   WhtFormType,
   WhtPartySnapshot,
   WhtPayeeSnapshot,
+  WhtSendLog,
 } from '@/types/whtCertificate';
 import type { PendingTaxInvoice } from '@/types/invoice';
 
@@ -14,12 +15,16 @@ export const WHT_CERTIFICATES_SWR_KEY = 'wht_certificates';
 
 // ข้อความ error ที่ API route (app/api/wht-certificate/send/route.ts) อาจส่งกลับมา — แปลเป็นภาษาไทยที่
 // เข้าใจง่ายให้ผู้ใช้ตรงนี้ที่เดียว (ไม่กระจายไปเขียนซ้ำที่ UI)
-const SEND_ERROR_MESSAGES: Record<string, string> = {
+export const SEND_ERROR_MESSAGES: Record<string, string> = {
   not_configured: 'ระบบยังไม่ได้ตั้งค่าการส่งอีเมล กรุณาติดต่อผู้ดูแลระบบ',
   unauthorized: 'ยืนยันตัวตนไม่สำเร็จ กรุณาเข้าสู่ระบบใหม่แล้วลองอีกครั้ง',
   forbidden: 'ไม่พบใบหัก ณ ที่จ่ายนี้ หรือไม่มีสิทธิ์เข้าถึง',
+  certificate_voided: 'ใบนี้ถูกยกเลิกแล้ว จึงส่งอีเมลไม่ได้',
   no_recipient_email: 'ผู้ขายรายนี้ยังไม่มีอีเมลในสมุดรายชื่อ กรุณาเพิ่มอีเมลก่อนแล้วลองอีกครั้ง',
   file_too_large: 'ไฟล์ PDF ใหญ่เกินไป',
+  invalid_pdf: 'ไฟล์ PDF ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง',
+  invalid_request: 'ข้อมูลที่ส่งไปไม่ครบถ้วน กรุณาลองใหม่อีกครั้ง',
+  invalid_json: 'ข้อมูลที่ส่งไปไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง',
   send_failed: 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่ภายหลัง',
 };
 
@@ -61,6 +66,25 @@ export async function emailWhtCertificate(
     throw new Error((data.error && SEND_ERROR_MESSAGES[data.error]) || 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่');
   }
   return { sentTo: data.sentTo ?? '' };
+}
+
+export const WHT_SEND_LOGS_SWR_KEY = 'wht_certificate_send_logs';
+
+/** ดึงประวัติการส่งอีเมลของใบเดียว เรียงใหม่ไปเก่า (ดู supabase/migration_029_wht_send_logs.sql)
+ *
+ * โหลดเฉพาะตอนผู้ใช้กดเปิดดูประวัติของใบนั้นจริงๆ ไม่ได้โหลดมาพร้อมตารางทั้งหน้า — เพราะบริษัทที่ออกใบเยอะ
+ * จะมีแถวประวัติมากกว่าจำนวนใบหลายเท่า (ส่งซ้ำได้ไม่จำกัด) การดึงมาทั้งหมดล่วงหน้าเปลืองโดยเปล่าประโยชน์
+ * ทั้งที่ผู้ใช้เปิดดูทีละใบ */
+export async function fetchWhtSendLogs(certificateId: string): Promise<WhtSendLog[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('wht_certificate_send_logs')
+    .select('*')
+    .eq('certificate_id', certificateId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as WhtSendLog[];
 }
 
 /** ขอเลขที่ใบหัก ณ ที่จ่ายถัดไปแบบ atomic ผ่าน RPC get_next_wht_cert_number() (ดู

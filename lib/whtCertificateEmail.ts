@@ -18,27 +18,30 @@ export function isEmailSendConfigured(): boolean {
   return Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
 }
 
-export interface WhtCertificateEmailContent {
-  subject: string;
-  text: string;
+/** ตรวจใบรับรอง TLS ของ smtp.gmail.com หรือไม่ — ค่าเริ่มต้นคือ "ตรวจ" เสมอ
+ *
+ * ที่มา: เครื่องของผู้ใช้บางเครื่องมีโปรแกรมความปลอดภัย (แอนติไวรัส/ไฟร์วอลล์องค์กร) ที่แทรกกลางการเชื่อมต่อ
+ * TLS แล้วสลับใบรับรองเป็นใบที่ออกเอง (self-signed) ทำให้ Node.js ปฏิเสธการเชื่อมต่อด้วย error
+ * "self-signed certificate in certificate chain" (พบจริงกับผู้ใช้เมื่อ 2026-08-11) เดิมแก้ด้วยการตั้ง
+ * rejectUnauthorized: false ตายตัว
+ *
+ * ปัญหาของวิธีเดิม: โค้ดชุดเดียวกันนี้รันบน Vercel ด้วย การปิดการตรวจใบรับรองบนเซิร์ฟเวอร์จริงแปลว่ายอมรับ
+ * ใบรับรองปลอมจากใครก็ได้ที่แทรกกลางเส้นทางอินเทอร์เน็ตได้ — ซึ่งหมายถึงรหัส App Password ของ Gmail หลุด
+ * ไปกับการเชื่อมต่อนั้นได้เลย บนเครื่อง dev ของผู้ใช้เองความเสี่ยงต่ำ (ตัวที่แทรกกลางคือซอฟต์แวร์ที่ติดตั้ง
+ * บนเครื่องเดียวกัน) แต่บน production ไม่มีเหตุผลรองรับ
+ *
+ * จึงเปลี่ยนเป็น opt-in: ต้องตั้ง SMTP_ALLOW_SELF_SIGNED=true ที่ .env.local เองเท่านั้นถึงจะปิดการตรวจ และ
+ * ถึงตั้งไว้ก็ยังไม่มีผลเมื่อ NODE_ENV = 'production' (กันการเผลอเอาไปใส่ที่ Vercel แล้วลืม) */
+export function shouldVerifyTlsCertificate(): boolean {
+  if (process.env.NODE_ENV === 'production') return true;
+  return process.env.SMTP_ALLOW_SELF_SIGNED !== 'true';
 }
 
-/** ประกอบหัวเรื่อง/เนื้อหาอีเมลภาษาไทย — pure function ไม่แตะ network เลย ใช้เทสได้ตรงๆ */
-export function buildWhtCertificateEmailContent(
-  certNumber: string,
-  payeeName: string,
-  companyName: string
-): WhtCertificateEmailContent {
-  const subject = `หนังสือรับรองการหักภาษี ณ ที่จ่าย เลขที่ ${certNumber}`;
-  const text = [
-    `เรียน ${payeeName}`,
-    '',
-    `${companyName} ขอส่งหนังสือรับรองการหักภาษี ณ ที่จ่าย เลขที่ ${certNumber} ตามไฟล์แนบ (PDF)`,
-    '',
-    'อีเมลนี้ส่งโดยระบบอัตโนมัติ หากมีข้อสงสัยกรุณาติดต่อกลับโดยตรง',
-  ].join('\n');
-  return { subject, text };
-}
+// ตัวประกอบเนื้อหาอีเมลย้ายไปอยู่ lib/whtCertificateEmailContent.ts แล้ว (2026-09-23) เพื่อให้หน้าต่าง
+// ยืนยันก่อนส่งฝั่ง browser เรียกใช้ได้โดยไม่ลาก nodemailer เข้า bundle — re-export ไว้ตรงนี้ให้โค้ดเดิม
+// (route.ts, เทสต์) import จากที่เดิมต่อได้เหมือนไม่มีอะไรเปลี่ยน
+export { buildWhtCertificateEmailContent } from './whtCertificateEmailContent';
+export type { WhtCertificateEmailContent } from './whtCertificateEmailContent';
 
 export interface SendWhtCertificateEmailInput {
   to: string;
@@ -62,14 +65,7 @@ export async function sendWhtCertificateEmail(input: SendWhtCertificateEmailInpu
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: gmailUser, pass: gmailAppPassword },
-    // เครื่องผู้ใช้บางเครื่องมีโปรแกรมความปลอดภัย (แอนติไวรัส/ไฟร์วอลล์องค์กร) ที่แทรกกลางการเชื่อมต่อ
-    // TLS ไปยัง smtp.gmail.com แล้วสลับใบรับรองเป็นใบที่ออกเองแทน (self-signed) — Node.js ไม่เชื่อถือใบ
-    // รับรองนั้นโดยดีฟอลต์ ทำให้เชื่อมต่อไม่ได้เลย (error "self-signed certificate in certificate chain",
-    // พบและยืนยันจริงกับผู้ใช้แล้วเมื่อ 2026-08-11) ปิด rejectUnauthorized ตรงนี้เพื่อยอมรับใบรับรองที่ถูก
-    // สลับดังกล่าว — ยอมรับความเสี่ยงนี้ได้เพราะเป็นแค่การส่งอีเมลออกจากเครื่อง dev ของผู้ใช้เองไปหา Gmail
-    // ของผู้ใช้เอง (ไม่ใช่ endpoint สาธารณะที่รับข้อมูลจากคนอื่น) และตัวที่แทรกกลางเป็นซอฟต์แวร์ความปลอดภัย
-    // ที่ติดตั้งบนเครื่องเดียวกันอยู่แล้ว ไม่ใช่บุคคลภายนอก
-    tls: { rejectUnauthorized: false },
+    tls: { rejectUnauthorized: shouldVerifyTlsCertificate() },
   });
 
   await transporter.sendMail({

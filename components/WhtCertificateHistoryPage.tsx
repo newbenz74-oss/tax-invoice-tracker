@@ -1,17 +1,24 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import { Mail, Receipt, Search } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
-import { emailWhtCertificate, fetchWhtCertificates, voidWhtCertificate, WHT_CERTIFICATES_SWR_KEY } from '@/lib/whtCertificateApi';
+import {
+  emailWhtCertificate,
+  fetchWhtCertificates,
+  voidWhtCertificate,
+  WHT_CERTIFICATES_SWR_KEY,
+  WHT_SEND_LOGS_SWR_KEY,
+} from '@/lib/whtCertificateApi';
 import { fetchInvoices, INVOICES_SWR_KEY } from '@/lib/invoiceApi';
 import { CONTACTS_SWR_KEY, fetchContacts } from '@/lib/contactApi';
 import { buildWhtCertificatePdf, whtCertificateFilename } from '@/lib/whtCertificatePdf';
 import { downloadBlob } from '@/lib/reportExport';
 import { buddhistYearOptions, formatThaiDate, thaiMonthName } from '@/lib/thaiDate';
 import IssueWhtCertificateModal, { type WhtCertificateFormPrefill } from '@/components/IssueWhtCertificateModal';
+import SendWhtCertificateEmailModal from '@/components/SendWhtCertificateEmailModal';
 import type { WhtCertificate, WhtFormType } from '@/types/whtCertificate';
 import type { PendingTaxInvoice } from '@/types/invoice';
 
@@ -109,6 +116,11 @@ function readStoredFilters(companyId: string | null): StoredWhtHistoryFilters {
  * ก่อนถึงจะใช้งานได้จริง (ไม่งั้น route จะตอบกลับ error 'not_configured' — ข้อความอธิบายอยู่ใน
  * lib/whtCertificateApi.ts SEND_ERROR_MESSAGES)
  *
+ * 2026-09-23: ปุ่ม "ส่งอีเมล" ไม่ส่งทันทีอีกต่อไป — เปิด SendWhtCertificateEmailModal ให้ทบทวนผู้รับ/หัวข้อ/
+ * เนื้อหา/ไฟล์แนบก่อน พร้อมแสดงประวัติการส่งของใบนั้น (ทุกครั้งที่เคยกดส่ง รวมครั้งที่ล้มเหลวและสาเหตุ —
+ * ดู supabase/migration_029_wht_send_logs.sql) แล้วค่อยกดยืนยัน เดิมคลิกเดียวส่งออกเลยไม่มีจุดทบทวน ทั้งที่
+ * ปุ่ม "ลบ"/"แก้ไข" ข้างๆ กันมี dialog ยืนยันทั้งคู่ และการส่งผิดคนย้อนกลับไม่ได้พอๆ กัน
+ *
  * ตัวกรองประเภท/เดือน/ปี (เพิ่มเข้ามา 2026-08-12 ตามคำขอผู้ใช้) — ต้องเลือกให้ครบทั้ง 3 ช่องก่อนตารางถึงจะ
  * แสดงเลย (filtersComplete) กรองด้วย period_month/period_year (เดือน/ปีที่ใช้รันเลขที่ใบตอนออก ไม่ใช่
  * issued_date) เพื่อให้ตรงกับรอบที่ต้องใช้ยื่นแบบ ภ.ง.ด.3/53 จริงๆ
@@ -174,9 +186,18 @@ export default function WhtCertificateHistoryPage() {
 
   // ปุ่ม "ส่งอีเมล" (เพิ่มเข้ามา 2026-08-11 ตามที่ผู้ใช้ขอ "มีอีเมลของผู้รับแล้ว อยากให้มีปุ่มส่งเมลไปเลย") —
   // sendSuccess เก็บแยกจาก sendError เพื่อโชว์ข้อความ "ส่งแล้ว" สั้นๆ ต่อแถวโดยไม่ต้องรีเฟรชทั้งตาราง
+  //
+  // 2026-09-23: ปุ่มไม่ส่งทันทีอีกต่อไป เปิด SendWhtCertificateEmailModal ให้ทบทวนก่อน (ผู้รับ/หัวข้อ/เนื้อหา/
+  // ไฟล์แนบ + ประวัติการส่งของใบนั้น) แล้วค่อยกดยืนยัน — เดิมคลิกเดียวส่งออกเลยไม่มีจุดทบทวน ทั้งที่ส่งผิดคน
+  // เรียกคืนไม่ได้ (เอกสารภาษีของผู้เสียภาษีรายหนึ่งหลุดไปถึงอีกราย) sendTarget คือใบที่กำลังเปิดหน้าต่างอยู่
+  const [sendTarget, setSendTarget] = useState<WhtCertificate | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendSuccess, setSendSuccess] = useState<{ certId: string; email: string } | null>(null);
+
+  // ใช้ล้าง cache ประวัติการส่งของใบที่เพิ่งกดส่ง เพื่อให้เปิดหน้าต่างซ้ำแล้วเห็นครั้งล่าสุดทันที (ทั้งครั้งที่
+  // สำเร็จและครั้งที่ล้มเหลว — API บันทึกทั้งสองแบบ ดู migration_029)
+  const { mutate: globalMutate } = useSWRConfig();
 
   // dialog ยืนยัน "แก้ไข"/"ลบ" ใช้ UI ร่วมกัน (ทั้งคู่เรียก voidWhtCertificate เหมือนกัน ต่างกันแค่ action
   // ต่อเนื่องหลังยกเลิกสำเร็จ — ดูคอมเมนต์หัวไฟล์)
@@ -221,22 +242,34 @@ export default function WhtCertificateHistoryPage() {
     }
   }
 
-  async function handleSendEmail(cert: WhtCertificate) {
-    const recipientEmail = contacts.find((c) => c.id === cert.business_partner_id)?.email?.trim();
-    const accessToken = session?.access_token;
-    if (!recipientEmail || !accessToken) return; // ปุ่มควรถูกซ่อน/ปิดไว้ก่อนแล้วถ้าเข้าเงื่อนไขนี้ — กันไว้เฉยๆ
-    setSendingId(cert.id);
+  /** เปิดหน้าต่างทบทวนก่อนส่ง — ยังไม่ส่งอะไรทั้งนั้น การส่งจริงเกิดที่ handleConfirmSend() หลังกดยืนยัน */
+  function handleOpenSend(cert: WhtCertificate) {
     setSendError(null);
     setSendSuccess(null);
+    setSendTarget(cert);
+  }
+
+  async function handleConfirmSend() {
+    const cert = sendTarget;
+    if (!cert) return;
+    const recipientEmail = contacts.find((c) => c.id === cert.business_partner_id)?.email?.trim();
+    const accessToken = session?.access_token;
+    if (!recipientEmail || !accessToken) return; // ปุ่มควรถูกปิดไว้ก่อนแล้วถ้าเข้าเงื่อนไขนี้ — กันไว้เฉยๆ
+    setSendingId(cert.id);
+    setSendError(null);
     try {
       const certInvoices = invoices.filter((inv) => inv.wht_certificate_id === cert.id);
       const result = await emailWhtCertificate(cert, certInvoices, accessToken);
       setSendSuccess({ certId: cert.id, email: result.sentTo });
+      setSendTarget(null); // ปิดหน้าต่างเฉพาะตอนสำเร็จ — ถ้าล้มเหลวคาไว้ให้อ่าน error แล้วกดลองใหม่ได้ทันที
       await mutateCertificates(); // ดึงข้อมูล email_sent_at/email_sent_to ที่เพิ่งบันทึกมาแสดงในตาราง
     } catch (err) {
       setSendError(err instanceof Error ? err.message : 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่');
     } finally {
       setSendingId(null);
+      // ล้าง cache ประวัติการส่งไม่ว่าผลจะเป็นอย่างไร — API บันทึกทั้งครั้งที่สำเร็จและครั้งที่ล้มเหลว
+      // ผู้ใช้ที่กางประวัติค้างไว้อยู่จึงควรเห็นแถวใหม่ทันทีโดยไม่ต้องปิดเปิดหน้าต่าง
+      await globalMutate([WHT_SEND_LOGS_SWR_KEY, cert.id]);
     }
   }
 
@@ -358,7 +391,10 @@ export default function WhtCertificateHistoryPage() {
         </p>
       )}
 
-      {sendError && (
+      {/* ข้อผิดพลาดของการส่งอีเมลย้ายไปแสดงในหน้าต่างยืนยันแล้ว (2026-09-23) — ตรงนั้นคือที่ที่ผู้ใช้กำลัง
+          มองอยู่ตอนกดยืนยัน และหน้าต่างจะคาไว้ให้กดลองใหม่ได้ทันที แถบนี้จึงเหลือไว้เฉพาะกรณีที่หน้าต่างถูก
+          ปิดไปแล้วแต่ยังมี error ค้าง (เช่น ผู้ใช้กดปิดระหว่างที่กำลังส่ง) */}
+      {sendError && !sendTarget && (
         <p role="alert" className="mb-4 rounded-[10px] border border-danger/20 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
           {sendError}
         </p>
@@ -444,7 +480,7 @@ export default function WhtCertificateHistoryPage() {
                               type="button"
                               disabled={!recipientEmail || sendingId === cert.id}
                               title={recipientEmail ? undefined : 'ผู้ขายรายนี้ยังไม่มีอีเมลในสมุดรายชื่อ'}
-                              onClick={() => handleSendEmail(cert)}
+                              onClick={() => handleOpenSend(cert)}
                               className="btn-press flex items-center gap-1 rounded-[10px] border border-border px-2 py-1 text-xs font-medium text-text-sub hover:bg-page-bg disabled:opacity-50"
                               data-testid={`wht-cert-send-email-${cert.id}`}
                             >
@@ -527,6 +563,29 @@ export default function WhtCertificateHistoryPage() {
           </div>
         </div>
       )}
+
+      {/* หน้าต่างทบทวนก่อนส่งอีเมล + ประวัติการส่งของใบนั้น (2026-09-23) — recipientEmail หาจาก contacts
+          ชุดเดียวกับที่ใช้ปิด/เปิดปุ่ม ถ้าหาไม่เจอแปลว่าปุ่มไม่ควรกดได้ตั้งแต่แรก จึงไม่ต้องเรนเดอร์หน้าต่าง */}
+      {sendTarget &&
+        (() => {
+          const recipientEmail = contacts.find((c) => c.id === sendTarget.business_partner_id)?.email?.trim();
+          if (!recipientEmail) return null;
+          return (
+            <SendWhtCertificateEmailModal
+              cert={sendTarget}
+              recipientEmail={recipientEmail}
+              companyName={selectedCompany?.name ?? ''}
+              filename={whtCertificateFilename(sendTarget)}
+              sending={sendingId === sendTarget.id}
+              error={sendError}
+              onConfirm={handleConfirmSend}
+              onClose={() => {
+                setSendTarget(null);
+                setSendError(null);
+              }}
+            />
+          );
+        })()}
 
       {reissue && selectedCompany && (
         <IssueWhtCertificateModal
