@@ -11,7 +11,7 @@ create table if not exists public.business_partners (
   partner_type text not null check (partner_type in ('customer', 'vendor')),
 
   -- รหัส เช่น CUS0001 (ลูกค้า) / VEN0001 (ผู้จัดจำหน่าย) — สร้างให้อัตโนมัติแบบเรียงลำดับใน
-  -- lib/contactLogic.ts แต่ผู้ใช้แก้ไขเองก่อนบันทึกได้ ต้องไม่ซ้ำกันทั้งระบบ (unique ด้านล่าง)
+  -- lib/contactLogic.ts แต่ผู้ใช้แก้ไขเองก่อนบันทึกได้ ต้องไม่ซ้ำกันภายในบริษัทเดียวกัน (ดู migration_030)
   -- normalize เป็นตัวพิมพ์ใหญ่เสมอก่อนบันทึก (ดู lib/contactLogic.ts normalizeContactCode) เพื่อไม่ให้
   -- "cus0001" กับ "CUS0001" ถือเป็นคนละรหัสกัน
   contact_code text not null,
@@ -63,8 +63,14 @@ create table if not exists public.business_partners (
   )
 );
 
--- รหัสห้ามซ้ำกันทั้งระบบ (ไม่แยกตามประเภท — ลูกค้ากับผู้จัดจำหน่ายใช้ namespace เดียวกัน เพราะ prefix
--- CUS/VEN ต่างกันอยู่แล้วโดยธรรมชาติของการสร้างรหัส แต่ผู้ใช้แก้ไขเองได้จึงยังต้องกันซ้ำแบบ global)
+-- ⚠️ constraint นี้ถูกแทนที่แล้วโดย migration_030 — ปัจจุบันรหัสห้ามซ้ำ "ภายในบริษัทเดียวกัน" เท่านั้น
+-- ไม่ใช่ทั้งระบบ (ตอนเขียนไฟล์นี้ระบบยังรองรับบริษัทเดียว พอ migration_007 เพิ่มการรองรับหลายบริษัท
+-- เข้ามาก็ไม่มีใครกลับมาแก้ข้อนี้ จนผู้ใช้เจอปัญหาเพิ่มรายชื่อไม่ได้เพราะรหัสไปชนกับของอีกบริษัท)
+-- คงบรรทัดข้างล่างไว้ตามเดิมเพื่อให้ไฟล์นี้ยังเป็นบันทึกตามลำดับเวลาที่ถูกต้อง — migration_030 จะ drop
+-- แล้วสร้าง unique (company_id, contact_code) แทนให้เอง
+--
+-- (ไม่แยกตามประเภท — ลูกค้ากับผู้จัดจำหน่ายใช้ namespace เดียวกัน เพราะ prefix CUS/VEN ต่างกันอยู่แล้ว
+-- โดยธรรมชาติของการสร้างรหัส แต่ผู้ใช้แก้ไขเองได้จึงยังต้องกันซ้ำ)
 alter table public.business_partners
   drop constraint if exists business_partners_contact_code_key;
 alter table public.business_partners

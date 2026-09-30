@@ -253,7 +253,11 @@ export function findDuplicateCodesVsExisting(rows: ContactImportRow[], existing:
 /** เติม error ของรหัสซ้ำ (ทั้งในไฟล์เดียวกันและซ้ำกับข้อมูลเดิม) เข้าไปในแต่ละแถว — รหัสซ้ำถือเป็น
  * ข้อผิดพลาดที่บล็อกการนำเข้า (ไม่ใช่แค่คำเตือน) เพราะ contact_code มี UNIQUE constraint จริงที่
  * ฐานข้อมูล การนำเข้าแถวที่รหัสซ้ำจะทำให้ทั้งไฟล์ import ไม่สำเร็จเลย (all-or-nothing) จึงต้องดักไว้
- * ตั้งแต่หน้าตรวจสอบก่อนนำเข้าจริง */
+ * ตั้งแต่หน้าตรวจสอบก่อนนำเข้าจริง
+ *
+ * `existing` ที่ส่งเข้ามาเป็นรายชื่อของ "บริษัทที่เปิดอยู่" เท่านั้น ซึ่งตรงกับขอบเขตของ constraint จริง
+ * พอดี — unique (company_id, contact_code) ตาม migration_030 รหัสเดียวกันในคนละบริษัทไม่ถือว่าซ้ำ
+ * (เดิม constraint เป็น unique ทั้งระบบ ทำให้ด่านนี้ตรวจไม่ครบและผู้ใช้เจอ error ตอนกดนำเข้าจริงแทน) */
 export function annotateDuplicateCodeErrors(
   rows: ContactImportRow[],
   existing: BusinessPartner[]

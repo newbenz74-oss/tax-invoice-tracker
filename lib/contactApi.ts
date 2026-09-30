@@ -19,6 +19,24 @@ export async function fetchContacts(companyId: string): Promise<BusinessPartner[
   return (data ?? []) as BusinessPartner[];
 }
 
+/** แปลง error จาก Supabase/PostgreSQL ให้เป็นข้อความที่ผู้ใช้อ่านแล้วรู้ว่าต้องแก้อะไร
+ *
+ * ที่มา (2026-09-30): ผู้ใช้เพิ่มรายชื่อไม่ได้แล้วหน้าจอขึ้นแค่ "เกิดข้อผิดพลาด" ลอยๆ ไม่มีทางรู้เลยว่า
+ * เพราะรหัสซ้ำ จึงเข้าใจผิดว่าเป็นเพราะชื่อบริษัทยาวเกินไป (ชื่อสั้นเพิ่มได้ เพราะบังเอิญได้รหัสที่ไม่ชน)
+ * เสียเวลาไล่หาสาเหตุผิดทางไปหลายรอบ
+ *
+ * ปกติรหัสซ้ำจะถูกดักตั้งแต่ validateContactForm() ฝั่งหน้าเว็บอยู่แล้ว ด่านนี้จึงเป็นตาข่ายชั้นสุดท้าย
+ * สำหรับกรณีที่หลุดมาได้จริง เช่น มีคนอื่นในบริษัทเดียวกันเพิ่มรหัสนั้นไปก่อนหน้าไม่กี่วินาที ระหว่างที่
+ * หน้าจอเรายังถือรายชื่อชุดเก่าอยู่ (race condition) — ซึ่งฝั่ง client ตรวจล่วงหน้าไม่ได้โดยธรรมชาติ
+ *
+ * 23505 = unique_violation ของ PostgreSQL */
+function describeContactWriteError(error: { code?: string; message?: string } | null): Error {
+  if (error?.code === '23505') {
+    return new Error('รหัสนี้ถูกใช้ไปแล้วในบริษัทนี้ กรุณาเปลี่ยนรหัสแล้วลองใหม่อีกครั้ง');
+  }
+  return new Error(error?.message || 'บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+}
+
 export interface ContactWriteInput {
   partner_type: PartnerType;
   contact_code: string;
@@ -58,7 +76,7 @@ export async function createContact(
     })
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw describeContactWriteError(error);
   return data as BusinessPartner;
 }
 
@@ -82,14 +100,14 @@ export async function bulkCreateContacts(
       }))
     )
     .select();
-  if (error) throw error;
+  if (error) throw describeContactWriteError(error);
   return (data ?? []) as BusinessPartner[];
 }
 
 export async function updateContact(id: string, patch: Partial<ContactWriteInput>): Promise<BusinessPartner> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.from(TABLE).update(patch).eq('id', id).select().single();
-  if (error) throw error;
+  if (error) throw describeContactWriteError(error);
   return data as BusinessPartner;
 }
 
