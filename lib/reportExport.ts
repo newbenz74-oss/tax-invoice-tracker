@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import type { PurchaseTaxReportRow, PurchaseTaxReportSummary } from './vatReportLogic';
-import { registerThaiFont, THAI_FONT_NAME } from './pdfThaiFont';
+import { registerThaiFont, THAI_FONT_NAME, drawThaiText, createThaiAutoTableHooks } from './pdfThaiFont';
 import { formatThaiDate } from './thaiDate';
 
 /** หัวคอลัมน์ของรายงานภาษีซื้อ — ใช้ทั้งใน Excel และ PDF export ให้ตรงกัน จัดลำดับตามที่สเปกกำหนด
@@ -82,10 +82,12 @@ export function buildPurchaseTaxReportPdfBlob(
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   registerThaiFont(doc);
 
+  // ใช้ drawThaiText แทน doc.text ตรงๆ เพราะ "ซื้อ" (สระอือ + ไม้โท) โดนบั๊กวรรณยุกต์ซ้อนสระบนของ jsPDF
+  // เต็มๆ ตั้งแต่หัวรายงาน — ดูคอมเมนต์ยาวใน lib/pdfThaiFont.ts
   doc.setFontSize(14);
-  doc.text('รายงานภาษีซื้อ (Purchase Tax Report)', 14, 15);
+  drawThaiText(doc, 'รายงานภาษีซื้อ (Purchase Tax Report)', 14, 15);
   doc.setFontSize(10);
-  doc.text(`ช่วงเวลา: ${periodLabel}`, 14, 22);
+  drawThaiText(doc, `ช่วงเวลา: ${periodLabel}`, 14, 22);
 
   autoTable(doc, {
     startY: 27,
@@ -121,6 +123,9 @@ export function buildPurchaseTaxReportPdfBlob(
       6: { halign: 'right' },
       7: { halign: 'right' },
     },
+    // หัวคอลัมน์/ชื่อผู้ขาย/รายการ ล้วนมีคู่ "สระบน+วรรณยุกต์" (เช่น "ใบกำกับภาษี", "เลขที่") ที่ autoTable
+    // วาดทับกันเป็นก้อน — ดูคอมเมนต์ createThaiAutoTableHooks ใน lib/pdfThaiFont.ts
+    ...createThaiAutoTableHooks(doc),
   });
 
   return doc.output('blob');

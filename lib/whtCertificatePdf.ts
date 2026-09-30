@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
-import { registerThaiFont, THAI_FONT_NAME, drawThaiText, fixAutoTableCellThaiText, getTextWidthMm } from './pdfThaiFont';
+import { registerThaiFont, THAI_FONT_NAME, drawThaiText, createThaiAutoTableHooks, getTextWidthMm } from './pdfThaiFont';
 import { formatBranchLabel } from './contactLogic';
 import { thaiBahtText } from './thaiBahtText';
 import { thaiMonthName } from './thaiDate';
@@ -569,9 +569,9 @@ function drawCertificateCopy(
       3: { cellWidth: 25, halign: 'right', valign: 'middle' },
       4: { cellWidth: 25, halign: 'right', valign: 'middle' },
     },
-    // autoTable วาดข้อความในเซลเองภายใน (ไม่ผ่าน drawThaiText ของเรา) จึงต้องแก้บั๊ก "วรรณยุกต์ลอยเหนือ
-    // สระบนหายไป" (ดูคอมเมนต์ยาวใน lib/pdfThaiFont.ts) แยกต่างหากตรงนี้ด้วย didDrawCell
-    didDrawCell: (data) => fixAutoTableCellThaiText(doc, data),
+    // autoTable วาดข้อความในเซลเองภายใน (ไม่ผ่าน drawThaiText ของเรา) จึงต้องแก้บั๊ก "วรรณยุกต์ซ้อนทับสระบน"
+    // (ดูคอมเมนต์ยาวใน lib/pdfThaiFont.ts) แยกต่างหากตรงนี้ด้วย hook คู่ willDrawCell + didDrawCell
+    ...createThaiAutoTableHooks(doc),
   });
 
   y = getLastAutoTableFinalY(doc, y) + 4;
@@ -736,7 +736,7 @@ function appendInvoiceBreakdownPage(doc: jsPDF, cert: WhtCertificate, invoices: 
     styles: { font: THAI_FONT_NAME, fontStyle: 'normal', fontSize: 8.5, cellPadding: 1.5, textColor: COLOR_TEXT, lineColor: COLOR_TEXT },
     headStyles: { font: THAI_FONT_NAME, fontStyle: 'bold', fillColor: [255, 255, 255], textColor: COLOR_TEXT },
     columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' } },
-    didDrawCell: (data) => fixAutoTableCellThaiText(doc, data),
+    ...createThaiAutoTableHooks(doc),
   });
 
   const finalY = getLastAutoTableFinalY(doc, 27);
