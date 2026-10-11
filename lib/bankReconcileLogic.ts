@@ -17,8 +17,14 @@ function isoToUtcDays(iso: string): number {
   return Date.UTC(y, (m || 1) - 1, d || 1) / 86400000;
 }
 
-/** ผลต่างจำนวนวันแบบ absolute ระหว่างวันที่ ISO สองค่า */
-function daysBetweenISO(a: string, b: string): number {
+/** ผลต่างจำนวนวันแบบ absolute ระหว่างวันที่ ISO สองค่า
+ *
+ * เปลี่ยนจาก function ภายในไฟล์มาเป็น export (2026-10-10) เพราะ lib/bankReconcileCombinationMatch.ts
+ * (ฟีเจอร์ "จับคู่อัตโนมัติแบบผสมหลายรายการ") ต้องเทียบช่วงวันที่ด้วยกติกาเดียวกันเป๊ะๆ กับการจับคู่ 1:1
+ * เดิม — เขียนฟังก์ชันแปลงวันที่ขึ้นมาใหม่อีกตัวมีความเสี่ยงที่สองที่จะคิดเรื่อง timezone/DST ไม่เหมือนกัน
+ * จึง export ตัวเดิมออกไปใช้ซ้ำแทน (ไม่แก้ไส้ในเลยแม้แต่บรรทัดเดียว พฤติกรรมของ reconcileTransactions
+ * เดิมไม่เปลี่ยนแปลง) */
+export function daysBetweenISO(a: string, b: string): number {
   return Math.abs(isoToUtcDays(b) - isoToUtcDays(a));
 }
 

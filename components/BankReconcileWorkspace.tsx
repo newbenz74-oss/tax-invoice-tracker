@@ -8,12 +8,19 @@ import BankReconcileSummaryCards from './BankReconcileSummaryCards';
 import BankReconcileMatchedTable from './BankReconcileMatchedTable';
 import BankReconcileUnmatchedTable from './BankReconcileUnmatchedTable';
 import BankReconcileManualMatchToolbar from './BankReconcileManualMatchToolbar';
+import BankReconcileSuggestedMatchTable from './BankReconcileSuggestedMatchTable';
 import BankReconcileSaveDialog, { type BankReconcileSaveInput } from './BankReconcileSaveDialog';
 import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
 import { parseBankFile, parseGLFile } from '@/lib/bankReconcileParse';
 import { reconcileTransactions } from '@/lib/bankReconcileLogic';
 import { createManualMatchGroup, wrapAutoMatchesAsGroups } from '@/lib/bankReconcileManualMatch';
+import {
+  createSuggestedMatchGroup,
+  dropSuggestionsUsingRows,
+  findCombinationSuggestions,
+  type CombinationSuggestion,
+} from '@/lib/bankReconcileCombinationMatch';
 import {
   fetchReconcileReports,
   RECONCILE_REPORTS_SWR_KEY,
@@ -59,6 +66,12 @@ interface BankReconcileWorkspaceProps {
  * (matchGroups/bankUnmatched/glUnmatched ด้านล่างคือ "ความจริงปัจจุบัน" เพียงชุดเดียว ไม่มี state อื่นที่
  * อาจไม่ตรงกันได้อีก) — ปุ่ม "บันทึก" (save) เปิด BankReconcileSaveDialog ให้เลือกเดือน/ปี+สถานะ แล้วเรียก
  * saveReconcileReport() จริง
+ *
+ * ของใหม่รอบ 2026-10-10: หมวดที่ 4 "จับคู่อัตโนมัติ (รอยืนยัน)" (BankReconcileSuggestedMatchTable) — หลัง
+ * การจับคู่ 1:1 เสร็จ ระบบค้นหา "คู่ผสม" ต่อให้ (แถวเดี่ยวฝั่งหนึ่ง = หลายแถวฝั่งตรงข้ามรวมกันพอดี) แล้วค้างไว้
+ * เป็นข้อเสนอรอผู้ใช้กดยอมรับทีละใบ ไม่จับคู่ให้เองโดยพลการ — การกดยอมรับใช้เส้นทางเดียวกับการจับคู่เองทุก
+ * ขั้นตอน (ได้ MatchGroup แล้วย้ายแถวออกจากตารางไม่สำเร็จ) จึงไม่มีสถานะใหม่ที่ต้องดูแลเพิ่มนอกจากตัวรายการ
+ * ข้อเสนอเอง ดู lib/bankReconcileCombinationMatch.ts สำหรับอัลกอริทึม กติกา และข้อจำกัดด้านเวลาทั้งหมด
  *
  * รองรับ initialData prop (เพิ่มเข้ามา 2026-07-19 เช่นกัน — ดู BankReconcileWorkspaceProps ด้านบน) สำหรับ
  * โหมด "เปิดจากประวัติ": bankFile/glFile/matchGroups/bankUnmatched/glUnmatched/tolerance/currentReportId/
@@ -107,6 +120,22 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
 
   const [selectedBankIds, setSelectedBankIds] = useState<Set<string>>(new Set());
   const [selectedGlIds, setSelectedGlIds] = useState<Set<string>>(new Set());
+
+  // หมวดที่ 4 "จับคู่อัตโนมัติ (รอยืนยัน)" (เพิ่มเข้ามา 2026-10-10) — ข้อเสนอคู่ผสมที่ระบบคาดเดาให้ แต่ยัง
+  // ไม่ลงมือจับคู่จนกว่าผู้ใช้จะกดยอมรับเอง (ดู lib/bankReconcileCombinationMatch.ts)
+  //
+  // ตั้งใจ "ไม่" seed จาก initialData เลย (เปิดจากประวัติจะเริ่มด้วยหมวดนี้ว่างเสมอ) เพราะข้อเสนอเป็นค่าที่
+  // คำนวณสดจากแถวที่ยังไม่สำเร็จ ไม่ได้บันทึกลงฐานข้อมูล (ไม่มีตารางรองรับ และไม่ควรมี — ข้อเสนอที่ค้างไว้
+  // ข้ามวันแล้วไม่มีความหมายอะไร ข้อมูลอาจถูกแก้ไขไปแล้ว) ผู้ใช้ที่เปิดจากประวัติแล้วอยากเห็นข้อเสนอ กด
+  // "ตรวจสอบข้อมูล" ซ้ำได้ตามปกติ ซึ่งจะคำนวณใหม่ทั้งหมดเหมือนเดิมอยู่แล้ว
+  const [suggestions, setSuggestions] = useState<CombinationSuggestion[]>([]);
+  // ธงบอกว่าการค้นหาคู่ผสมรอบนี้ "หยุดก่อนครบ" หรือไม่ (งบประมาณการค้นหาหมด) ส่งต่อให้ตารางหมวดที่ 4 แจ้ง
+  // ผู้ใช้ตรงๆ — ไม่เก็บรวมใน state เดียวกับ suggestions เพราะค่านี้เป็นของ "การคำนวณรอบนั้น" ไม่เปลี่ยน
+  // ตามการกดยอมรับ/ไม่ใช่ทีละใบ
+  const [suggestionBudget, setSuggestionBudget] = useState<{ exhausted: boolean; skipped: number }>({
+    exhausted: false,
+    skipped: 0,
+  });
 
   const { session } = useAuth();
   const { selectedCompanyId } = useCompany();
@@ -182,9 +211,17 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
     // (การคำนวณเป็น synchronous ล้วนๆ — ถ้าไฟล์ใหญ่มากอาจใช้เวลาหน่วงพอให้ UI ค้างได้เล็กน้อยถ้าไม่ทำแบบนี้)
     setTimeout(() => {
       const computed = reconcileTransactions(bankFile.rows, glFile.rows, tolerance);
+      // หาข้อเสนอคู่ผสมต่อจากผลจับคู่ 1:1 ทันที — ส่งเฉพาะแถวที่ "ยังไม่สำเร็จ" เข้าไป (ไม่ใช่ทั้งไฟล์) และ
+      // ใช้ tolerance ตัวเดียวกับที่ผู้ใช้เลือกไว้ตอนนี้เป๊ะๆ อยู่ในก้อน setTimeout เดียวกันเพราะเป็นงาน
+      // synchronous ที่มีเพดานเวลาในตัวเองแล้ว (วัดไว้ไม่เกิน ~60 ms สำหรับเคสหนักที่สุดที่ลอง — ดู
+      // DEFAULT_COMBINATION_STEP_BUDGET ใน lib/bankReconcileCombinationMatch.ts) แยกเป็น setTimeout
+      // อีกชั้นแล้วไม่ได้ช่วยอะไร นอกจากทำให้ผลลัพธ์โผล่เป็นสองจังหวะให้ผู้ใช้เห็นหน้ากระพริบเปล่าๆ
+      const combos = findCombinationSuggestions(computed.bankUnmatched, computed.glUnmatched, tolerance);
       setMatchGroups(wrapAutoMatchesAsGroups(computed.matched));
       setBankUnmatched(computed.bankUnmatched);
       setGlUnmatched(computed.glUnmatched);
+      setSuggestions(combos.suggestions);
+      setSuggestionBudget({ exhausted: combos.budgetExhausted, skipped: combos.skippedAnchorCount });
       setSelectedBankIds(new Set());
       setSelectedGlIds(new Set());
       setHasChecked(true);
@@ -249,8 +286,38 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
     setMatchGroups((prev) => [...prev, group]);
     setBankUnmatched((prev) => prev.filter((row) => !selectedBankIds.has(row.id)));
     setGlUnmatched((prev) => prev.filter((row) => !selectedGlIds.has(row.id)));
+    // ข้อเสนอคู่ผสมใบใดที่อ้างถึงแถวที่เพิ่งถูกจับคู่เองไป ต้องหายไปด้วย — ไม่งั้นผู้ใช้จะกดยอมรับข้อเสนอที่
+    // อ้างแถวซึ่งไม่อยู่ในตาราง "ไม่สำเร็จ" แล้วได้ ทำให้แถวเดียวกันไปอยู่สองกลุ่มพร้อมกันและยอดรวมเพี้ยน
+    setSuggestions((prev) => dropSuggestionsUsingRows(prev, selectedBankIds, selectedGlIds));
     setSelectedBankIds(new Set());
     setSelectedGlIds(new Set());
+  }
+
+  /** ผู้ใช้กด "ยอมรับ" ข้อเสนอ 1 ใบ — กลายเป็นกลุ่มที่กระทบยอดสำเร็จจริง (เด้งขึ้นไปหมวด "กระทบยอดสำเร็จ")
+   * และแถวทั้งสองฝั่งหายออกจากตาราง "ไม่สำเร็จ" ทันที ใช้เส้นทางเดียวกับการจับคู่เองทุกขั้นตอน ต่างแค่ว่า
+   * แถวถูกเลือกมาให้แล้วโดยระบบ (ดูเหตุผลที่ matchType เป็น 'manual' ใน lib/bankReconcileCombinationMatch.ts) */
+  function handleAcceptSuggestion(suggestion: CombinationSuggestion) {
+    const group = createSuggestedMatchGroup(suggestion);
+    const bankIds = new Set(suggestion.bankRows.map((row) => row.id));
+    const glIds = new Set(suggestion.glRows.map((row) => row.id));
+    setMatchGroups((prev) => [...prev, group]);
+    setBankUnmatched((prev) => prev.filter((row) => !bankIds.has(row.id)));
+    setGlUnmatched((prev) => prev.filter((row) => !glIds.has(row.id)));
+    // findCombinationSuggestions รับประกันอยู่แล้วว่าข้อเสนอทุกใบใช้แถวไม่ซ้ำกันเลย ดังนั้นในทางปฏิบัติบรรทัดนี้
+    // จะตัดออกแค่ใบที่เพิ่งยอมรับใบเดียว — แต่เรียกผ่าน dropSuggestionsUsingRows เพื่อให้ยังถูกต้องแน่นอน
+    // แม้วันหน้าจะมีใครเปลี่ยนกติกาการตัดสินการชนกันในฝั่ง lib
+    setSuggestions((prev) => dropSuggestionsUsingRows(prev, bankIds, glIds));
+    // ถ้าแถวที่ถูกยอมรับไปติ๊กค้างอยู่ใน toolbar จับคู่เอง ต้องเอาติ๊กออก ไม่งั้น toolbar จะนับยอดของแถวที่
+    // ไม่อยู่ในตารางแล้ว (bankSelection/glSelection กรองจาก bankUnmatched อยู่แล้วจึงไม่พัง แต่ปล่อย id ค้าง
+    // ไว้ใน Set เฉยๆ ไม่มีประโยชน์และทำให้ "เลือกทั้งหมด" คำนวณเพี้ยน)
+    setSelectedBankIds((prev) => new Set([...prev].filter((id) => !bankIds.has(id))));
+    setSelectedGlIds((prev) => new Set([...prev].filter((id) => !glIds.has(id))));
+  }
+
+  /** ผู้ใช้กด "ไม่ใช่" — แค่เลิกเสนอใบนี้ ไม่ต้องคืนแถวกลับไปที่ไหน เพราะแถวที่ถูกเสนอไม่เคยถูกดึงออกจากตาราง
+   * "ไม่สำเร็จ" ตั้งแต่แรก (อยู่ครบทุกแถวตลอดเวลาที่ยังไม่ได้กดยอมรับ) */
+  function handleDismissSuggestion(suggestion: CombinationSuggestion) {
+    setSuggestions((prev) => prev.filter((item) => item.suggestionId !== suggestion.suggestionId));
   }
 
   // bankFile.rows/glFile.rows คือ "ชุดข้อมูลเต็มตามลำดับเดิมในไฟล์" เสมอ (ไม่เคยถูกแก้ไข/กรองทิ้งเลย
@@ -330,7 +397,9 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
     <main className="mx-auto w-full max-w-[1800px] flex-1 px-4 py-6 sm:px-6">
       <p className="mb-6 text-sm text-text-sub">
         เปรียบเทียบ Bank Statement กับ GL เพื่อดูรายการที่กระทบยอดสำเร็จ และรายการที่ไม่พบข้อมูลตรงกันในอีก
-        ฝั่งหนึ่ง รายการที่ระบบจับคู่ไม่ได้เองสามารถติ๊กเลือกจับคู่เองได้ และบันทึกเป็นประวัติไว้ดูภายหลังได้
+        ฝั่งหนึ่ง รายการที่ระบบจับคู่ไม่ได้เองสามารถติ๊กเลือกจับคู่เองได้ และบันทึกเป็นประวัติไว้ดูภายหลังได้ —
+        นอกจากนี้ระบบยังคาดเดาคู่ผสมหลายรายการให้ในหมวด &quot;จับคู่อัตโนมัติ (รอยืนยัน)&quot; ท้ายหน้า รอให้คุณ
+        ตรวจและกดยอมรับเองทีละรายการ
       </p>
 
       {/* แบนเนอร์ "เปิดจากประวัติ" (เพิ่มเข้ามา 2026-07-19) — แสดงเฉพาะตอน initialData ไม่ null เท่านั้น
@@ -491,6 +560,15 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
             selectedIds={selectedGlIds}
             onToggleRow={toggleGlRow}
             onToggleAll={toggleAllGl}
+          />
+          {/* หมวดที่ 4 "จับคู่อัตโนมัติ (รอยืนยัน)" (2026-10-10) — วางไว้ท้ายสุดตามที่ผู้ใช้เรียกว่าหมวดที่ 4
+              และเพื่อไม่ขยับลำดับสามหมวดเดิมที่ e2e test ชุดเดิมอ้างอิงอยู่ */}
+          <BankReconcileSuggestedMatchTable
+            suggestions={suggestions}
+            budgetExhausted={suggestionBudget.exhausted}
+            skippedAnchorCount={suggestionBudget.skipped}
+            onAccept={handleAcceptSuggestion}
+            onDismiss={handleDismissSuggestion}
           />
         </div>
       )}
