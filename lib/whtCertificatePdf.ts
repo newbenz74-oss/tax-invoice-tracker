@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { registerThaiFont, THAI_FONT_NAME, drawThaiText, createThaiAutoTableHooks, getTextWidthMm } from './pdfThaiFont';
+import { whtTaxBase } from './whtCertificateLogic';
 import { formatBranchLabel } from './contactLogic';
 import { thaiBahtText } from './thaiBahtText';
 import { thaiMonthName } from './thaiDate';
@@ -506,6 +507,11 @@ function drawCertificateCopy(
   // ตารางประเภทเงินได้พึงประเมินที่จ่าย
   const paidDateText = invoices.length === 1 ? shortBuddhistDateFullYear(invoices[0].transaction_date) : 'หลายรายการ';
 
+  // ยอดที่ต้องปรากฏบนใบคือ "ฐานภาษีก่อน VAT" เสมอ (VAT ไม่ใช่เงินได้พึงประเมิน) — ใบที่ยังไม่มีค่านี้
+  // (ออกก่อน migration_032 และย้อนหาฐานไม่ได้) เว้นช่องว่างไว้ ไม่เติมยอดรวม VAT ลงไปแทนเด็ดขาด
+  const taxBase = whtTaxBase(cert);
+  const taxBaseText = taxBase === null ? '' : THB.format(taxBase);
+
   const rows = (['1', '2', '3', '4', '5', '6'] as const).map((code) => {
     const isSelected = code === cert.income_type_code;
     const lines = [...FORM_INCOME_TYPE_CONTENT[code]];
@@ -516,14 +522,16 @@ function drawCertificateCopy(
       code,
       lines.join('\n'),
       isSelected ? paidDateText : '',
-      isSelected ? THB.format(cert.total_amount) : '',
+      // ฐานภาษีก่อน VAT เท่านั้น — ไม่ใช่ cert.total_amount ซึ่งรวม VAT (ดู whtTaxBase / migration_032)
+      // ใบเก่าที่ยังไม่มีฐานภาษีจะเว้นว่างไว้ ดีกว่าพิมพ์ยอดรวม VAT ลงเอกสารภาษีแล้วตัวเลขไม่สอดคล้องกัน
+      isSelected ? taxBaseText : '',
       isSelected ? THB.format(cert.total_wht_amount) : '',
     ];
   });
 
   const totalRow = [
     { content: 'รวมเงินที่จ่ายและภาษีที่หักนำส่ง', colSpan: 3, styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
-    { content: THB.format(cert.total_amount), styles: { fontStyle: 'bold' as const, fillColor: COLOR_FILL_TOTAL } },
+    { content: taxBaseText, styles: { fontStyle: 'bold' as const, fillColor: COLOR_FILL_TOTAL } },
     { content: THB.format(cert.total_wht_amount), styles: { fontStyle: 'bold' as const, fillColor: COLOR_FILL_TOTAL } },
   ];
 
@@ -724,12 +732,14 @@ function appendInvoiceBreakdownPage(doc: jsPDF, cert: WhtCertificate, invoices: 
   autoTable(doc, {
     startY: 27,
     margin: { left: marginX, right: marginX },
-    head: [['วันที่ทำรายการ', 'รายละเอียด', 'เลขที่อ้างอิง', 'ยอดรวม', 'หัก ณ ที่จ่าย']],
+    head: [['วันที่ทำรายการ', 'รายละเอียด', 'เลขที่อ้างอิง', 'ยอดก่อน VAT', 'หัก ณ ที่จ่าย']],
     body: invoices.map((inv) => [
       shortBuddhistDate(inv.transaction_date),
       inv.description ?? '-',
       inv.reference_no ?? '-',
-      THB.format(inv.total_amount),
+      // ยอดก่อน VAT ให้ตรงกับฐานภาษีในหน้าหลัก — เดิมใช้ inv.total_amount ซึ่งรวม VAT ทำให้หน้าแนบ
+      // บวกกันแล้วไม่เท่ากับยอดในหน้าหลัก และไม่ตรงกับอัตราภาษีที่หักไว้จริง
+      THB.format(inv.amount_excl_vat),
       THB.format(inv.wht_amount),
     ]),
     theme: 'grid',
@@ -743,7 +753,7 @@ function appendInvoiceBreakdownPage(doc: jsPDF, cert: WhtCertificate, invoices: 
   doc.setFont(THAI_FONT_NAME, 'bold');
   doc.setFontSize(9);
   drawThaiText(doc, 
-    `รวม ${invoices.length} รายการ · ยอดรวม ${THB.format(cert.total_amount)} บาท · หัก ณ ที่จ่ายรวม ${THB.format(cert.total_wht_amount)} บาท`,
+    `รวม ${invoices.length} รายการ · ยอดก่อน VAT ${THB.format(invoices.reduce((sum, inv) => sum + inv.amount_excl_vat, 0))} บาท · หัก ณ ที่จ่ายรวม ${THB.format(cert.total_wht_amount)} บาท`,
     marginX,
     finalY + 6
   );

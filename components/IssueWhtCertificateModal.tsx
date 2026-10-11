@@ -249,6 +249,11 @@ export default function IssueWhtCertificateModal({
     }
   }
 
+  // ยอดก่อน VAT = ฐานภาษีหัก ณ ที่จ่าย — ค่านี้คือตัวเลขที่จะไปอยู่บนใบและในไฟล์ยื่นสรรพากร
+  // (VAT ไม่ใช่เงินได้พึงประเมิน) เดิมช่องนี้แสดง total_amount ซึ่งเป็น generated column ที่รวม VAT มาด้วย
+  // ทำให้ใบที่ออกไปมีอัตราไม่ตรง 3% ดู supabase/migration_032_wht_cert_amount_excl_vat.sql
+  const totalAmountExclVat = invoices.reduce((sum, inv) => sum + inv.amount_excl_vat, 0);
+  // ยอดรวม VAT ยังต้องคำนวณไว้ เพราะ "จ่ายสุทธิ" คือเงินที่จ่ายออกไปจริง = รวม VAT หักภาษีหัก ณ ที่จ่าย
   const totalAmount = invoices.reduce((sum, inv) => sum + inv.total_amount, 0);
   const totalWhtAmount = invoices.reduce((sum, inv) => sum + inv.wht_amount, 0);
   const totalNetPayment = calcNetPayment(totalAmount, totalWhtAmount);
@@ -426,13 +431,24 @@ export default function IssueWhtCertificateModal({
             </Field>
 
             <div className="rounded-[10px] border border-border/70 bg-page-bg/40 px-3.5 py-3 text-sm">
-              <div className="flex justify-between text-text-sub">
-                <span>ยอดรวม</span>
-                <span className="font-numeric">{THB.format(totalAmount)} บาท</span>
+              <div className="flex justify-between font-medium text-text">
+                <span>ยอดก่อน VAT (ลงบนใบ)</span>
+                <span className="font-numeric">{THB.format(totalAmountExclVat)} บาท</span>
               </div>
               <div className="mt-1 flex justify-between text-text-sub">
                 <span>หัก ณ ที่จ่ายรวม</span>
-                <span className="font-numeric">{THB.format(totalWhtAmount)} บาท</span>
+                <span className="font-numeric">
+                  {THB.format(totalWhtAmount)} บาท
+                  {totalAmountExclVat > 0 && (
+                    <span className="ml-1.5 text-xs">
+                      ({Math.round((totalWhtAmount / totalAmountExclVat) * 10000) / 100}%)
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="mt-1 flex justify-between text-text-sub">
+                <span>ยอดรวม VAT</span>
+                <span className="font-numeric">{THB.format(totalAmount)} บาท</span>
               </div>
               <div className="mt-1 flex justify-between font-medium text-text">
                 <span>จ่ายสุทธิ</span>

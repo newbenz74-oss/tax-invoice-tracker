@@ -15,10 +15,12 @@ import {
 import { fetchInvoices, INVOICES_SWR_KEY } from '@/lib/invoiceApi';
 import { CONTACTS_SWR_KEY, fetchContacts } from '@/lib/contactApi';
 import { buildWhtCertificatePdf, whtCertificateFilename } from '@/lib/whtCertificatePdf';
+import { whtRatePercent, whtTaxBase } from '@/lib/whtCertificateLogic';
 import { downloadBlob } from '@/lib/reportExport';
 import { buddhistYearOptions, formatThaiDate, thaiMonthName } from '@/lib/thaiDate';
 import IssueWhtCertificateModal, { type WhtCertificateFormPrefill } from '@/components/IssueWhtCertificateModal';
 import SendWhtCertificateEmailModal from '@/components/SendWhtCertificateEmailModal';
+import RdPrepExportPanel from '@/components/RdPrepExportPanel';
 import type { WhtCertificate, WhtFormType } from '@/types/whtCertificate';
 import type { PendingTaxInvoice } from '@/types/invoice';
 
@@ -406,6 +408,19 @@ export default function WhtCertificateHistoryPage() {
         </p>
       )}
 
+      {/* ไฟล์ยื่นสรรพากร (RD Prep) — วางเหนือตารางเพราะเป็นงานที่ทำ "หลังออกใบครบแล้ว" ตามที่ผู้ใช้ขอ
+          ("เมื่อฉันออกใบหัก ณ ที่จ่ายครบ") และต้องเห็นรายการข้อมูลที่ไม่ครบก่อนไล่แก้ในตารางด้านล่าง
+          แสดงเฉพาะเมื่อเลือกตัวกรองครบ เพราะไฟล์ผูกกับเดือน/ปีที่เลือกไว้ */}
+      {filtersComplete && !certLoading && (
+        <RdPrepExportPanel
+          certificates={certificates}
+          periodYearBuddhist={yearFilter as number}
+          periodMonth={monthFilter as number}
+          tableRowCount={periodFilteredCertificates.length}
+          selectedFormType={formTypeFilter as WhtFormType}
+        />
+      )}
+
       {!filtersComplete ? (
         <div
           className="rounded-2xl border border-dashed border-border bg-card-bg p-12 text-center text-sm text-text-sub"
@@ -428,8 +443,9 @@ export default function WhtCertificateHistoryPage() {
                 <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">ผู้ถูกหักภาษี</th>
                 <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">ประเภท</th>
                 <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">วันที่ออก</th>
-                <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">ยอดรวม</th>
+                <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">ยอดก่อน VAT</th>
                 <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">หัก ณ ที่จ่าย</th>
+                <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">อัตรา</th>
                 <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">สถานะ</th>
                 <th className="px-[18px] py-[18px] text-left text-xs font-semibold text-text-sub">สถานะอีเมล</th>
                 <th className="px-[18px] py-[18px] text-right text-xs font-semibold text-text-sub">การจัดการ</th>
@@ -439,6 +455,10 @@ export default function WhtCertificateHistoryPage() {
               {visibleCertificates.map((cert, index) => {
                 const recipientEmail = contacts.find((c) => c.id === cert.business_partner_id)?.email?.trim() || null;
                 const justSent = sendSuccess?.certId === cert.id;
+                // ฐานภาษี = ยอดก่อน VAT เท่านั้น (ไม่ fallback ไป total_amount — ดูคอมเมนต์ใน types/whtCertificate.ts)
+                // อัตราคำนวณสดจากสองค่าที่เก็บไว้ ไม่ได้เก็บเป็นคอลัมน์ เพราะเป็นค่าที่ derive ได้ 100%
+                const taxBase = whtTaxBase(cert);
+                const ratePercent = whtRatePercent(cert);
                 return (
                   <tr
                     key={cert.id}
@@ -449,8 +469,16 @@ export default function WhtCertificateHistoryPage() {
                     <td className="px-[18px] py-[18px] text-text-sub">{cert.payee_name}</td>
                     <td className="px-[18px] py-[18px] text-text-sub">{FORM_TYPE_LABELS[cert.form_type]}</td>
                     <td className="px-[18px] py-[18px] text-text-sub">{formatDate(cert.issued_date)}</td>
-                    <td className="font-numeric px-[18px] py-[18px] text-right text-text-sub">{THB.format(cert.total_amount)}</td>
+                    <td
+                      className="font-numeric px-[18px] py-[18px] text-right text-text-sub"
+                      title={`ยอดที่จ่ายจริงรวม VAT ${THB.format(cert.total_amount)} บาท`}
+                    >
+                      {taxBase === null ? <span className="text-text-sub/60">ไม่มีข้อมูล</span> : THB.format(taxBase)}
+                    </td>
                     <td className="font-numeric px-[18px] py-[18px] text-right text-text">{THB.format(cert.total_wht_amount)}</td>
+                    <td className="font-numeric px-[18px] py-[18px] text-right text-text-sub">
+                      {ratePercent === null ? <span className="text-text-sub/60">-</span> : `${ratePercent}%`}
+                    </td>
                     <td className="px-[18px] py-[18px]">
                       <span className={`inline-block w-fit rounded-full px-3.5 py-2 text-xs font-medium ${STATUS_BADGE_CLASS[cert.status]}`}>
                         {STATUS_LABELS[cert.status]}

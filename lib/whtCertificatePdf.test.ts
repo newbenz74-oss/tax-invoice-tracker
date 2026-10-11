@@ -21,6 +21,7 @@ function makeCert(overrides: Partial<WhtCertificate> = {}): WhtCertificate {
     issued_date: '2026-04-06',
     payment_date: '2026-04-06',
     total_amount: 42800,
+    total_amount_excl_vat: 100000,
     total_wht_amount: 1302,
     payer_name: 'บริษัท ซีบีซอฟท์ จำกัด',
     payer_tax_id: '0125566036499',

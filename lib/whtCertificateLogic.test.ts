@@ -5,6 +5,8 @@ import {
   findPayeeCandidates,
   formTypeForEntityType,
   formatWhtCertNumber,
+  whtRatePercent,
+  whtTaxBase,
 } from './whtCertificateLogic';
 import type { Company } from './companyApi';
 import type { BusinessPartner } from '@/types/contact';
@@ -162,5 +164,34 @@ describe('findPayeeCandidates', () => {
   it('ตัดช่องว่างหน้า-หลังของ vendor_name ก่อนเทียบ', () => {
     const contacts = [makePartner({ id: 'p1' })];
     expect(findPayeeCandidates('  บริษัท เอ็น วาย ฟิล์ม จำกัด  ', contacts)).toEqual([contacts[0]]);
+  });
+});
+
+describe('whtTaxBase / whtRatePercent — ฐานภาษีและอัตราที่แสดงบนใบ', () => {
+  it('คืนยอดก่อน VAT ตรงๆ ไม่ใช่ยอดรวม VAT', () => {
+    // ตัวเลขจริงจากใบ 53-6908001 ที่ผู้ใช้เจอบั๊ก (ดู migration_032)
+    expect(whtTaxBase({ total_amount_excl_vat: 168912.43 })).toBe(168912.43);
+  });
+
+  it('คำนวณอัตราได้ 3.00% จากฐานก่อน VAT — เลขชุดเดียวกับที่เคยแสดงผิดเป็น 2.80%', () => {
+    expect(whtRatePercent({ total_amount_excl_vat: 168912.43, total_wht_amount: 5067.37 })).toBe(3);
+  });
+
+  it('ปัดอัตราเหลือทศนิยม 2 ตำแหน่ง', () => {
+    expect(whtRatePercent({ total_amount_excl_vat: 3, total_wht_amount: 1 })).toBe(33.33);
+  });
+
+  it('อัตราที่ไม่ลงตัวพอดีก็ยังแสดงได้ ไม่ปัดเป็นอัตรามาตรฐานให้เอง', () => {
+    // ตั้งใจไม่ snap เป็น 3% — ถ้าตัวเลขเพี้ยนผู้ใช้ต้องเห็นว่าเพี้ยนก่อนยื่นสรรพากร
+    expect(whtRatePercent({ total_amount_excl_vat: 100000, total_wht_amount: 2800 })).toBe(2.8);
+  });
+
+  it('ใบเก่าที่ไม่มีฐานภาษี คืน null ทั้งคู่ — ห้าม fallback ไป total_amount', () => {
+    expect(whtTaxBase({ total_amount_excl_vat: null })).toBeNull();
+    expect(whtRatePercent({ total_amount_excl_vat: null, total_wht_amount: 5067.37 })).toBeNull();
+  });
+
+  it('ฐานภาษีเป็น 0 คืน null ไม่หารด้วยศูนย์ (กัน Infinity หลุดไปขึ้นหน้าจอ)', () => {
+    expect(whtRatePercent({ total_amount_excl_vat: 0, total_wht_amount: 100 })).toBeNull();
   });
 });

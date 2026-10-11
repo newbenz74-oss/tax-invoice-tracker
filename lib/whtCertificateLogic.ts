@@ -91,3 +91,33 @@ export function buildPayeeSnapshot(partner: BusinessPartner): WhtPayeeSnapshot {
     postal_code: partner.postal_code,
   };
 }
+
+/* ============================================================================================
+   ฐานภาษีหัก ณ ที่จ่าย (เพิ่มเข้ามา 2026-10-11)
+
+   ภาษีหัก ณ ที่จ่ายคำนวณจากยอด "ก่อน VAT" เสมอ เพราะ VAT ไม่ใช่เงินได้พึงประเมิน — ตัวเลขที่ต้องปรากฏบนใบ
+   ใน PDF และในไฟล์ยื่นภาษีจึงเป็น total_amount_excl_vat ไม่ใช่ total_amount (ซึ่งเป็นยอดรวม VAT = เงินที่
+   จ่ายออกไปจริง คนละความหมายกัน) ดู supabase/migration_032_wht_cert_amount_excl_vat.sql สำหรับบั๊กเดิม
+   ============================================================================================ */
+
+/** ฐานภาษีของใบ — คืน null ถ้าใบนั้นยังไม่มีข้อมูล (ใบเก่าที่ออกก่อน migration_032 และย้อนหาฐานไม่ได้)
+ *
+ * จงใจ **ไม่** fallback ไปใช้ total_amount เมื่อไม่มีค่า เพราะยอดรวม VAT สูงกว่าฐานจริงเสมอสำหรับผู้ขายที่
+ * จด VAT — การ fallback เงียบๆ จะทำให้ตัวเลขที่ยื่นสรรพากรสูงเกินจริงโดยไม่มีใครรู้ตัว ซึ่งแย่กว่าการแสดงว่า
+ * "ไม่มีข้อมูล" ให้คนเห็นแล้วไปแก้เอง */
+export function whtTaxBase(cert: { total_amount_excl_vat: number | null }): number | null {
+  return cert.total_amount_excl_vat;
+}
+
+/** อัตราภาษีหัก ณ ที่จ่ายเป็นเปอร์เซ็นต์ คำนวณจากฐานภาษีจริง — ปัดทศนิยม 2 ตำแหน่งเพราะยอดเงินทั้งสองฝั่ง
+ * เก็บเป็น numeric(14,2) การหารจึงมีเศษทศนิยมยาวๆ ได้เสมอ (เช่น 5067.37 / 168912.43 = 2.99999...%)
+ *
+ * คืน null เมื่อไม่มีฐานภาษี หรือฐานเป็น 0 (หารไม่ได้) */
+export function whtRatePercent(cert: {
+  total_amount_excl_vat: number | null;
+  total_wht_amount: number;
+}): number | null {
+  const base = cert.total_amount_excl_vat;
+  if (base === null || base === 0) return null;
+  return Math.round((cert.total_wht_amount / base) * 100 * 100) / 100;
+}

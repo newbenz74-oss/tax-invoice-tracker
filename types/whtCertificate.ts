@@ -59,7 +59,18 @@ export interface WhtCertificate {
   signer_name: string | null;
   issued_date: string;
   payment_date: string;
+  /** ยอดเงินที่จ่าย "รวม VAT" — คือเงินที่จ่ายออกไปจริง ไม่ใช่ฐานภาษี
+   *
+   * ⚠️ อย่าใช้ค่านี้แสดงบนใบหัก ณ ที่จ่ายหรือในไฟล์ยื่นภาษี ใช้ total_amount_excl_vat แทนเสมอ
+   * (ดู migration_032 สำหรับบั๊กที่เคยเกิดจากการใช้ค่านี้ผิดที่) */
   total_amount: number;
+  /** ยอดเงินที่จ่าย "ก่อน VAT" — ฐานที่ใช้คำนวณภาษีหัก ณ ที่จ่ายจริง เพราะ VAT ไม่ใช่เงินได้พึงประเมิน
+   * นี่คือตัวเลขที่ต้องปรากฏบนใบ ใน PDF และในไฟล์ RD Prep
+   *
+   * null = ใบเก่าที่ออกก่อน migration_032 และย้อนหาฐานภาษีไม่ได้ (รายการจ่ายเงินต้นทางไม่ได้ผูกอยู่แล้ว)
+   * โค้ดที่ใช้ค่านี้ต้องเผื่อกรณี null เสมอ — ห้าม fallback ไปใช้ total_amount เงียบๆ เพราะจะได้ตัวเลขที่
+   * สูงเกินจริงโดยไม่มีใครรู้ตัว ให้แสดงให้ผู้ใช้เห็นว่า "ยังไม่มีข้อมูล" แทน */
+  total_amount_excl_vat: number | null;
   total_wht_amount: number;
   payer_name: string;
   payer_tax_id: string | null;
