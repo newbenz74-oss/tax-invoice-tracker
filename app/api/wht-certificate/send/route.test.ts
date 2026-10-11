@@ -42,6 +42,8 @@ interface StubOptions {
   certStatus?: 'issued' | 'voided';
   certMissing?: boolean;
   partnerEmail?: string | null;
+  /** อีเมลกลางของบริษัทที่ต้องได้รับสำเนา (CC) — null = ยังไม่ได้ตั้งค่าที่หน้า "ตั้งค่าบริษัท" */
+  companyEmail?: string | null;
 }
 
 interface StubResult {
@@ -52,7 +54,12 @@ interface StubResult {
 /** สร้าง Supabase client ปลอมที่ตอบเฉพาะ query ที่ route นี้ยิงจริง — คืน array ที่เก็บสิ่งที่ถูกเขียนลงไป
  * เพื่อให้เทสต์ตรวจได้ว่า "บันทึกประวัติแล้วจริงไหม บันทึกอะไรลงไป" */
 function stubSupabase(options: StubOptions = {}): StubResult {
-  const { certStatus = 'issued', certMissing = false, partnerEmail = 'payee@example.com' } = options;
+  const {
+    certStatus = 'issued',
+    certMissing = false,
+    partnerEmail = 'payee@example.com',
+    companyEmail = null,
+  } = options;
   const result: StubResult = { sendLogInserts: [], certUpdates: [] };
 
   const client = {
@@ -92,7 +99,13 @@ function stubSupabase(options: StubOptions = {}): StubResult {
         return { select: () => ({ eq: () => ({ single: async () => ({ data: { email: partnerEmail }, error: null }) }) }) };
       }
       if (table === 'companies') {
-        return { select: () => ({ eq: () => ({ single: async () => ({ data: { name: 'บริษัท ซีบีซอฟท์ จำกัด' }, error: null }) }) }) };
+        return {
+          select: () => ({
+            eq: () => ({
+              single: async () => ({ data: { name: 'บริษัท ซีบีซอฟท์ จำกัด', email: companyEmail }, error: null }),
+            }),
+          }),
+        };
       }
       if (table === 'wht_certificate_send_logs') {
         return {
@@ -249,5 +262,30 @@ describe('POST /api/wht-certificate/send — ส่งสำเร็จ', () =>
     stubSupabase();
     await POST(makeRequest(VALID_BODY));
     expect(mocks.sendWhtCertificateEmail.mock.calls[0][0].subject).toContain('53-6904002');
+  });
+});
+
+/**
+ * สำเนาถึงอีเมลบริษัท (เพิ่มเข้ามา 2026-10-11 ตามคำขอผู้ใช้ "ทุกฉบับที่มีการกดส่งจะต้องส่งมาที่อีเมลบริษัทด้วย")
+ *
+ * จุดสำคัญที่ต้องล็อกไว้: อีเมลบริษัทต้องมาจากฐานข้อมูลฝั่ง server เท่านั้น ไม่ใช่ค่าที่ client ส่งมา — ไม่งั้น
+ * ใครก็แก้ request เพื่อส่งสำเนาเอกสารภาษีออกไปที่อีเมลอื่นได้
+ */
+describe('POST /api/wht-certificate/send — สำเนาถึงอีเมลบริษัท (CC)', () => {
+  it('ใส่ CC เป็นอีเมลบริษัทเมื่อตั้งค่าไว้แล้ว', async () => {
+    stubSupabase({ companyEmail: 'accounting@company.co.th' });
+    const res = await POST(makeRequest(VALID_BODY));
+    expect(res.status).toBe(200);
+    expect(mocks.sendWhtCertificateEmail.mock.calls[0][0]).toMatchObject({
+      to: 'payee@example.com',
+      cc: 'accounting@company.co.th',
+    });
+  });
+
+  it('ไม่ตั้งค่าอีเมลบริษัทไว้ → cc เป็น null ส่งถึงผู้รับอย่างเดียวเหมือนเดิม', async () => {
+    stubSupabase({ companyEmail: null });
+    const res = await POST(makeRequest(VALID_BODY));
+    expect(res.status).toBe(200);
+    expect(mocks.sendWhtCertificateEmail.mock.calls[0][0].cc).toBeNull();
   });
 });

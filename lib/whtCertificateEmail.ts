@@ -45,6 +45,13 @@ export type { WhtCertificateEmailContent } from './whtCertificateEmailContent';
 
 export interface SendWhtCertificateEmailInput {
   to: string;
+  /** อีเมลกลางของบริษัทที่ต้องได้รับสำเนาทุกฉบับ (ตั้งค่าที่หน้า "ตั้งค่าบริษัท" — เพิ่มเข้ามา 2026-10-11)
+   * ว่าง/ไม่ส่งมา = ส่งถึงผู้รับอย่างเดียวเหมือนเดิม
+   *
+   * ใช้ CC ไม่ใช่ BCC โดยตั้งใจ: ผู้ถูกหักภาษีควรเห็นว่าบริษัทผู้จ่ายเงินถือสำเนาฉบับนี้อยู่ด้วย และจะได้
+   * ตอบกลับหาฝ่ายบัญชีของบริษัทได้ตรงๆ (กด reply-all) แทนที่จะตอบกลับไปที่บัญชี Gmail ของคนที่กดส่ง
+   * ซึ่งอาจไม่มีใครดู — ถ้าภายหลังอยากให้ซ่อน เปลี่ยน `cc:` เป็น `bcc:` บรรทัดเดียวในไฟล์นี้ */
+  cc?: string | null;
   subject: string;
   text: string;
   filename: string;
@@ -68,9 +75,15 @@ export async function sendWhtCertificateEmail(input: SendWhtCertificateEmailInpu
     tls: { rejectUnauthorized: shouldVerifyTlsCertificate() },
   });
 
+  // ไม่ใส่ cc ถ้าปลายทางซ้ำกับผู้รับหลัก — บางเมลไคลเอนต์จะโชว์เป็นสองบรรทัดซ้ำกันดูสับสน และ Gmail เองก็
+  // รวมให้เหลือฉบับเดียวอยู่แล้ว การส่งซ้ำจึงไม่ได้ประโยชน์อะไร
+  const ccAddress = input.cc?.trim();
+  const cc = ccAddress && ccAddress.toLowerCase() !== input.to.trim().toLowerCase() ? ccAddress : undefined;
+
   await transporter.sendMail({
     from: gmailUser,
     to: input.to,
+    ...(cc ? { cc } : {}),
     subject: input.subject,
     text: input.text,
     attachments: [{ filename: input.filename, content: input.pdfBuffer, contentType: 'application/pdf' }],

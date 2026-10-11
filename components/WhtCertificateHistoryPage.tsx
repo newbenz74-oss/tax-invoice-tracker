@@ -575,6 +575,7 @@ export default function WhtCertificateHistoryPage() {
               cert={sendTarget}
               recipientEmail={recipientEmail}
               companyName={selectedCompany?.name ?? ''}
+              companyEmail={selectedCompany?.email ?? null}
               filename={whtCertificateFilename(sendTarget)}
               sending={sendingId === sendTarget.id}
               error={sendError}

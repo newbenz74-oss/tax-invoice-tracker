@@ -51,6 +51,9 @@ export interface SendWhtCertificateEmailModalProps {
   recipientEmail: string;
   /** ชื่อบริษัทผู้จ่ายเงิน ใช้ประกอบเนื้อหาอีเมลให้ตรงกับที่ server จะส่งจริง */
   companyName: string;
+  /** อีเมลกลางของบริษัทที่จะได้รับสำเนา (CC) ทุกฉบับ — ว่าง/null = ยังไม่ได้ตั้งค่าที่หน้า "ตั้งค่าบริษัท"
+   * แสดงให้เห็นในหน้าต่างนี้ด้วย เพราะเป็นผู้รับอีกคนที่จะได้เอกสารจริง ไม่ควรเกิดขึ้นโดยผู้ใช้ไม่รู้ตัว */
+  companyEmail: string | null;
   /** ชื่อไฟล์แนบที่จะถูกส่งไปจริง (whtCertificateFilename ของใบนี้) */
   filename: string;
   sending: boolean;
@@ -63,6 +66,7 @@ export default function SendWhtCertificateEmailModal({
   cert,
   recipientEmail,
   companyName,
+  companyEmail,
   filename,
   sending,
   error,
@@ -124,6 +128,17 @@ export default function SendWhtCertificateEmailModal({
               <span className="block text-xs text-text-sub">{cert.payee_name}</span>
             </dd>
           </div>
+          {/* สำเนาถึงอีเมลบริษัท (2026-10-11) — แสดงเฉพาะเมื่อตั้งค่าไว้แล้ว ถ้ายังไม่ได้ตั้งก็ไม่ต้องรก
+              หน้าจอด้วยช่องว่างเปล่า ผู้ใช้ที่ยังไม่รู้จักฟีเจอร์นี้จะไม่สงสัยว่าหายไปไหน */}
+          {companyEmail && (
+            <div className="flex gap-3">
+              <dt className="w-24 shrink-0 font-medium text-text-sub">สำเนาถึง</dt>
+              <dd className="min-w-0 break-words text-text" data-testid="wht-cert-send-cc">
+                {companyEmail}
+                <span className="block text-xs text-text-sub">อีเมลบริษัท — ได้รับสำเนาทุกฉบับ</span>
+              </dd>
+            </div>
+          )}
           <div className="flex gap-3">
             <dt className="w-24 shrink-0 font-medium text-text-sub">หัวข้อ</dt>
             <dd className="min-w-0 break-words text-text">{subject}</dd>

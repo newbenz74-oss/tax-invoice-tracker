@@ -22,6 +22,7 @@ const testCompany: Company = {
   postal_code: '11140',
   default_signer_name: 'SAKKARIN',
   logo_url: null,
+  email: null,
 };
 
 function makePartner(overrides: Partial<BusinessPartner>): BusinessPartner {

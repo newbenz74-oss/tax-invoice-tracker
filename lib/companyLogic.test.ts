@@ -12,6 +12,7 @@ const emptyForm: CompanySettingsInput = {
   province: '',
   postal_code: '',
   default_signer_name: '',
+  email: '',
 };
 
 describe('validateCompanySettingsForm', () => {
@@ -58,5 +59,32 @@ describe('validateCompanySettingsForm', () => {
   it('ยอมรับรหัสไปรษณีย์ 5 หลักที่ถูกต้อง', () => {
     const errors = validateCompanySettingsForm({ ...emptyForm, postal_code: '11140' });
     expect(errors.postal_code).toBeUndefined();
+  });
+});
+
+/** อีเมลบริษัท (เพิ่มเข้ามา 2026-10-11) — ค่านี้ถูกใส่เป็น CC ของอีเมลใบหัก ณ ที่จ่ายทุกฉบับ ถ้าพิมพ์ผิดจะทำให้
+ * "ส่งไม่ออกทั้งฉบับ" ไม่ใช่แค่สำเนาไม่ถึง จึงต้องดักตั้งแต่หน้าตั้งค่า */
+describe('validateCompanySettingsForm — อีเมลบริษัท', () => {
+  it('เว้นว่างได้ ไม่ใช่ช่องบังคับ', () => {
+    expect(validateCompanySettingsForm({ ...emptyForm, email: '' }).email).toBeUndefined();
+    expect(validateCompanySettingsForm({ ...emptyForm, email: '   ' }).email).toBeUndefined();
+  });
+
+  it('ยอมรับอีเมลที่ใช้งานได้จริง', () => {
+    for (const email of ['accounting@company.co.th', 'a.b-c+tag@sub.domain.com', 'ฝ่ายบัญชี@บริษัท.ไทย']) {
+      expect(validateCompanySettingsForm({ ...emptyForm, email }).email).toBeUndefined();
+    }
+  });
+
+  it('ปฏิเสธรูปแบบที่ผิดชัดเจน', () => {
+    for (const email of ['accounting', 'accounting@', '@company.co.th', 'a b@company.co.th', 'a@b']) {
+      expect(validateCompanySettingsForm({ ...emptyForm, email }).email).toBe(
+        'รูปแบบอีเมลไม่ถูกต้อง เช่น accounting@company.co.th'
+      );
+    }
+  });
+
+  it('ตัดช่องว่างหัวท้ายก่อนตรวจ (ผู้ใช้ก๊อปมาวางมักติดช่องว่างมาด้วย)', () => {
+    expect(validateCompanySettingsForm({ ...emptyForm, email: '  accounting@company.co.th  ' }).email).toBeUndefined();
   });
 });

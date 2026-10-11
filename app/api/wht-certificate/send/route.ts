@@ -132,9 +132,12 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: 'certificate_voided' }, { status: 409 });
   }
 
+  // ดึงอีเมลบริษัทมาด้วย (เพิ่มเข้ามา 2026-10-11) — ใช้เป็น CC ให้ฝ่ายบัญชีมีสำเนาทุกฉบับในกล่องจดหมายของ
+  // บริษัทเอง อ่านจากฐานข้อมูลฝั่ง server เหมือนอีเมลผู้รับ ไม่รับค่าจาก client เด็ดขาด (กันการแก้ request
+  // เพื่อส่งสำเนาออกไปที่อื่น — เป็นเหตุผลเดียวกับที่ไม่เชื่ออีเมลผู้รับที่ client ส่งมา)
   const [{ data: partner }, { data: company }] = await Promise.all([
     supabase.from('business_partners').select('email').eq('id', cert.business_partner_id).single(),
-    supabase.from('companies').select('name').eq('id', cert.company_id).single(),
+    supabase.from('companies').select('name, email').eq('id', cert.company_id).single(),
   ]);
 
   const recipientEmail = partner?.email?.trim();
@@ -156,7 +159,7 @@ export async function POST(request: Request): Promise<Response> {
   const { subject, text } = buildWhtCertificateEmailContent(cert.cert_number, cert.payee_name, company?.name ?? '');
 
   try {
-    await sendWhtCertificateEmail({ to: recipientEmail, subject, text, filename, pdfBuffer });
+    await sendWhtCertificateEmail({ to: recipientEmail, cc: company?.email ?? null, subject, text, filename, pdfBuffer });
   } catch (err) {
     // พิมพ์ error จริงจาก nodemailer ออก terminal ฝั่ง server เสมอ (เช่น "Invalid login", "Username and
     // Password not accepted" ฯลฯ) — ไม่ส่งข้อความนี้กลับไปโชว์ที่หน้าเว็บ (อาจมีรายละเอียดเทคนิคที่ไม่ควร

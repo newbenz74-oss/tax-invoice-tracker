@@ -26,6 +26,10 @@ export interface Company {
   postal_code: string | null;
   default_signer_name: string | null;
   logo_url: string | null;
+  /** อีเมลกลางของบริษัท (เพิ่มเข้ามา 2026-10-11 ดู migration_031) — ใช้รับ "สำเนา" ของใบหัก ณ ที่จ่ายทุกฉบับ
+   * ที่ส่งออกจากระบบ (CC) เพื่อให้ฝ่ายบัญชีมีหลักฐานการส่งในกล่องจดหมายของบริษัทเองทุกครั้ง ไม่ต้องพึ่ง
+   * กล่องจดหมายส่วนตัวของคนที่กดส่ง — null = ยังไม่ได้ตั้งค่า ระบบจะส่งถึงผู้รับอย่างเดียวเหมือนเดิม */
+  email: string | null;
 }
 
 /** ค่าฟอร์มหน้า "ตั้งค่าบริษัท" — ทุกฟิลด์เป็น string (แม้แต่ select) เหมือน pattern ContactFormInput เดิม
@@ -40,10 +44,11 @@ export interface CompanySettingsInput {
   province: string;
   postal_code: string;
   default_signer_name: string;
+  email: string;
 }
 
 const COMPANY_COLUMNS =
-  'id, name, tax_id, branch_type, branch_number, address, subdistrict, district, province, postal_code, default_signer_name, logo_url';
+  'id, name, tax_id, branch_type, branch_number, address, subdistrict, district, province, postal_code, default_signer_name, logo_url, email';
 
 /** bucket โลโก้บริษัท (ดู supabase/migration_017_company_logo.sql) — public bucket, path เก็บตายตัวเป็น
  * "{company_id}/logo.png" เสมอ (ไฟล์เดียวต่อบริษัท อัปโหลดใหม่ทับของเดิม ไม่มีสะสมไฟล์เก่าค้าง) */
@@ -91,6 +96,7 @@ export async function updateCompanySettings(companyId: string, input: CompanySet
       province: input.province.trim() || null,
       postal_code: input.postal_code.trim() || null,
       default_signer_name: input.default_signer_name.trim() || null,
+      email: input.email.trim() || null,
     })
     .eq('id', companyId)
     .select(COMPANY_COLUMNS)

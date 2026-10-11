@@ -91,6 +91,7 @@ const EMPTY_FORM: CompanySettingsInput = {
   province: '',
   postal_code: '',
   default_signer_name: '',
+  email: '',
 };
 
 function companyToForm(company: Company): CompanySettingsInput {
@@ -104,6 +105,7 @@ function companyToForm(company: Company): CompanySettingsInput {
     province: company.province ?? '',
     postal_code: company.postal_code ?? '',
     default_signer_name: company.default_signer_name ?? '',
+    email: company.email ?? '',
   };
 }
 
@@ -456,6 +458,24 @@ export default function CompanySettingsPage() {
               className={inputClass(false)}
               data-testid="input-default-signer-name"
             />
+          </Field>
+
+          {/* อีเมลบริษัท (เพิ่มเข้ามา 2026-10-11 ตามคำขอผู้ใช้) — วางไว้ในหมวด "ใบหัก ณ ที่จ่าย" ไม่ใช่หมวด
+              ข้อมูลทั่วไป เพราะตอนนี้มีหน้าที่เดียวคือรับสำเนาอีเมลใบหัก ณ ที่จ่าย วางไว้ใกล้จุดที่มันถูกใช้
+              จริงทำให้ผู้ใช้เดาได้เองว่ากรอกไปแล้วเกิดอะไรขึ้น ถ้าวันหลังมีที่ใช้มากกว่านี้ค่อยย้ายขึ้นไป */}
+          <Field label="อีเมลบริษัท (รับสำเนาทุกฉบับ)" error={errors.email}>
+            <input
+              type="email"
+              placeholder="ไม่บังคับ — เช่น accounting@company.co.th"
+              value={form.email}
+              onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+              className={inputClass(Boolean(errors.email))}
+              data-testid="input-company-email"
+            />
+            <p className="mt-1.5 text-xs text-text-sub">
+              ทุกครั้งที่กดส่งใบหัก ณ ที่จ่ายทางอีเมล ระบบจะส่งสำเนาถึงอีเมลนี้ด้วยเสมอ (ใส่เป็น CC —
+              ผู้รับจะเห็นว่าบริษัทถือสำเนาอยู่ และตอบกลับหาฝ่ายบัญชีได้โดยตรง) เว้นว่างไว้ = ส่งถึงผู้รับอย่างเดียว
+            </p>
           </Field>
         </Section>
 
