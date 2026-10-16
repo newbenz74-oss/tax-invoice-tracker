@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
-import { Mail, Receipt, Search } from 'lucide-react';
+import { Download, Mail, Receipt, Search } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
 import {
@@ -14,7 +14,14 @@ import {
 } from '@/lib/whtCertificateApi';
 import { fetchInvoices, INVOICES_SWR_KEY } from '@/lib/invoiceApi';
 import { CONTACTS_SWR_KEY, fetchContacts } from '@/lib/contactApi';
-import { buildWhtCertificatePdf, whtCertificateFilename } from '@/lib/whtCertificatePdf';
+import {
+  buildWhtCertificateSheetBatchPdf,
+  buildWhtCertificateSheetPdf,
+  whtCertificateBatchFilename,
+  whtCertificateFilename as whtCertificateEmailFilename,
+  whtCertificateSheetFilename,
+  type WhtCertificateSheet,
+} from '@/lib/whtCertificatePdf';
 import { whtRatePercent, whtTaxBase } from '@/lib/whtCertificateLogic';
 import { downloadBlob } from '@/lib/reportExport';
 import { buddhistYearOptions, formatThaiDate, thaiMonthName } from '@/lib/thaiDate';
@@ -230,13 +237,36 @@ export default function WhtCertificateHistoryPage() {
     );
   }, [periodFilteredCertificates, search]);
 
-  async function handleDownload(cert: WhtCertificate) {
-    setDownloadingId(cert.id);
+  /** ดาวน์โหลดใบเดียว แยกตามแผ่น (2026-10-16 ตามคำขอผู้ใช้ — เดิมปุ่มเดียวได้ทั้งสองแผ่นรวมในไฟล์เดียว
+   * ทำให้ต้องมานั่งเลือกหน้าตอนสั่งพิมพ์ทุกครั้ง) downloadingId เก็บเป็น "id:sheet" เพื่อให้ปุ่มที่กำลังสร้าง
+   * ไฟล์อยู่ขึ้นสถานะเฉพาะปุ่มนั้น ไม่ใช่ปิดทั้งสองปุ่มของแถวพร้อมกัน */
+  async function handleDownloadSheet(cert: WhtCertificate, sheet: WhtCertificateSheet) {
+    setDownloadingId(`${cert.id}:${sheet}`);
     setDownloadError(null);
     try {
       const certInvoices = invoices.filter((inv) => inv.wht_certificate_id === cert.id);
-      const blob = buildWhtCertificatePdf(cert, certInvoices);
-      downloadBlob(blob, whtCertificateFilename(cert));
+      const blob = buildWhtCertificateSheetPdf(cert, certInvoices, sheet);
+      downloadBlob(blob, whtCertificateSheetFilename(cert, sheet));
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : 'สร้างไฟล์ PDF ไม่สำเร็จ');
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
+  /** ดาวน์โหลดทุกใบในเดือน/ปี/ประเภทที่กรองอยู่ รวมเป็นไฟล์เดียว เรียงตามเลขที่ใบ เพื่อให้สั่งพิมพ์ทีเดียว
+   * แล้วได้กองเอกสารเรียงลำดับพอดี — ใช้ periodFilteredCertificates (ไม่ใช่ visibleCertificates) โดยตั้งใจ
+   * เพราะคำค้นหาเป็นเครื่องมือหาของบนหน้าจอ ไม่ควรทำให้ไฟล์ที่ยื่น/เก็บเข้าแฟ้มขาดใบไปเงียบๆ */
+  async function handleDownloadMonth(sheet: WhtCertificateSheet) {
+    setDownloadingId(`month:${sheet}`);
+    setDownloadError(null);
+    try {
+      const entries = [...periodFilteredCertificates]
+        .sort((a, b) => a.cert_number.localeCompare(b.cert_number))
+        .map((cert) => ({ cert, invoices: invoices.filter((inv) => inv.wht_certificate_id === cert.id) }));
+      const blob = buildWhtCertificateSheetBatchPdf(entries, sheet);
+      const formLabel = formTypeFilter === '03' ? 'ภ.ง.ด.3' : 'ภ.ง.ด.53';
+      downloadBlob(blob, whtCertificateBatchFilename(formLabel, `${thaiMonthName(monthFilter as number)} ${yearFilter}`, sheet));
     } catch (err) {
       setDownloadError(err instanceof Error ? err.message : 'สร้างไฟล์ PDF ไม่สำเร็จ');
     } finally {
@@ -298,16 +328,15 @@ export default function WhtCertificateHistoryPage() {
     }
   }
 
-  async function handleReissued(newCert: WhtCertificate) {
-    const certInvoices = reissue?.certInvoices ?? [];
+  /** แก้ไขใบเสร็จแล้ว — แค่รีเฟรชข้อมูลในตาราง ไม่ดาวน์โหลดไฟล์ให้เอง
+   *
+   * เดิมดาวน์โหลด PDF ให้อัตโนมัติทุกครั้งที่ออกใบใหม่แทนใบเดิม แต่ผู้ใช้ขอให้เอาออก (2026-10-16) — การแก้ไข
+   * ส่วนใหญ่เป็นการแก้ข้อมูลเล็กน้อย (ชื่อ/คำนำหน้า) ที่ยังไม่ได้จะพิมพ์หรือส่งทันที การยัดไฟล์ลงเครื่องให้
+   * ทุกครั้งเลยกลายเป็นขยะในโฟลเดอร์ดาวน์โหลดแทน — ต้องการไฟล์เมื่อไรกดปุ่ม "PDF ผู้ถูกหัก"/"PDF บัญชี"
+   * ในตารางได้ตลอด */
+  async function handleReissued() {
     setReissue(null);
     await Promise.all([mutateCertificates(), mutateInvoices()]);
-    try {
-      const blob = buildWhtCertificatePdf(newCert, certInvoices);
-      downloadBlob(blob, whtCertificateFilename(newCert));
-    } catch {
-      // สร้าง/ดาวน์โหลด PDF ไม่สำเร็จ — ไม่บล็อก flow หลัก (ใบใหม่ถูกบันทึกแล้วจริง) ดาวน์โหลดซ้ำได้จากตาราง
-    }
   }
 
   const reissuePrefill: WhtCertificateFormPrefill | undefined = reissue
@@ -408,6 +437,42 @@ export default function WhtCertificateHistoryPage() {
         </p>
       )}
 
+      {/* ดาวน์โหลดรวมทั้งเดือน (2026-10-16 ตามคำขอผู้ใช้ "อยากให้มี 1 ปุ่ม ที่สามารถกดดาวน์โหลดได้ทุกฉบับ
+          ภายในเดือนนั้นๆ แบ่งเป็นผู้ถูกหัก และสำหรับบัญชี") — รวมทุกใบเป็นไฟล์เดียวเรียงตามเลขที่ใบ สั่งพิมพ์
+          ทีเดียวได้ทั้งเดือน ไม่ต้องกดทีละใบ */}
+      {filtersComplete && !certLoading && periodFilteredCertificates.length > 0 && (
+        <section className="card-surface mb-6 rounded-2xl p-5" data-testid="wht-month-download-panel">
+          <h2 className="text-base font-bold text-text">ดาวน์โหลดทั้งเดือน</h2>
+          <p className="mt-1 text-sm text-text-sub">
+            รวมใบหัก ณ ที่จ่ายทั้ง {periodFilteredCertificates.length} ฉบับของ{' '}
+            {formTypeFilter === '03' ? 'ภ.ง.ด.3' : 'ภ.ง.ด.53'} เดือน {thaiMonthName(monthFilter as number)} {yearFilter}{' '}
+            เป็นไฟล์เดียว เรียงตามเลขที่ใบ (ไม่ขึ้นกับคำค้นหา)
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={downloadingId === 'month:payee'}
+              onClick={() => handleDownloadMonth('payee')}
+              className="btn-press inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-xs font-medium text-text-sub hover:bg-page-bg disabled:opacity-50"
+              data-testid="wht-month-download-payee"
+            >
+              <Download size={14} aria-hidden="true" />
+              {downloadingId === 'month:payee' ? 'กำลังสร้าง...' : 'แผ่นที่ 1 — สำหรับผู้ถูกหัก (ฉบับ 1+2)'}
+            </button>
+            <button
+              type="button"
+              disabled={downloadingId === 'month:payer'}
+              onClick={() => handleDownloadMonth('payer')}
+              className="btn-press inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-xs font-medium text-text-sub hover:bg-page-bg disabled:opacity-50"
+              data-testid="wht-month-download-payer"
+            >
+              <Download size={14} aria-hidden="true" />
+              {downloadingId === 'month:payer' ? 'กำลังสร้าง...' : 'แผ่นที่ 2 — สำหรับบัญชี (ฉบับ 3+4)'}
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* ไฟล์ยื่นสรรพากร (RD Prep) — วางเหนือตารางเพราะเป็นงานที่ทำ "หลังออกใบครบแล้ว" ตามที่ผู้ใช้ขอ
           ("เมื่อฉันออกใบหัก ณ ที่จ่ายครบ") และต้องเห็นรายการข้อมูลที่ไม่ครบก่อนไล่แก้ในตารางด้านล่าง
           แสดงเฉพาะเมื่อเลือกตัวกรองครบ เพราะไฟล์ผูกกับเดือน/ปีที่เลือกไว้ */}
@@ -493,14 +558,27 @@ export default function WhtCertificateHistoryPage() {
                     </td>
                     <td className="px-[18px] py-[18px] text-right">
                       <div className="flex flex-wrap justify-end gap-1.5">
+                        {/* แยกเป็น 2 ปุ่มตามแผ่น (2026-10-16) — แผ่นที่ 1 คือฉบับที่ 1+2 ที่ต้องมอบให้ผู้ถูกหัก
+                            ภาษี แผ่นที่ 2 คือฉบับที่ 3+4 ที่บริษัทเก็บเอง คนละคนใช้คนละแผ่น จึงไม่ควรรวมไฟล์ */}
                         <button
                           type="button"
-                          disabled={downloadingId === cert.id}
-                          onClick={() => handleDownload(cert)}
+                          disabled={downloadingId === `${cert.id}:payee`}
+                          onClick={() => handleDownloadSheet(cert, 'payee')}
+                          title="แผ่นที่ 1 — ฉบับที่ 1 และ 2 สำหรับมอบให้ผู้ถูกหักภาษี"
                           className="btn-press rounded-[10px] border border-border px-2 py-1 text-xs font-medium text-text-sub hover:bg-page-bg disabled:opacity-50"
-                          data-testid={`wht-cert-download-${cert.id}`}
+                          data-testid={`wht-cert-download-payee-${cert.id}`}
                         >
-                          {downloadingId === cert.id ? 'กำลังสร้าง...' : 'ดาวน์โหลด PDF'}
+                          {downloadingId === `${cert.id}:payee` ? 'กำลังสร้าง...' : 'PDF ผู้ถูกหัก'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={downloadingId === `${cert.id}:payer`}
+                          onClick={() => handleDownloadSheet(cert, 'payer')}
+                          title="แผ่นที่ 2 — ฉบับที่ 3 และ 4 สำหรับฝ่ายบัญชี/การเงินเก็บไว้"
+                          className="btn-press rounded-[10px] border border-border px-2 py-1 text-xs font-medium text-text-sub hover:bg-page-bg disabled:opacity-50"
+                          data-testid={`wht-cert-download-payer-${cert.id}`}
+                        >
+                          {downloadingId === `${cert.id}:payer` ? 'กำลังสร้าง...' : 'PDF บัญชี'}
                         </button>
                         {cert.status === 'issued' && (
                           <>
@@ -561,8 +639,8 @@ export default function WhtCertificateHistoryPage() {
             </h3>
             <p className="mt-2 text-sm text-text-sub">
               {actionTarget.kind === 'edit'
-                ? `ใบเลขที่ ${actionTarget.cert.cert_number} จะถูกยกเลิก แล้วเปิดฟอร์มออกใบใหม่แทน (ได้เลขที่ใหม่ต่อเนื่อง) ต้องการดำเนินการต่อหรือไม่?`
-                : `ใบเลขที่ ${actionTarget.cert.cert_number} จะถูกยกเลิก (เก็บประวัติไว้ ไม่ลบถาวร) รายการจ่ายเงินที่ผูกไว้จะกลับมาเลือกออกใบใหม่ได้อีกครั้ง ต้องการดำเนินการต่อหรือไม่?`}
+                ? `ใบเลขที่ ${actionTarget.cert.cert_number} จะถูกยกเลิก แล้วเปิดฟอร์มออกใบใหม่แทนโดยพรีฟิลเลขที่เดิมไว้ให้ (แก้เป็นเลขอื่นได้) รายการจ่ายเงินที่ผูกไว้ไม่ถูกลบ ต้องการดำเนินการต่อหรือไม่?`
+                : `ใบเลขที่ ${actionTarget.cert.cert_number} จะถูกยกเลิก (เก็บประวัติไว้ ไม่ลบถาวร) และเลขที่นี้จะว่างให้นำกลับมาใช้ใหม่ได้ — รายการจ่ายเงินที่ผูกไว้ไม่ถูกลบ แค่กลับไปอยู่ในรายการที่ยังไม่ได้ออกใบ ต้องการดำเนินการต่อหรือไม่?`}
             </p>
             {actionError && (
               <p role="alert" className="mt-3 rounded-[10px] border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -604,7 +682,7 @@ export default function WhtCertificateHistoryPage() {
               recipientEmail={recipientEmail}
               companyName={selectedCompany?.name ?? ''}
               companyEmail={selectedCompany?.email ?? null}
-              filename={whtCertificateFilename(sendTarget)}
+              filename={whtCertificateEmailFilename(sendTarget)}
               sending={sendingId === sendTarget.id}
               error={sendError}
               onConfirm={handleConfirmSend}

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildWhtCertificatePdf, whtCertificateFilename } from './whtCertificatePdf';
+import {
+  buildWhtCertificatePdf,
+  buildWhtCertificateSheetBatchPdf,
+  buildWhtCertificateSheetPdf,
+  whtCertificateBatchFilename,
+  whtCertificateFilename,
+  whtCertificateSheetFilename,
+} from './whtCertificatePdf';
 import type { PendingTaxInvoice } from '@/types/invoice';
 import type { WhtCertificate } from '@/types/whtCertificate';
 
@@ -153,5 +160,90 @@ describe('whtCertificateFilename', () => {
     expect(
       whtCertificateFilename(makeCert({ cert_number: '03-6908001', issued_date: '2026-08-11', payee_name: 'บริษัท A/B: C จำกัด' }))
     ).toBe('03-6908001_11.08.2026_บริษัท A B C จำกัด.pdf');
+  });
+});
+
+/* ========================================================================================
+   ดาวน์โหลดแยกแผ่น (2026-10-16) — แผ่นที่ 1 มอบให้ผู้ถูกหักภาษี / แผ่นที่ 2 บริษัทเก็บเอง
+   ======================================================================================== */
+
+describe('buildWhtCertificateSheetPdf — แยกแผ่น', () => {
+  it('สร้างได้ทั้งสองแผ่น และแต่ละแผ่นเล็กกว่าไฟล์ฉบับเต็มที่รวมสองแผ่นไว้ด้วยกัน', () => {
+    const cert = makeCert();
+    const invoices = [makeInvoice()];
+    const payee = buildWhtCertificateSheetPdf(cert, invoices, 'payee');
+    const payer = buildWhtCertificateSheetPdf(cert, invoices, 'payer');
+    const full = buildWhtCertificatePdf(cert, invoices);
+
+    expect(payee.type).toBe('application/pdf');
+    expect(payer.type).toBe('application/pdf');
+    expect(payee.size).toBeGreaterThan(0);
+    expect(payer.size).toBeGreaterThan(0);
+    // ไฟล์แยกแผ่นมี 1 หน้า ส่วนฉบับเต็มมี 2 หน้า จึงต้องเล็กกว่าเสมอ — ถ้าไม่เล็กกว่าแปลว่าหลุดไปวาดทั้งสอง
+    // แผ่นเหมือนเดิม ซึ่งคือบั๊กที่ผู้ใช้แจ้งมาพอดี ("กดดาวน์โหลด มันโหลดมาทั้งหมด 2 ฉบับเลย")
+    expect(payee.size).toBeLessThan(full.size);
+    expect(payer.size).toBeLessThan(full.size);
+  });
+
+  it('สองแผ่นไม่ใช่ไฟล์เดียวกัน (เนื้อหาคนละฉบับ)', () => {
+    const cert = makeCert();
+    const invoices = [makeInvoice()];
+    expect(buildWhtCertificateSheetPdf(cert, invoices, 'payee').size).not.toBe(
+      buildWhtCertificateSheetPdf(cert, invoices, 'payer').size
+    );
+  });
+
+  it('หลายรายการ — แนบหน้ารายละเอียดไปกับทุกแผ่น เพราะแต่ละแผ่นเป็นไฟล์เอกราชของตัวเอง', () => {
+    const cert = makeCert();
+    const one = buildWhtCertificateSheetPdf(cert, [makeInvoice({ id: '1' })], 'payer');
+    const many = buildWhtCertificateSheetPdf(
+      cert,
+      [makeInvoice({ id: '1' }), makeInvoice({ id: '2' })],
+      'payer'
+    );
+    expect(many.size).toBeGreaterThan(one.size);
+  });
+});
+
+describe('buildWhtCertificateSheetBatchPdf — รวมทั้งเดือน', () => {
+  it('รวมหลายใบเป็นไฟล์เดียว ใหญ่กว่าไฟล์ใบเดียวของแผ่นเดียวกัน', () => {
+    const certA = makeCert({ id: 'a', cert_number: '03-6910001' });
+    const certB = makeCert({ id: 'b', cert_number: '03-6910002' });
+    const single = buildWhtCertificateSheetPdf(certA, [makeInvoice()], 'payee');
+    const batch = buildWhtCertificateSheetBatchPdf(
+      [
+        { cert: certA, invoices: [makeInvoice({ id: '1' })] },
+        { cert: certB, invoices: [makeInvoice({ id: '2' })] },
+      ],
+      'payee'
+    );
+    expect(batch.size).toBeGreaterThan(single.size);
+  });
+
+  it('ไม่มีใบเลย → โยน error ไม่คืนไฟล์เปล่าที่ทำให้ผู้ใช้เข้าใจผิดว่าเอกสารหาย', () => {
+    expect(() => buildWhtCertificateSheetBatchPdf([], 'payee')).toThrow(/ไม่มีใบหัก ณ ที่จ่าย/);
+  });
+});
+
+describe('ชื่อไฟล์แยกแผ่น', () => {
+  it('ต่อท้ายด้วยชื่อแผ่น เพื่อให้สองไฟล์ของใบเดียวกันไม่ทับกัน', () => {
+    const cert = makeCert({ cert_number: '03-6910015', issued_date: '2026-10-15', payee_name: 'นางสาวกนกพร คชชนก' });
+    expect(whtCertificateSheetFilename(cert, 'payee')).toBe(
+      '03-6910015_15.10.2026_นางสาวกนกพร คชชนก_สำหรับผู้ถูกหัก.pdf'
+    );
+    expect(whtCertificateSheetFilename(cert, 'payer')).toBe(
+      '03-6910015_15.10.2026_นางสาวกนกพร คชชนก_สำหรับบัญชี.pdf'
+    );
+  });
+
+  it('ชื่อไฟล์รวมทั้งเดือนบอกแบบ เดือน/ปี และแผ่นครบ', () => {
+    expect(whtCertificateBatchFilename('ภ.ง.ด.3', 'ตุลาคม 2569', 'payer')).toBe(
+      'ใบหัก ณ ที่จ่าย_ภ.ง.ด.3_ตุลาคม 2569_สำหรับบัญชี.pdf'
+    );
+  });
+
+  it('อักขระที่ใช้ในชื่อไฟล์ไม่ได้ถูกตัดออกจากชื่อผู้ถูกหัก', () => {
+    const cert = makeCert({ payee_name: 'บริษัท เอ/บี:ซี จำกัด' });
+    expect(whtCertificateSheetFilename(cert, 'payee')).not.toMatch(/[\\/:*?"<>|]/);
   });
 });

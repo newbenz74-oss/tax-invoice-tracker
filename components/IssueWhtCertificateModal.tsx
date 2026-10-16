@@ -186,6 +186,25 @@ export default function IssueWhtCertificateModal({
       };
     }
 
+    // mode="reissue" — พรีฟิล "เลขที่ใบเดิม" แทนเลขถัดไป (2026-10-16 ตามคำขอผู้ใช้ "พอลบเลข 03-6910015 ออก
+    // และกลับไปใช้เลขนี้ใหม่ไม่ได้ ฉันอยากให้กลับมาใช้ได้") — ตั้งแต่ migration_034 เลขของใบที่ยกเลิกแล้ว
+    // ว่างให้ใช้ซ้ำได้จริง การแก้ไขใบจึงควรได้เลขเดิมกลับมาโดยไม่ต้องพิมพ์เอง
+    //
+    // ใส่เงื่อนไขว่า prefix ต้องตรงกับ bucket ปัจจุบันด้วย เพราะถ้าผู้ใช้เปลี่ยนผู้รับหรือวันที่ออกใบจนข้าม
+    // เดือน/ปี/ประเภทไป เลขเดิมจะไม่มีความหมายในชุดใหม่อีกต่อไป กรณีนั้นต้องกลับไปใช้เลขถัดไปตามปกติ
+    const reissuePrefix = `${previewFormType}-${String(previewPeriodYear % 100).padStart(2, '0')}${String(previewPeriodMonth).padStart(2, '0')}`;
+    if (mode === 'reissue' && voidedCertNumber?.startsWith(reissuePrefix)) {
+      const original = voidedCertNumber;
+      Promise.resolve().then(() => {
+        if (cancelled) return;
+        setSequenceLoadError(null);
+        setCertNumberInput(original);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+
     Promise.resolve().then(() => {
       if (cancelled) return;
       setSequenceLoading(true);
@@ -208,7 +227,7 @@ export default function IssueWhtCertificateModal({
     return () => {
       cancelled = true;
     };
-  }, [companyId, previewFormType, previewPeriodYear, previewPeriodMonth]);
+  }, [companyId, previewFormType, previewPeriodYear, previewPeriodMonth, mode, voidedCertNumber]);
 
   // บั๊กเดิม (พบ 2026-08-17 จากรายงานผู้ใช้ "ออกใบหัก ณ ที่จ่ายไม่สำเร็จ"): ใช้ regex /(\d+)\s*$/ ตัดกลุ่ม
   // ตัวเลขท้ายสุดของข้อความทั้งก้อน — แต่รูปแบบเลขที่จริงคือ {formType}-{YY}{MM}{NNN} ซึ่ง YY, MM, NNN แปะติด
@@ -352,8 +371,8 @@ export default function IssueWhtCertificateModal({
         <div className="overflow-y-auto p-6 py-4">
         {mode === 'reissue' && (
           <p className="mb-4 rounded-[10px] border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
-            ใบเดิม{voidedCertNumber ? ` เลขที่ ${voidedCertNumber}` : ''} ถูกยกเลิกแล้ว แก้ไขข้อมูลด้านล่างแล้วกด &quot;ยืนยันออกใบ&quot;
-            เพื่อออกใบใหม่แทน (จะได้เลขที่ใหม่ต่อเนื่อง ไม่ใช่เลขเดิม)
+            ใบเดิม{voidedCertNumber ? ` เลขที่ ${voidedCertNumber}` : ''} ถูกยกเลิกแล้ว แก้ไขข้อมูลด้านล่างแล้วกด &quot;ยืนยันออกใบใหม่&quot;
+            — ช่องเลขที่ใบพรีฟิลเลขเดิมไว้ให้แล้ว กดยืนยันได้เลยถ้าต้องการใช้เลขเดิม หรือพิมพ์ทับเป็นเลขอื่นที่ยังว่างอยู่ก็ได้
           </p>
         )}
 

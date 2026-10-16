@@ -855,6 +855,86 @@ export function buildWhtCertificatePdf(cert: WhtCertificate, invoices: PendingTa
   return doc.output('blob');
 }
 
+/* ==============================================================================================
+ * ดาวน์โหลดแยกทีละแผ่น (2026-10-16 ตามคำขอผู้ใช้: "ปุ่มดาวน์โหลด PDF เมื่อกดดาวน์โหลด มันโหลดมาทั้งหมด
+ * 2 ฉบับเลย ฉันอยากให้มันแบ่งปุ่มดาวน์โหลด เป็นหน้า 1 คือสำหรับผู้ถูกหัก และหน้า 2 สำหรับบัญชี")
+ *
+ * ของเดิม buildWhtCertificatePdf() รวมทั้งสองแผ่นไว้ในไฟล์เดียว ทำให้เวลาพิมพ์ต้องมานั่งเลือกหน้าเองทุกครั้ง
+ * และพิมพ์รวมหลายใบทีเดียวไม่ได้เลย (หน้าผู้ถูกหักกับหน้าบัญชีสลับกันไปมา) — ยังเก็บฟังก์ชันเดิมไว้ไม่ลบ
+ * เพราะเป็นไฟล์ "ฉบับเต็ม" ที่ยังมีประโยชน์ และยังมีโค้ด/เทสต์อ้างถึงอยู่
+ *
+ * WhtCertificateSheet: 'payee' = แผ่นที่ 1 (ฉบับที่ 1 ซ้าย + ฉบับที่ 2 ขวา — มอบให้ผู้ถูกหักภาษีตามกฎหมาย)
+ *                      'payer' = แผ่นที่ 2 (ฉบับที่ 3 ซ้าย + ฉบับที่ 4 ขวา — ฝ่ายบัญชี/ฝ่ายการเงินเก็บเอง)
+ * ============================================================================================ */
+
+export type WhtCertificateSheet = 'payee' | 'payer';
+
+const SHEET_COPY_VARIANTS: Record<WhtCertificateSheet, [CopyVariant, CopyVariant]> = {
+  payee: ['payee_copy1', 'payee_copy2'],
+  payer: ['payer_copy3', 'payer_copy4'],
+};
+
+/** ป้ายชื่อแผ่นสำหรับใช้ในปุ่ม/ชื่อไฟล์ — เก็บไว้ที่เดียวให้หน้าเว็บกับชื่อไฟล์ใช้คำเดียวกันเสมอ */
+export const WHT_SHEET_LABELS: Record<WhtCertificateSheet, string> = {
+  payee: 'สำหรับผู้ถูกหัก',
+  payer: 'สำหรับบัญชี',
+};
+
+/** วาดใบหนึ่งฉบับลงเอกสารที่เปิดอยู่ — แยกออกมาเพื่อให้ไฟล์รวมทั้งเดือน (buildWhtCertificateSheetBatchPdf)
+ * ใช้ตรรกะเดียวกับไฟล์ใบเดียวเป๊ะ ไม่ต้องเขียนซ้ำ
+ *
+ * หน้าแนบรายละเอียดรายการแนบไปกับ "ทุกแผ่น" ที่มีหลายรายการ ไม่ใช่เฉพาะแผ่นสุดท้ายเหมือนไฟล์ฉบับเต็มเดิม
+ * เพราะแต่ละแผ่นตอนนี้เป็นไฟล์เอกราชของตัวเอง ถ้าไม่แนบไปด้วยคนที่ถือแผ่นนั้นจะไม่เห็นว่ายอดรวมมาจากรายการ
+ * ไหนบ้าง */
+function appendCertSheet(
+  doc: jsPDF,
+  cert: WhtCertificate,
+  invoices: PendingTaxInvoice[],
+  sheet: WhtCertificateSheet
+): void {
+  renderTwoUpSheet(doc, cert, invoices, SHEET_COPY_VARIANTS[sheet]);
+  if (invoices.length > 1) {
+    appendInvoiceBreakdownPage(doc, cert, invoices);
+  }
+}
+
+/** ไฟล์ PDF ของใบเดียว เฉพาะแผ่นที่เลือก */
+export function buildWhtCertificateSheetPdf(
+  cert: WhtCertificate,
+  invoices: PendingTaxInvoice[],
+  sheet: WhtCertificateSheet
+): Blob {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  registerThaiFont(doc);
+  appendCertSheet(doc, cert, invoices, sheet);
+  return doc.output('blob');
+}
+
+/** ไฟล์ PDF รวมหลายใบในไฟล์เดียว เฉพาะแผ่นที่เลือก — ใช้กับปุ่ม "ดาวน์โหลดทั้งเดือน" ในหน้าประวัติ
+ *
+ * เรียงตามลำดับที่ผู้เรียกส่งมา (หน้าประวัติเรียงตามเลขที่ใบ) เพื่อให้สั่งพิมพ์ทีเดียวแล้วได้กองเอกสารที่
+ * เรียงตามเลขที่พอดี ไม่ต้องมานั่งจัดเรียงเอง
+ *
+ * โยน Error ถ้าไม่มีใบเลย แทนที่จะคืน PDF หน้าว่าง — ไฟล์เปล่าที่ดาวน์โหลดได้ทำให้ผู้ใช้เข้าใจผิดว่าสร้าง
+ * สำเร็จแล้วแต่เอกสารหาย ผู้เรียกควรปิดปุ่มไว้ก่อนอยู่แล้วเมื่อไม่มีใบ */
+export function buildWhtCertificateSheetBatchPdf(
+  entries: { cert: WhtCertificate; invoices: PendingTaxInvoice[] }[],
+  sheet: WhtCertificateSheet
+): Blob {
+  if (entries.length === 0) throw new Error('ไม่มีใบหัก ณ ที่จ่ายให้ดาวน์โหลดในช่วงที่เลือก');
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  registerThaiFont(doc);
+
+  entries.forEach((entry, index) => {
+    // jsPDF เปิดมาพร้อมหน้าแรกให้แล้ว 1 หน้า ใบแรกจึงใช้หน้านั้นเลย ใบถัดไปค่อยเพิ่มหน้าใหม่
+    if (index > 0) doc.addPage('a4', 'landscape');
+    appendCertSheet(doc, entry.cert, entry.invoices, sheet);
+  });
+
+  return doc.output('blob');
+}
+
 /** สร้างไฟล์ PDF สำหรับแนบอีเมลส่งผู้ถูกหักภาษีโดยเฉพาะ — มีแค่หน้าเดียว (ฉบับที่ 1 ซ้าย + ฉบับที่ 2 ขวา สำหรับ
  * ผู้ถูกหักภาษี) ไม่มีหน้าสำเนาสำหรับผู้มีหน้าที่หัก (เก็บไว้ที่บริษัทเองไม่ต้องส่งให้ผู้ถูกหักภาษี) และไม่มีหน้า
  * แนบรายละเอียดรายการ (เอกสารภายในของบริษัทเอง ไม่ใช่ส่วนหนึ่งของแบบฟอร์มราชการที่ต้องส่งให้ผู้ถูกหักภาษี) ตาม
@@ -883,4 +963,21 @@ export function whtCertificateFilename(cert: WhtCertificate): string {
   const datePart = fileNameDate(cert.issued_date);
   const safePayeeName = cert.payee_name.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
   return `${[cert.cert_number, datePart, safePayeeName].filter((p) => p).join('_')}.pdf`;
+}
+
+/** ชื่อไฟล์ตอนดาวน์โหลดแยกแผ่น — ต่อท้ายด้วยชื่อแผ่น เพื่อให้สองไฟล์ของใบเดียวกันไม่ทับกันในโฟลเดอร์ดาวน์โหลด
+ * เช่น "03-6910015_15.10.2026_กนกพร คชชนก_สำหรับผู้ถูกหัก.pdf" */
+export function whtCertificateSheetFilename(cert: WhtCertificate, sheet: WhtCertificateSheet): string {
+  return `${whtCertificateFilename(cert).replace(/\.pdf$/, '')}_${WHT_SHEET_LABELS[sheet]}.pdf`;
+}
+
+/** ชื่อไฟล์ของไฟล์รวมทั้งเดือน เช่น "ใบหัก ณ ที่จ่าย_03_ตุลาคม 2569_สำหรับบัญชี.pdf"
+ * (formTypeLabel/periodLabel ส่งมาจากหน้าเว็บซึ่งรู้ค่าตัวกรองที่ผู้ใช้เลือกอยู่) */
+export function whtCertificateBatchFilename(
+  formTypeLabel: string,
+  periodLabel: string,
+  sheet: WhtCertificateSheet
+): string {
+  const safe = (s: string) => s.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return `ใบหัก ณ ที่จ่าย_${safe(formTypeLabel)}_${safe(periodLabel)}_${WHT_SHEET_LABELS[sheet]}.pdf`;
 }
