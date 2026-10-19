@@ -8,6 +8,7 @@ import {
   PARTNER_TYPE_LABELS,
   generateNextContactCode,
   normalizeContactCode,
+  titleOptionsFor,
   validateContactForm,
 } from '@/lib/contactLogic';
 
@@ -15,6 +16,7 @@ const EMPTY_FORM: ContactFormInput = {
   partner_type: '',
   contact_code: '',
   entity_type: '',
+  title: '',
   company_name: '',
   first_name: '',
   last_name: '',
@@ -38,6 +40,7 @@ function contactToForm(contact: BusinessPartner): ContactFormInput {
     partner_type: contact.partner_type,
     contact_code: contact.contact_code,
     entity_type: contact.entity_type,
+    title: contact.title ?? '',
     company_name: contact.company_name ?? '',
     first_name: contact.first_name ?? '',
     last_name: contact.last_name ?? '',
@@ -214,6 +217,33 @@ export default function ContactForm({
               ))}
             </select>
           </Field>
+
+          {/* คำนำหน้า (2026-10-19 พร้อม migration_035) — เป็น datalist ไม่ใช่ select ล้วน เพราะรายการ
+              มาตรฐานครอบคลุมเกือบทุกเคสแต่ไม่ทั้งหมด (ยศทหาร/ตำรวจ คำนำหน้าทางวิชาการ ฯลฯ) ให้เลือกจาก
+              รายการได้เร็วและพิมพ์เองได้เมื่อไม่มีในรายการ
+              ไม่บังคับกรอก — ข้อมูลเดิมในระบบมี 91 รายที่ไม่มีคำนำหน้า บังคับตอนนี้จะทำให้แก้ข้อมูลอื่นของ
+              รายเหล่านั้นไม่ได้เลยจนกว่าจะกรอกคำนำหน้าก่อน ซึ่งขวางงานโดยไม่จำเป็น */}
+          {(isCompany || isIndividual) && (
+            <Field label="คำนำหน้า" error={errors.title}>
+              <input
+                list="contact-title-options"
+                value={form.title}
+                onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                className={inputClass(Boolean(errors.title))}
+                disabled={readOnly}
+                placeholder={isCompany ? 'เช่น บริษัท, หจก.' : 'เช่น นาย, นาง, นางสาว'}
+                data-testid="input-title"
+              />
+              <datalist id="contact-title-options">
+                {titleOptionsFor(form.entity_type).map((t) => (
+                  <option key={t} value={t} />
+                ))}
+              </datalist>
+              <p className="mt-1.5 text-xs text-text-sub">
+                ใช้แยกช่อง &quot;คำนำหน้า&quot; ในไฟล์ยื่นสรรพากร (RD Prep) และพิมพ์นำหน้าชื่อบนใบหัก ณ ที่จ่าย
+              </p>
+            </Field>
+          )}
 
           {isCompany && (
             <Field label="ชื่อบริษัท" error={errors.company_name} required>

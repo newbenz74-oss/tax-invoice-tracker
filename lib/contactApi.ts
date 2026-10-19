@@ -41,6 +41,8 @@ export interface ContactWriteInput {
   partner_type: PartnerType;
   contact_code: string;
   entity_type: EntityType;
+  /** คำนำหน้า — null = ยังไม่ได้ระบุ (ดู migration_035 และ getContactDisplayName ใน lib/contactLogic.ts) */
+  title: string | null;
   company_name: string | null;
   first_name: string | null;
   last_name: string | null;

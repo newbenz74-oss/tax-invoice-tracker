@@ -347,6 +347,7 @@ export default function ContactsPage() {
       partner_type: input.partner_type as PartnerType,
       contact_code: input.contact_code,
       entity_type: input.entity_type as EntityType,
+      title: input.title.trim() || null,
       company_name: input.entity_type === 'company' ? input.company_name.trim() || null : null,
       first_name: input.entity_type === 'individual' ? input.first_name.trim() || null : null,
       last_name: input.entity_type === 'individual' ? input.last_name.trim() || null : null,

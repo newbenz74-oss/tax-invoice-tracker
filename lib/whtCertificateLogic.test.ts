@@ -32,6 +32,7 @@ function makePartner(overrides: Partial<BusinessPartner>): BusinessPartner {
     id: 'partner-1',
     company_id: 'company-1',
     partner_type: 'vendor',
+    title: null,
     contact_code: 'VEN0001',
     entity_type: 'company',
     company_name: 'บริษัท เอ็น วาย ฟิล์ม จำกัด',

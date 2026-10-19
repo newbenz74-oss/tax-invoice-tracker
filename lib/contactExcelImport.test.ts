@@ -42,6 +42,7 @@ function makeContact(overrides: Partial<BusinessPartner> = {}): BusinessPartner 
     id: overrides.id ?? Math.random().toString(36).slice(2),
     company_id: overrides.company_id ?? 'test-company-id',
     partner_type: 'customer',
+    title: null,
     contact_code: 'CUS0099',
     entity_type: 'company',
     company_name: 'บริษัท เดิม จำกัด',
@@ -277,6 +278,7 @@ describe('contactRowToWriteInput', () => {
     expect(input).toEqual({
       partner_type: 'customer',
       contact_code: 'CUS0001',
+      title: null,
       entity_type: 'company',
       company_name: 'บริษัท ทดสอบ จำกัด',
       first_name: null,

@@ -44,15 +44,79 @@ const CODE_PREFIX: Record<PartnerType, string> = {
   vendor: 'VEN',
 };
 
-/** ชื่อที่แสดงในตาราง/ผลค้นหา — นิติบุคคลใช้ชื่อบริษัท, บุคคลธรรมดาใช้ชื่อ+นามสกุล */
+/* ==============================================================================================
+ * คำนำหน้า (เพิ่มเข้ามา 2026-10-19 พร้อม migration_035)
+ *
+ * เป็นแหล่งความจริงเดียวของรายการคำนำหน้าทั้งระบบ — ใช้ทั้ง dropdown ในฟอร์มสมุดรายชื่อ และตัวแยกคำนำหน้า
+ * ออกจากชื่อใน lib/rdPrepExport.ts (ซึ่งต้องแยกจากชื่อบนใบหัก ณ ที่จ่ายที่เก็บเป็นข้อความเดียว) ถ้าแยกกัน
+ * เก็บสองที่ วันหนึ่งจะเพิ่มคำนำหน้าใหม่ในฟอร์มแล้วลืมเพิ่มในตัวแยก ทำให้ไฟล์ยื่นสรรพากรได้ช่องว่าง
+ *
+ * เรียง "ยาวก่อนสั้น" เสมอ เพราะตัวแยกต้องให้ 'นางสาว' ชนะ 'นาง' ไม่ใช่กลับกัน
+ * ============================================================================================== */
+
+/** คำนำหน้าของบุคคลธรรมดา — เขียนติดกับชื่อไม่เว้นวรรค ('นางสาวกนกพร คชชนก') ตามธรรมเนียมไทย */
+export const PERSON_TITLES = [
+  'ว่าที่ร้อยตรี',
+  'เด็กหญิง',
+  'เด็กชาย',
+  'นางสาว',
+  'ด.ช.',
+  'ด.ญ.',
+  'น.ส.',
+  'นาง',
+  'นาย',
+] as const;
+
+/** คำนำหน้าของนิติบุคคล — เว้นวรรคก่อนชื่อ ('บริษัท บางมด เอ็นเตอร์ไพร์ส จำกัด') */
+export const JURISTIC_TITLES = [
+  'ห้างหุ้นส่วนสามัญนิติบุคคล',
+  'ห้างหุ้นส่วนจำกัด',
+  'ห้างหุ้นส่วนสามัญ',
+  'มหาวิทยาลัย',
+  'บริษัท',
+  'ธนาคาร',
+  'สำนักงาน',
+  'โรงเรียน',
+  'สหกรณ์',
+  'สถาบัน',
+  'มูลนิธิ',
+  'สมาคม',
+  'องค์การ',
+  'กองทุน',
+  'หจก.',
+  'บมจ.',
+  'ร้าน',
+  'วัด',
+] as const;
+
+/** ตัวเลือกคำนำหน้าที่ควรแสดงใน dropdown ตามประเภทบุคคลที่เลือกไว้ */
+export function titleOptionsFor(entityType: EntityType | ''): readonly string[] {
+  if (entityType === 'company') return JURISTIC_TITLES;
+  if (entityType === 'individual') return PERSON_TITLES;
+  return [];
+}
+
+/** ประกอบคำนำหน้าเข้ากับชื่อตามธรรมเนียมของแต่ละประเภท — บุคคลธรรมดาติดกัน นิติบุคคลเว้นวรรค
+ * (ตรงกับรูปแบบที่ผู้ใช้พิมพ์มาเองอยู่แล้วในข้อมูลเดิม จึงไม่ทำให้ชื่อบนเอกสารที่เคยออกไปเปลี่ยนหน้าตา) */
+function joinTitle(title: string | null | undefined, name: string, entityType: EntityType): string {
+  const t = title?.trim();
+  if (!t) return name;
+  return entityType === 'company' ? `${t} ${name}` : `${t}${name}`;
+}
+
+/** ชื่อที่แสดงในตาราง/ผลค้นหา/บนใบหัก ณ ที่จ่าย — นิติบุคคลใช้คำนำหน้า+ชื่อบริษัท, บุคคลธรรมดาใช้
+ * คำนำหน้า+ชื่อ+นามสกุล (ไม่มีคำนำหน้าก็แสดงเฉพาะชื่อเหมือนเดิมทุกประการ) */
 export function getContactDisplayName(
-  contact: Pick<BusinessPartner, 'entity_type' | 'company_name' | 'first_name' | 'last_name'>
+  contact: Pick<BusinessPartner, 'entity_type' | 'company_name' | 'first_name' | 'last_name'> & {
+    title?: string | null;
+  }
 ): string {
   if (contact.entity_type === 'company') {
-    return contact.company_name?.trim() || '-';
+    const name = contact.company_name?.trim();
+    return name ? joinTitle(contact.title, name, 'company') : '-';
   }
   const name = [contact.first_name, contact.last_name].filter((v) => v && v.trim()).join(' ');
-  return name || '-';
+  return name ? joinTitle(contact.title, name, 'individual') : '-';
 }
 
 /** ป้ายสาขาที่แสดงในตาราง — "สำนักงานใหญ่" หรือ "สาขาที่ 00001" */

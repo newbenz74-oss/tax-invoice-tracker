@@ -8,6 +8,9 @@ import {
   formatBranchLabel,
   generateNextContactCode,
   getContactDisplayName,
+  JURISTIC_TITLES,
+  PERSON_TITLES,
+  titleOptionsFor,
   normalizeContactCode,
   validateContactForm,
 } from './contactLogic';
@@ -18,6 +21,7 @@ function makeContact(overrides: Partial<BusinessPartner> = {}): BusinessPartner 
     id: overrides.id ?? Math.random().toString(36).slice(2),
     company_id: overrides.company_id ?? 'test-company-id',
     partner_type: 'customer',
+    title: null,
     contact_code: 'CUS0001',
     entity_type: 'company',
     company_name: 'บริษัท ทดสอบ จำกัด',
@@ -47,6 +51,7 @@ const emptyForm: ContactFormInput = {
   partner_type: '',
   contact_code: '',
   entity_type: '',
+  title: '',
   company_name: '',
   first_name: '',
   last_name: '',
@@ -480,5 +485,88 @@ describe('label maps ครบทุกค่าของ enum', () => {
 
   it('CONTACT_STATUS_LABELS ครบทั้ง 2 สถานะ', () => {
     expect(Object.keys(CONTACT_STATUS_LABELS).sort()).toEqual(['active', 'inactive']);
+  });
+});
+
+/* ========================================================================================
+   คำนำหน้า (2026-10-19 พร้อม migration_035) — ผู้ใช้แจ้งว่า "สมุดรายชื่อไม่มีคำนำหน้า"
+   ======================================================================================== */
+
+describe('getContactDisplayName — คำนำหน้า', () => {
+  it('บุคคลธรรมดา: คำนำหน้าติดกับชื่อไม่เว้นวรรค (ตรงกับที่ผู้ใช้พิมพ์มาเองในข้อมูลเดิม)', () => {
+    expect(
+      getContactDisplayName({
+        entity_type: 'individual',
+        title: 'นางสาว',
+        company_name: null,
+        first_name: 'กนกพร',
+        last_name: 'คชชนก',
+      })
+    ).toBe('นางสาวกนกพร คชชนก');
+  });
+
+  it('นิติบุคคล: คำนำหน้าเว้นวรรคก่อนชื่อ', () => {
+    expect(
+      getContactDisplayName({
+        entity_type: 'company',
+        title: 'บริษัท',
+        company_name: 'บางมด เอ็นเตอร์ไพร์ส จำกัด',
+        first_name: null,
+        last_name: null,
+      })
+    ).toBe('บริษัท บางมด เอ็นเตอร์ไพร์ส จำกัด');
+  });
+
+  it('ไม่มีคำนำหน้า = แสดงเฉพาะชื่อเหมือนเดิมทุกประการ (รายชื่อเก่า 91 รายที่ยังไม่ได้กรอก)', () => {
+    expect(
+      getContactDisplayName({
+        entity_type: 'individual',
+        title: null,
+        company_name: null,
+        first_name: 'กรกนก',
+        last_name: 'จงจิรกิตติ์กุล',
+      })
+    ).toBe('กรกนก จงจิรกิตติ์กุล');
+  });
+
+  it('คำนำหน้าเป็นช่องว่างล้วน ถือว่าไม่มี ไม่ทิ้งช่องว่างหน้าชื่อ', () => {
+    expect(
+      getContactDisplayName({
+        entity_type: 'company',
+        title: '   ',
+        company_name: 'เอบีซี จำกัด',
+        first_name: null,
+        last_name: null,
+      })
+    ).toBe('เอบีซี จำกัด');
+  });
+
+  it('ไม่มีชื่อเลย ยังคืน "-" เหมือนเดิม ไม่ใช่คำนำหน้าลอยๆ', () => {
+    expect(
+      getContactDisplayName({ entity_type: 'company', title: 'บริษัท', company_name: null, first_name: null, last_name: null })
+    ).toBe('-');
+  });
+
+  it('ไม่ส่งฟิลด์ title มาเลย ก็ยังทำงานได้ (โค้ดเก่าที่ยังไม่ได้อัปเดต)', () => {
+    expect(
+      getContactDisplayName({ entity_type: 'individual', company_name: null, first_name: 'สมชาย', last_name: 'ใจดี' })
+    ).toBe('สมชาย ใจดี');
+  });
+});
+
+describe('รายการคำนำหน้า', () => {
+  it('เรียงยาวก่อนสั้นเสมอ — ตัวแยกคำนำหน้าใน rdPrepExport พึ่งลำดับนี้ให้ "นางสาว" ชนะ "นาง"', () => {
+    const personIdx = (t: string) => PERSON_TITLES.indexOf(t as never);
+    expect(personIdx('นางสาว')).toBeLessThan(personIdx('นาง'));
+    const juristicIdx = (t: string) => JURISTIC_TITLES.indexOf(t as never);
+    expect(juristicIdx('ห้างหุ้นส่วนสามัญนิติบุคคล')).toBeLessThan(juristicIdx('ห้างหุ้นส่วนสามัญ'));
+  });
+
+  it('titleOptionsFor คืนรายการตามประเภทที่เลือก', () => {
+    expect(titleOptionsFor('individual')).toContain('นางสาว');
+    expect(titleOptionsFor('individual')).not.toContain('บริษัท');
+    expect(titleOptionsFor('company')).toContain('บริษัท');
+    expect(titleOptionsFor('company')).not.toContain('นาย');
+    expect(titleOptionsFor('')).toEqual([]);
   });
 });

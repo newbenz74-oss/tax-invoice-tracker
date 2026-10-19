@@ -19,6 +19,11 @@ export interface BusinessPartner {
   partner_type: PartnerType;
   contact_code: string;
   entity_type: EntityType;
+  /** คำนำหน้า (นาย/นาง/นางสาว/บริษัท/หจก. ฯลฯ) — แยกออกจากช่องชื่อตั้งแต่ migration_035 เพราะไฟล์
+   * RD Prep ของกรมสรรพากรมีช่องนี้ต่างหาก กว้าง 15 ตัวอักษร การเดาจากข้อความชื่อทำได้ไม่ครบและไม่ควรเดา
+   * null = ยังไม่ได้ระบุ (รายชื่อเก่าที่พิมพ์มาแค่ชื่อ-นามสกุลเปล่าๆ) — ดู getContactDisplayName ใน
+   * lib/contactLogic.ts สำหรับวิธีประกอบกลับเป็นชื่อเต็ม */
+  title: string | null;
   company_name: string | null;
   first_name: string | null;
   last_name: string | null;
@@ -46,6 +51,8 @@ export interface ContactFormInput {
   partner_type: PartnerType | '';
   contact_code: string;
   entity_type: EntityType | '';
+  /** คำนำหน้า — เลือกจาก dropdown หรือพิมพ์เองก็ได้ ไม่บังคับกรอก (รายชื่อเก่า 91 รายยังว่างอยู่) */
+  title: string;
   company_name: string;
   first_name: string;
   last_name: string;

@@ -13,6 +13,7 @@ export const CONTACT_EXCEL_HEADERS = {
   partner_type: 'ประเภท',
   contact_code: 'รหัส',
   entity_type: 'ประเภทบุคคล',
+  title: 'คำนำหน้า',
   company_name: 'ชื่อบริษัท',
   first_name: 'ชื่อ',
   last_name: 'นามสกุล',
@@ -55,6 +56,7 @@ export interface ContactImportRow {
   partner_type: PartnerType | '';
   contact_code: string;
   entity_type: EntityType | '';
+  title: string;
   company_name: string;
   first_name: string;
   last_name: string;
@@ -90,6 +92,7 @@ export function parseContactRow(raw: Record<string, unknown>, rowNumber: number)
   const partnerLabel = cellToString(raw[CONTACT_EXCEL_HEADERS.partner_type]);
   const contact_code = cellToString(raw[CONTACT_EXCEL_HEADERS.contact_code]);
   const entityLabel = cellToString(raw[CONTACT_EXCEL_HEADERS.entity_type]);
+  const title = cellToString(raw[CONTACT_EXCEL_HEADERS.title]);
   const company_name = cellToString(raw[CONTACT_EXCEL_HEADERS.company_name]);
   const first_name = cellToString(raw[CONTACT_EXCEL_HEADERS.first_name]);
   const last_name = cellToString(raw[CONTACT_EXCEL_HEADERS.last_name]);
@@ -190,6 +193,7 @@ export function parseContactRow(raw: Record<string, unknown>, rowNumber: number)
     partner_type,
     contact_code,
     entity_type,
+    title,
     company_name,
     first_name,
     last_name,
@@ -282,6 +286,7 @@ export function contactRowToWriteInput(row: ContactImportRow): ContactWriteInput
     partner_type: partnerType,
     contact_code: normalizeContactCode(row.contact_code),
     entity_type: entityType,
+    title: row.title.trim() || null,
     company_name: row.company_name.trim() || null,
     first_name: row.first_name.trim() || null,
     last_name: row.last_name.trim() || null,

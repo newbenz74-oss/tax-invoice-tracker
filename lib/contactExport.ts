@@ -12,6 +12,9 @@ const EXPORT_HEADERS = [
   'รหัส',
   'ประเภท',
   'ประเภทบุคคล',
+  // แยกคอลัมน์คำนำหน้าออกมาด้วย (2026-10-19) — คอลัมน์ "ชื่อ/ชื่อบริษัท" รวมคำนำหน้าไว้แล้วก็จริง แต่การมี
+  // ช่องแยกทำให้กวาดสายตาหาแถวที่ยังไม่ได้กรอกคำนำหน้าได้ทันทีใน Excel (ช่องว่าง = ยังไม่ได้กรอก)
+  'คำนำหน้า',
   'ชื่อ/ชื่อบริษัท',
   'เลขประจำตัวผู้เสียภาษี',
   'สาขา',
@@ -37,6 +40,7 @@ export function buildContactExportBlob(contacts: BusinessPartner[]): Blob {
       c.contact_code,
       PARTNER_TYPE_LABELS[c.partner_type],
       ENTITY_TYPE_LABELS[c.entity_type],
+      c.title ?? '',
       getContactDisplayName(c),
       c.tax_id ?? '',
       formatBranchLabel(c),
