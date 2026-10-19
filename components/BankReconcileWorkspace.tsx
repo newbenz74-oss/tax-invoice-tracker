@@ -14,7 +14,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
 import { parseBankFile, parseGLFile } from '@/lib/bankReconcileParse';
 import { reconcileTransactions } from '@/lib/bankReconcileLogic';
-import { createManualMatchGroup, wrapAutoMatchesAsGroups } from '@/lib/bankReconcileManualMatch';
+import { createManualMatchGroup, removeMatchGroup, wrapAutoMatchesAsGroups } from '@/lib/bankReconcileManualMatch';
 import {
   createSuggestedMatchGroup,
   dropSuggestionsUsingRows,
@@ -320,6 +320,25 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
     setSuggestions((prev) => prev.filter((item) => item.suggestionId !== suggestion.suggestionId));
   }
 
+  /** ผู้ใช้กด "ยกเลิกจับคู่" ที่แถวใดแถวหนึ่งในหมวด "กระทบยอดสำเร็จ" (2026-10-19 ตามคำขอผู้ใช้)
+   *
+   * ที่มา: เมื่อมีหลายรายการยอดเท่ากันในวันใกล้กัน อัลกอริทึม 1:1 เลือกคู่ที่วันที่ใกล้ที่สุด ซึ่งถูกตามกติกา
+   * แต่ไม่จำเป็นต้องตรงกับความจริงทางบัญชี — ระบบไม่มีทางรู้ได้เอง ผู้ใช้ต้องแก้เองได้
+   *
+   * ใช้ได้กับทุกกลุ่ม ทั้ง 'auto' และ 'manual' เพราะทั้งสองแบบก็จับผิดได้เหมือนกัน และการจำกัดเฉพาะแบบใด
+   * แบบหนึ่งจะกลายเป็นกับดักให้ผู้ใช้ติดอยู่กับกลุ่มที่ตัวเองสร้างผิดโดยแก้ไม่ได้
+   *
+   * ไม่มีหน้าต่างยืนยัน เพราะย้อนกลับได้ทันทีด้วยการจับคู่ใหม่ และแถวที่ปลดออกจะไปโผล่ในตาราง "ไม่สำเร็จ"
+   * ให้เห็นทันทีอยู่แล้ว */
+  function handleUnmatchGroup(groupId: string) {
+    const result = removeMatchGroup(matchGroups, groupId, bankFile?.rows ?? [], glFile?.rows ?? []);
+    setMatchGroups(result.groups);
+    setBankUnmatched(result.bankUnmatched);
+    setGlUnmatched(result.glUnmatched);
+    // ตั้งใจไม่คำนวณข้อเสนอคู่ผสมใหม่ตรงนี้ — ข้อเสนอที่ค้างอยู่ยังอ้างแถวที่ถูกต้องอยู่เดิม และการคำนวณใหม่
+    // จะล้างใบที่ผู้ใช้เพิ่งกด "ไม่ใช่" ไปแล้วให้กลับมาใหม่ทั้งหมด
+  }
+
   // bankFile.rows/glFile.rows คือ "ชุดข้อมูลเต็มตามลำดับเดิมในไฟล์" เสมอ (ไม่เคยถูกแก้ไข/กรองทิ้งเลย
   // ตลอดทั้ง component นี้ — bankUnmatched/matchGroups[].bankRows เป็นแค่ subset ของ array เดียวกันนี้) จึง
   // ส่งตรงๆ เป็น allBankRows/allGlRows ให้ API ได้เลย โดยไม่ต้องประกอบชุดข้อมูลเต็มขึ้นมาใหม่ — ดู
@@ -527,7 +546,7 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
           </div>
 
           <BankReconcileSummaryCards summary={summary} />
-          <BankReconcileMatchedTable groups={matchGroups} />
+          <BankReconcileMatchedTable groups={matchGroups} onUnmatch={handleUnmatchGroup} />
           <BankReconcileUnmatchedTable
             title="Bank Statement ไม่สำเร็จ"
             testId="bank-unmatched"

@@ -37,6 +37,9 @@ function sumGroups(list: MatchGroup[]): { bankReceive: number; bankPayment: numb
 
 interface BankReconcileMatchedTableProps {
   groups: MatchGroup[];
+  /** ปลดกลุ่มนี้ออกจาก "กระทบยอดสำเร็จ" แล้วคืนแถวทั้งสองฝั่งกลับไปที่ตาราง "ไม่สำเร็จ" (2026-10-19) —
+   * ไม่บังคับส่งมา เพราะหน้าดูประวัติแบบอ่านอย่างเดียวไม่ควรมีปุ่มนี้ */
+  onUnmatch?: (groupId: string) => void;
 }
 
 /** SECTION 1 "กระทบยอดสำเร็จ" — Bank Statement ทางซ้าย, GL ทางขวา ในตารางเดียวกัน 1 แถว = 1 กลุ่มที่จับคู่
@@ -46,7 +49,7 @@ interface BankReconcileMatchedTableProps {
  * กลุ่มที่มีมากกว่า 1 แถวฝั่งใดฝั่งหนึ่ง (มาจากการจับคู่เองแบบ N:M เท่านั้น) จะย่อแสดงเป็น "N รายการ" + ยอดรวม
  * พร้อมปุ่มขยายดูรายละเอียดทุกแถวย่อย — คอลัมน์ขยาย/badge ที่เพิ่มเข้ามาไม่กระทบจำนวนแถวของกลุ่ม 1:1 เดิมเลย
  * (ไม่มีแถวรายละเอียดเพิ่มสำหรับกลุ่มที่ไม่ใช่ N:M) จึงไม่กระทบ e2e assertion เดิมที่นับจำนวนแถวในตารางนี้ */
-export default function BankReconcileMatchedTable({ groups }: BankReconcileMatchedTableProps) {
+export default function BankReconcileMatchedTable({ groups, onUnmatch }: BankReconcileMatchedTableProps) {
   const [page, setPage] = useState(1);
   // จำนวนรายการต่อหน้า (เพิ่มเข้ามา 2026-08-17 ตามคำขอผู้ใช้ — เลือกได้ 10/20/30/40/50 ต่อหน้า ไม่เลือกก็ใช้
   // ค่าเดิมปกติ 20 เหมือนก่อนหน้านี้) เปลี่ยนจาก PAGE_SIZE ค่าคงที่มาเป็น state ในนี้
@@ -104,7 +107,7 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
               <thead className="sticky top-0 z-10 bg-card-bg/90 backdrop-blur-sm">
                 <tr>
                   <th rowSpan={2} className="w-10 px-3.5 py-2" aria-hidden="true" />
-                  <th colSpan={3} className="px-3.5 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-sub">
+                  <th colSpan={4} className="px-3.5 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-sub">
                     Bank Statement
                   </th>
                   <th colSpan={5} className="border-l border-border px-3.5 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-sub">
@@ -113,9 +116,18 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
                   <th rowSpan={2} className="px-3.5 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-sub">
                     วิธีจับคู่
                   </th>
+                  {onUnmatch && (
+                    <th rowSpan={2} className="px-3.5 py-2 text-right text-xs font-semibold uppercase tracking-wide text-text-sub">
+                      การจัดการ
+                    </th>
+                  )}
                 </tr>
                 <tr>
                   <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">วันที่</th>
+                  {/* คำอธิบายฝั่ง Bank (2026-10-19) — เพิ่มตามคำขอผู้ใช้หลังเจอเคสยอด 60,000 ที่ปรากฏทั้งใน
+                      "สำเร็จ" และ "ไม่สำเร็จ" แล้วไล่ไม่ได้ว่าเป็นรายการเดียวกันหรือคนละรายการ เพราะตารางนี้
+                      มีแต่วันที่กับยอดเงิน ซึ่งเหมือนกันทั้งคู่โดยนิยาม */}
+                  <th className="px-3.5 py-2.5 text-left font-medium text-text-sub">คำอธิบาย</th>
                   <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">รับ</th>
                   <th className="px-3.5 py-2.5 text-right font-medium text-text-sub">จ่าย</th>
                   <th className="border-l border-border px-3.5 py-2.5 text-left font-medium text-text-sub">เลขที่เอกสาร</th>
@@ -153,6 +165,12 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
                         <td className="px-3.5 py-2.5 text-text-sub">
                           {singleBank ? formatDateDisplay(singleBank.date) : `${group.bankRows.length} รายการ`}
                         </td>
+                        {/* คำอธิบายฝั่ง Bank — กลุ่มที่มีหลายแถวแสดง "-" เพราะคำอธิบายต่างกันทุกแถว กางดู
+                            รายละเอียดด้านล่างแทน (ข้อความยาวตัดด้วย truncate + title ให้เอาเมาส์ชี้อ่านเต็มได้
+                            ไม่งั้นคอลัมน์เดียวจะดันตารางกว้างจนต้องเลื่อนแนวนอนตลอดเวลา) */}
+                        <td className="max-w-[16rem] truncate px-3.5 py-2.5 text-text-sub" title={singleBank?.description || undefined}>
+                          {singleBank ? singleBank.description || '-' : '-'}
+                        </td>
                         <td className="font-numeric px-3.5 py-2.5 text-right text-text">
                           {group.type === 'receive' ? bankTotal.toLocaleString('th-TH', THB2) : '-'}
                         </td>
@@ -182,10 +200,23 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
                             {group.matchType === 'auto' ? 'จับคู่อัตโนมัติ' : 'จับคู่เอง'}
                           </span>
                         </td>
+                        {onUnmatch && (
+                          <td className="px-3.5 py-2.5 text-right">
+                            <button
+                              type="button"
+                              onClick={() => onUnmatch(group.groupId)}
+                              className="btn-press whitespace-nowrap rounded-[10px] border border-danger/30 px-2 py-1 text-xs font-medium text-danger hover:bg-danger/10"
+                              data-testid={`matched-row-unmatch-${group.groupId}`}
+                              title="ปลดคู่นี้ออก แล้วส่งทั้งสองฝั่งกลับไปที่รายการไม่สำเร็จเพื่อจับคู่ใหม่"
+                            >
+                              ยกเลิกจับคู่
+                            </button>
+                          </td>
+                        )}
                       </tr>
                       {isExpanded && (
                         <tr data-testid={`matched-row-detail-${group.groupId}`}>
-                          <td colSpan={10} className="bg-page-bg px-6 py-3">
+                          <td colSpan={onUnmatch ? 12 : 11} className="bg-page-bg px-6 py-3">
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                               <div>
                                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-sub">
@@ -194,8 +225,11 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
                                 <ul className="space-y-1 text-sm text-text-sub">
                                   {group.bankRows.map((row) => (
                                     <li key={row.id} className="flex justify-between gap-3">
-                                      <span>{formatDateDisplay(row.date)}</span>
-                                      <span className="font-numeric text-text">{row.amount.toLocaleString('th-TH', THB2)}</span>
+                                      <span className="min-w-0 truncate" title={row.description || undefined}>
+                                        {formatDateDisplay(row.date)}
+                                        {row.description ? ` · ${row.description}` : ''}
+                                      </span>
+                                      <span className="font-numeric shrink-0 text-text">{row.amount.toLocaleString('th-TH', THB2)}</span>
                                     </li>
                                   ))}
                                 </ul>
@@ -234,7 +268,7 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
                   เส้นขอบบนหนาสีฟ้าแยกจากแถวข้อมูลให้ชัดเจนขึ้นว่านี่คือแถวสรุป ไม่ใช่แถวข้อมูลตามปกติ */}
               <tfoot className="sticky bottom-0 z-10 border-t-2 border-primary bg-card-bg shadow-[0_-4px_8px_rgba(0,0,0,0.25)]">
                 <tr>
-                  <td colSpan={2} className="px-3.5 py-2.5 text-sm font-bold text-text">
+                  <td colSpan={3} className="px-3.5 py-2.5 text-sm font-bold text-text">
                     {/* แก้ไข 2026-08-06 — เปลี่ยนจากยอดรวม "ทุกหน้า" กลับมาเป็นยอดรวมเฉพาะกลุ่มที่แสดงอยู่ใน
                         ตารางบนจอ ณ ขณะนี้เท่านั้น (paged.length กลุ่ม) เปลี่ยนหน้าแล้วเลขนี้จะเปลี่ยนตาม */}
                     รวมหน้านี้ ({paged.length.toLocaleString('th-TH')} จาก {groups.length.toLocaleString('th-TH')} รายการ)
@@ -265,13 +299,13 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
                   >
                     {totals.glPayment.toLocaleString('th-TH', THB2)}
                   </td>
-                  <td colSpan={2} className="px-3.5 py-2.5" />
+                  <td colSpan={onUnmatch ? 3 : 2} className="px-3.5 py-2.5" />
                 </tr>
                 {/* บรรทัดที่ 2 ของแถวสรุป (เพิ่มกลับมา 2026-08-06) — ยอดรวมทั้งหมดทุกหน้า แยกไว้อีกบรรทัด
                     ต่างจากบรรทัดบนที่เป็นยอดรวมเฉพาะหน้านี้ — ใช้เส้นคั่นบางๆ กับสีตัวอักษรที่รองกว่าเพื่อไม่ให้
                     สับสนว่าเป็นยอดเดียวกัน */}
                 <tr className="border-t border-border/60">
-                  <td colSpan={2} className="px-3.5 py-2 text-xs font-semibold text-text-sub">
+                  <td colSpan={3} className="px-3.5 py-2 text-xs font-semibold text-text-sub">
                     รวมทั้งหมดทุกหน้า ({groups.length.toLocaleString('th-TH')} รายการ)
                   </td>
                   <td
@@ -300,7 +334,7 @@ export default function BankReconcileMatchedTable({ groups }: BankReconcileMatch
                   >
                     {allPagesTotals.glPayment.toLocaleString('th-TH', THB2)}
                   </td>
-                  <td colSpan={2} className="px-3.5 py-2" />
+                  <td colSpan={onUnmatch ? 3 : 2} className="px-3.5 py-2" />
                 </tr>
               </tfoot>
             </table>

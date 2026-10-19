@@ -97,3 +97,45 @@ export function wrapAutoMatchesAsGroups(matched: MatchedPair[]): MatchGroup[] {
     glRows: [pair.gl],
   }));
 }
+
+/** ผลลัพธ์ของการยกเลิกการจับคู่ 1 กลุ่ม — คืน "ภาพรวมใหม่ทั้งชุด" ไม่ใช่แค่ส่วนต่าง เพื่อให้ผู้เรียกเอาไป
+ * setState ตรงๆ ได้ทั้งสามค่าโดยไม่ต้องคำนวณอะไรต่อเอง */
+export interface RemoveMatchGroupResult {
+  groups: MatchGroup[];
+  bankUnmatched: BankTransaction[];
+  glUnmatched: GLTransaction[];
+}
+
+/**
+ * ยกเลิกการจับคู่ 1 กลุ่ม แล้วส่งแถวทั้งหมดในกลุ่มนั้นกลับเข้ารายการ "ไม่สำเร็จ"
+ *
+ * เพิ่มเข้ามา 2026-10-19 ตามคำขอผู้ใช้: "เมื่อระบบจับคู่ให้อัตโนมัติสำเร็จ แต่จับคู่ไม่ถูก ซึ่งระบบไม่ผิด
+ * เพราะไม่รู้ว่าควรจับตัวไหนในยอดที่เท่ากัน ฉันอยากให้ตัวที่จับคู่อัตโนมัติสำเร็จ ฉันสามารถกดยกเลิกได้และ
+ * จับคู่ใหม่" — เป็นเคสที่เกิดจริงเสมอเมื่อมีหลายรายการยอดเท่ากันในวันเดียวกัน อัลกอริทึมจับคู่ 1:1 เลือก
+ * ตัวที่วันที่ใกล้ที่สุดเป็นหลัก ซึ่งถูกต้องตามกติกาแต่ไม่จำเป็นต้องตรงกับความจริงทางบัญชี
+ *
+ * ========================= ทำไมสร้างรายการ "ไม่สำเร็จ" ใหม่ทั้งชุด =========================
+ * ไม่ได้แค่ push แถวที่ปลดออกต่อท้ายรายการเดิม แต่กรองจาก allBankRows/allGlRows (ชุดเต็มตามลำดับในไฟล์)
+ * ใหม่ทั้งหมด เพราะ:
+ *   1. ลำดับต้องคงเดิมตามไฟล์เสมอ — ถ้า push ต่อท้าย แถวที่ปลดออกจะไปโผล่ล่างสุดแทนที่จะอยู่ตำแหน่งเดิม
+ *      ทำให้ไล่เทียบกับไฟล์ต้นฉบับยาก (ผู้ใช้ทำงานโดยเทียบกับไฟล์จริงตลอด)
+ *   2. กันข้อมูลเพี้ยนสะสม — ถ้า state สองฝั่ง (groups กับ unmatched) หลุดจากกันด้วยเหตุใดก็ตาม การคำนวณ
+ *      ใหม่จากชุดเต็มจะดึงกลับมาตรงกันเองทุกครั้งที่ยกเลิกจับคู่
+ *
+ * ถ้าไม่พบ groupId ที่ระบุ จะคืนค่าที่คำนวณใหม่จากชุดเต็มเหมือนเดิม (ไม่ throw) — ผลคือ no-op ที่ปลอดภัย
+ */
+export function removeMatchGroup(
+  groups: MatchGroup[],
+  groupId: string,
+  allBankRows: BankTransaction[],
+  allGlRows: GLTransaction[]
+): RemoveMatchGroupResult {
+  const remaining = groups.filter((group) => group.groupId !== groupId);
+  const usedBankIds = new Set(remaining.flatMap((group) => group.bankRows.map((row) => row.id)));
+  const usedGlIds = new Set(remaining.flatMap((group) => group.glRows.map((row) => row.id)));
+  return {
+    groups: remaining,
+    bankUnmatched: allBankRows.filter((row) => !usedBankIds.has(row.id)),
+    glUnmatched: allGlRows.filter((row) => !usedGlIds.has(row.id)),
+  };
+}

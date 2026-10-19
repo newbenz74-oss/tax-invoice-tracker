@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   amountsEqual,
   createManualMatchGroup,
+  removeMatchGroup,
   sumAmounts,
   validateManualMatch,
   wrapAutoMatchesAsGroups,
@@ -173,5 +174,69 @@ describe('wrapAutoMatchesAsGroups', () => {
 
   it('คืน array ว่างเมื่อไม่มีคู่ที่จับคู่สำเร็จเลย', () => {
     expect(wrapAutoMatchesAsGroups([])).toEqual([]);
+  });
+});
+
+/* ========================================================================================
+   ยกเลิกการจับคู่ (2026-10-19) — ผู้ใช้ต้องแก้คู่ที่ระบบจับให้ผิดได้ เพราะเมื่อมีหลายรายการยอดเท่ากัน
+   อัลกอริทึม 1:1 ไม่มีทางรู้ว่าคู่ไหนถูกต้องทางบัญชี
+   ======================================================================================== */
+
+describe('removeMatchGroup', () => {
+  const allBank = [
+    bank('b1', '2026-09-30', 'payment', 60000),
+    bank('b2', '2026-09-30', 'payment', 60000),
+    bank('b3', '2026-09-30', 'payment', 120000),
+  ];
+  const allGl = [
+    gl('g1', 'PV001', '2026-09-30', 'payment', 60000),
+    gl('g2', 'PV002', '2026-09-30', 'payment', 120000),
+  ];
+  const groups = [
+    { groupId: 'grp-1', matchType: 'auto' as const, type: 'payment' as const, bankRows: [allBank[0]], glRows: [allGl[0]] },
+    { groupId: 'grp-2', matchType: 'auto' as const, type: 'payment' as const, bankRows: [allBank[2]], glRows: [allGl[1]] },
+  ];
+
+  it('ตัดกลุ่มที่ระบุออก และคืนแถวทั้งสองฝั่งกลับเข้ารายการไม่สำเร็จ', () => {
+    const result = removeMatchGroup(groups, 'grp-1', allBank, allGl);
+    expect(result.groups.map((g) => g.groupId)).toEqual(['grp-2']);
+    expect(result.bankUnmatched.map((r) => r.id)).toEqual(['b1', 'b2']);
+    expect(result.glUnmatched.map((r) => r.id)).toEqual(['g1']);
+  });
+
+  it('เรียงตามลำดับเดิมในไฟล์เสมอ ไม่ใช่ต่อท้ายรายการ', () => {
+    // ปลด grp-1 (แถวแรกของไฟล์) ออก — b1 ต้องกลับไปอยู่ "หน้า" b2 ไม่ใช่ท้ายสุด
+    const result = removeMatchGroup(groups, 'grp-1', allBank, allGl);
+    expect(result.bankUnmatched[0].id).toBe('b1');
+  });
+
+  it('ปลดกลุ่มที่จับคู่เองแบบหลายแถว คืนครบทุกแถวในกลุ่ม', () => {
+    const manyGroups = [
+      {
+        groupId: 'grp-m',
+        matchType: 'manual' as const,
+        type: 'payment' as const,
+        bankRows: [allBank[0], allBank[1]],
+        glRows: [allGl[1]],
+      },
+    ];
+    const result = removeMatchGroup(manyGroups, 'grp-m', allBank, allGl);
+    expect(result.groups).toEqual([]);
+    expect(result.bankUnmatched.map((r) => r.id)).toEqual(['b1', 'b2', 'b3']);
+    expect(result.glUnmatched.map((r) => r.id)).toEqual(['g1', 'g2']);
+  });
+
+  it('groupId ที่ไม่มีอยู่ = ไม่ทำอะไร ไม่ throw (กันกดซ้ำเร็วๆ สองครั้งแล้วพัง)', () => {
+    const result = removeMatchGroup(groups, 'ไม่มีจริง', allBank, allGl);
+    expect(result.groups).toHaveLength(2);
+    expect(result.bankUnmatched.map((r) => r.id)).toEqual(['b2']);
+  });
+
+  it('ปลดทุกกลุ่มทีละใบจนหมด ได้แถวครบเท่าไฟล์ต้นฉบับพอดี ไม่ขาดไม่เกิน', () => {
+    const afterFirst = removeMatchGroup(groups, 'grp-1', allBank, allGl);
+    const afterSecond = removeMatchGroup(afterFirst.groups, 'grp-2', allBank, allGl);
+    expect(afterSecond.groups).toEqual([]);
+    expect(afterSecond.bankUnmatched).toHaveLength(allBank.length);
+    expect(afterSecond.glUnmatched).toHaveLength(allGl.length);
   });
 });
