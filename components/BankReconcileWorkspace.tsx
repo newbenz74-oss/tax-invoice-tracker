@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { mutate } from 'swr';
 import { ListChecks, Save } from 'lucide-react';
 import BankReconcileUploadPanel, { type BankReconcileFileSummary } from './BankReconcileUploadPanel';
@@ -15,9 +15,11 @@ import { useCompany } from '@/lib/CompanyContext';
 import { parseBankFile, parseGLFile } from '@/lib/bankReconcileParse';
 import { reconcileTransactions } from '@/lib/bankReconcileLogic';
 import { createManualMatchGroup, removeMatchGroup, wrapAutoMatchesAsGroups } from '@/lib/bankReconcileManualMatch';
+// เลิกใช้ dropSuggestionsUsingRows ตั้งแต่ 2026-10-19 — เปลี่ยนมาคำนวณข้อเสนอใหม่ทั้งชุดจากแถวที่เหลือจริง
+// ทุกครั้งแทน (ดู refreshSuggestions ด้านล่าง) ซึ่งครอบคลุมงานเดิมของมันและปลดล็อกข้อเสนอที่เคยถูกเบียดตกด้วย
+// ฟังก์ชันนั้นยังอยู่ใน lib พร้อมเทสต์ของตัวเองเหมือนเดิม ไม่ได้ลบทิ้ง
 import {
   createSuggestedMatchGroup,
-  dropSuggestionsUsingRows,
   findCombinationSuggestions,
   type CombinationSuggestion,
 } from '@/lib/bankReconcileCombinationMatch';
@@ -137,6 +139,14 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
     skipped: 0,
   });
 
+  // suggestionId ของข้อเสนอที่ผู้ใช้กด "ไม่ใช่" ไปแล้ว (2026-10-19) — ต้องจำไว้เพราะตั้งแต่รอบนี้ระบบคำนวณ
+  // ข้อเสนอใหม่ทุกครั้งที่รายการค้างเปลี่ยน ถ้าไม่จำ ใบที่เพิ่งปฏิเสธไปจะเด้งกลับมาทันทีในวินาทีถัดมา
+  //
+  // ใช้ suggestionId ได้ตรงๆ เพราะเป็นค่าที่คำนวณจาก id ของแถวที่ประกอบกันเป็นข้อเสนอ (ดู
+  // lib/bankReconcileCombinationMatch.ts) ไม่ใช่เลขสุ่ม — ข้อเสนอชุดเดิมจึงได้ id เดิมทุกครั้งที่คำนวณใหม่
+  // ส่วนข้อเสนอที่ "คล้ายกันแต่ไม่เหมือนเดิม" (เปลี่ยนสมาชิกไปแถวหนึ่ง) จะได้ id ใหม่และถูกเสนอใหม่ตามควร
+  const [dismissedSuggestionIds, setDismissedSuggestionIds] = useState<Set<string>>(new Set());
+
   const { session } = useAuth();
   const { selectedCompanyId } = useCompany();
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -204,6 +214,49 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
     }
   }
 
+  // เปิดจากประวัติ = คำนวณข้อเสนอให้ทันทีครั้งเดียวตอน mount (2026-10-19)
+  //
+  // เดิมหมวด "จับคู่อัตโนมัติ (รอยืนยัน)" ว่างเสมอเมื่อเปิดรายการที่บันทึกไว้ โดยให้เหตุผลว่า "กด
+  // ตรวจสอบข้อมูล ซ้ำได้" — ซึ่งใช้ไม่ได้จริง เพราะปุ่มนั้นล้างการจับคู่ที่ทำค้างไว้ทั้งหมด กลายเป็นว่าทางเดียว
+  // ที่จะเห็นข้อเสนอคือทำลายงานที่ค้างอยู่ ผู้ใช้แจ้งปัญหานี้ตรงๆ ("กดบันทึกโดยค้างไว้ และกลับมาทำใหม่
+  // รายการที่จับคู่อัตโนมัติ(รอยืนยัน) หายไป")
+  //
+  // ใช้ eslint-disable เฉพาะบรรทัด deps เพราะตั้งใจให้ยิงครั้งเดียวตอน mount จริงๆ — หลังจากนั้นการคำนวณใหม่
+  // ทุกครั้งเกิดจากการกระทำของผู้ใช้ผ่าน refreshSuggestions() ไม่ใช่จาก effect
+  useEffect(() => {
+    if (!initialData) return;
+    // ห่อด้วย Promise.resolve().then(...) ตามกฎ react-hooks/set-state-in-effect ของโปรเจกต์นี้
+    Promise.resolve().then(() => {
+      refreshSuggestions(initialData.bankUnmatched, initialData.glUnmatched, new Set());
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * คำนวณข้อเสนอคู่ผสมใหม่จากรายการที่ "ยังไม่สำเร็จ" ณ ขณะนั้น (2026-10-19)
+   *
+   * ========================= ทำไมต้องคำนวณใหม่ตลอด ไม่ใช่ครั้งเดียวตอนกด "ตรวจสอบข้อมูล" =========================
+   * ผู้ใช้แจ้งเคสจริง: Bank 144,185.00 ตรงกับ GL 13 แถวรวมกันพอดี แต่ระบบไม่เสนอให้ — ทดลองซ้ำแล้วพบว่า
+   * อัลกอริทึมหาเจอตั้งแต่ 7 มิลลิวินาทีแรก แต่ถูกตัดทิ้งด้วยกติกาแก้การชนกัน: เมื่อข้อเสนอสองใบแย่งแถว
+   * เดียวกัน ใบที่ใช้แถวน้อยกว่าชนะ ใบ 13 แถวจึงแพ้ใบ 2 แถวที่บังเอิญใช้แถวร่วมกันแค่แถวเดียว แล้วหายไปทั้งใบ
+   *
+   * กติกานั้นถูกต้องแล้ว (เสนอพร้อมกันสองใบที่ใช้แถวซ้ำกันไม่ได้ จะทำให้แถวเดียวไปอยู่สองกลุ่ม) แต่เดิมเรา
+   * คำนวณครั้งเดียวแล้วจบ พอผู้ใช้จับคู่ใบสั้นไปแล้ว แถวที่เคยถูกจองก็ว่างแล้ว ใบ 13 แถวควรกลับมาได้ —
+   * การคำนวณใหม่ทุกครั้งที่รายการค้างเปลี่ยนจึงทำให้ข้อเสนอที่เคยถูกเบียดตกโผล่กลับมาเองตามธรรมชาติ
+   *
+   * ราคาที่จ่าย: การค้นหามีเพดานก้าวในตัวเองอยู่แล้ว (วัดจริงไม่เกิน ~60 ms เคสหนักสุด ดู
+   * DEFAULT_COMBINATION_STEP_BUDGET) และเรียกเฉพาะตอนผู้ใช้ลงมือทำอะไรสักอย่าง ไม่ได้เรียกทุก render
+   */
+  function refreshSuggestions(
+    nextBankUnmatched: BankTransaction[],
+    nextGlUnmatched: GLTransaction[],
+    dismissed: Set<string>
+  ) {
+    const combos = findCombinationSuggestions(nextBankUnmatched, nextGlUnmatched, tolerance);
+    setSuggestions(combos.suggestions.filter((item) => !dismissed.has(item.suggestionId)));
+    setSuggestionBudget({ exhausted: combos.budgetExhausted, skipped: combos.skippedAnchorCount });
+  }
+
   function handleCheck() {
     if (!bankFile || !glFile) return;
     setChecking(true);
@@ -222,6 +275,8 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
       setGlUnmatched(computed.glUnmatched);
       setSuggestions(combos.suggestions);
       setSuggestionBudget({ exhausted: combos.budgetExhausted, skipped: combos.skippedAnchorCount });
+      // กด "ตรวจสอบข้อมูล" = เริ่มใหม่หมด รวมถึงใบที่เคยกด "ไม่ใช่" ไว้ด้วย
+      setDismissedSuggestionIds(new Set());
       setSelectedBankIds(new Set());
       setSelectedGlIds(new Set());
       setHasChecked(true);
@@ -284,11 +339,14 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
     // ตรงนี้เพราะปุ่มยืนยันใน BankReconcileManualMatchToolbar ถูก disable ไว้แล้วเมื่อเงื่อนไขไม่ผ่าน
     const group = createManualMatchGroup({ bankRows: bankSelection, glRows: glSelection });
     setMatchGroups((prev) => [...prev, group]);
-    setBankUnmatched((prev) => prev.filter((row) => !selectedBankIds.has(row.id)));
-    setGlUnmatched((prev) => prev.filter((row) => !selectedGlIds.has(row.id)));
-    // ข้อเสนอคู่ผสมใบใดที่อ้างถึงแถวที่เพิ่งถูกจับคู่เองไป ต้องหายไปด้วย — ไม่งั้นผู้ใช้จะกดยอมรับข้อเสนอที่
-    // อ้างแถวซึ่งไม่อยู่ในตาราง "ไม่สำเร็จ" แล้วได้ ทำให้แถวเดียวกันไปอยู่สองกลุ่มพร้อมกันและยอดรวมเพี้ยน
-    setSuggestions((prev) => dropSuggestionsUsingRows(prev, selectedBankIds, selectedGlIds));
+    const nextBank = bankUnmatched.filter((row) => !selectedBankIds.has(row.id));
+    const nextGl = glUnmatched.filter((row) => !selectedGlIds.has(row.id));
+    setBankUnmatched(nextBank);
+    setGlUnmatched(nextGl);
+    // คำนวณข้อเสนอใหม่จากแถวที่เหลือ (2026-10-19) — ครอบคลุมสิ่งที่ dropSuggestionsUsingRows เคยทำไว้ทั้งหมด
+    // (ใบที่อ้างแถวซึ่งถูกจับคู่ไปแล้วจะหายไปเองเพราะแถวนั้นไม่อยู่ใน input แล้ว) และได้เพิ่มมาอีกอย่างคือใบที่
+    // เคยถูกใบสั้นกว่าเบียดตกจะกลับมาเสนอใหม่เมื่อแถวที่แย่งกันถูกใช้ไปแล้ว
+    refreshSuggestions(nextBank, nextGl, dismissedSuggestionIds);
     setSelectedBankIds(new Set());
     setSelectedGlIds(new Set());
   }
@@ -301,12 +359,12 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
     const bankIds = new Set(suggestion.bankRows.map((row) => row.id));
     const glIds = new Set(suggestion.glRows.map((row) => row.id));
     setMatchGroups((prev) => [...prev, group]);
-    setBankUnmatched((prev) => prev.filter((row) => !bankIds.has(row.id)));
-    setGlUnmatched((prev) => prev.filter((row) => !glIds.has(row.id)));
-    // findCombinationSuggestions รับประกันอยู่แล้วว่าข้อเสนอทุกใบใช้แถวไม่ซ้ำกันเลย ดังนั้นในทางปฏิบัติบรรทัดนี้
-    // จะตัดออกแค่ใบที่เพิ่งยอมรับใบเดียว — แต่เรียกผ่าน dropSuggestionsUsingRows เพื่อให้ยังถูกต้องแน่นอน
-    // แม้วันหน้าจะมีใครเปลี่ยนกติกาการตัดสินการชนกันในฝั่ง lib
-    setSuggestions((prev) => dropSuggestionsUsingRows(prev, bankIds, glIds));
+    const nextBank = bankUnmatched.filter((row) => !bankIds.has(row.id));
+    const nextGl = glUnmatched.filter((row) => !glIds.has(row.id));
+    setBankUnmatched(nextBank);
+    setGlUnmatched(nextGl);
+    // คำนวณใหม่จากแถวที่เหลือ — นอกจากจะตัดใบที่เพิ่งยอมรับออกแล้ว ยังปลดล็อกใบที่เคยแพ้การแย่งแถวให้กลับมา
+    refreshSuggestions(nextBank, nextGl, dismissedSuggestionIds);
     // ถ้าแถวที่ถูกยอมรับไปติ๊กค้างอยู่ใน toolbar จับคู่เอง ต้องเอาติ๊กออก ไม่งั้น toolbar จะนับยอดของแถวที่
     // ไม่อยู่ในตารางแล้ว (bankSelection/glSelection กรองจาก bankUnmatched อยู่แล้วจึงไม่พัง แต่ปล่อย id ค้าง
     // ไว้ใน Set เฉยๆ ไม่มีประโยชน์และทำให้ "เลือกทั้งหมด" คำนวณเพี้ยน)
@@ -317,6 +375,9 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
   /** ผู้ใช้กด "ไม่ใช่" — แค่เลิกเสนอใบนี้ ไม่ต้องคืนแถวกลับไปที่ไหน เพราะแถวที่ถูกเสนอไม่เคยถูกดึงออกจากตาราง
    * "ไม่สำเร็จ" ตั้งแต่แรก (อยู่ครบทุกแถวตลอดเวลาที่ยังไม่ได้กดยอมรับ) */
   function handleDismissSuggestion(suggestion: CombinationSuggestion) {
+    // จำไว้ถาวรตลอดรอบนี้ ไม่งั้นการคำนวณใหม่ครั้งถัดไปจะเสนอใบเดิมกลับมาทันที
+    const nextDismissed = new Set(dismissedSuggestionIds).add(suggestion.suggestionId);
+    setDismissedSuggestionIds(nextDismissed);
     setSuggestions((prev) => prev.filter((item) => item.suggestionId !== suggestion.suggestionId));
   }
 
@@ -335,8 +396,9 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
     setMatchGroups(result.groups);
     setBankUnmatched(result.bankUnmatched);
     setGlUnmatched(result.glUnmatched);
-    // ตั้งใจไม่คำนวณข้อเสนอคู่ผสมใหม่ตรงนี้ — ข้อเสนอที่ค้างอยู่ยังอ้างแถวที่ถูกต้องอยู่เดิม และการคำนวณใหม่
-    // จะล้างใบที่ผู้ใช้เพิ่งกด "ไม่ใช่" ไปแล้วให้กลับมาใหม่ทั้งหมด
+    // แถวที่เพิ่งปลดออกกลับเข้ากองที่ยังไม่สำเร็จแล้ว อาจประกอบเป็นคู่ผสมใหม่ได้ จึงคำนวณข้อเสนอใหม่ด้วย
+    // (ใบที่ผู้ใช้เคยกด "ไม่ใช่" ยังถูกกรองออกตามเดิมผ่าน dismissedSuggestionIds)
+    refreshSuggestions(result.bankUnmatched, result.glUnmatched, dismissedSuggestionIds);
   }
 
   // bankFile.rows/glFile.rows คือ "ชุดข้อมูลเต็มตามลำดับเดิมในไฟล์" เสมอ (ไม่เคยถูกแก้ไข/กรองทิ้งเลย
@@ -588,6 +650,7 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
             skippedAnchorCount={suggestionBudget.skipped}
             onAccept={handleAcceptSuggestion}
             onDismiss={handleDismissSuggestion}
+            onRefresh={() => refreshSuggestions(bankUnmatched, glUnmatched, dismissedSuggestionIds)}
           />
         </div>
       )}

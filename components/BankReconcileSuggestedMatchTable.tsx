@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
-import { CheckCircle2, Sparkles, X } from 'lucide-react';
+import { CheckCircle2, RefreshCw, Sparkles, X } from 'lucide-react';
 import BankReconcilePagination from './BankReconcilePagination';
 import { formatThaiDate } from '@/lib/thaiDate';
 import { MIN_COMBINATION_MEMBER_AMOUNT, type CombinationSuggestion } from '@/lib/bankReconcileCombinationMatch';
@@ -21,6 +21,8 @@ interface BankReconcileSuggestedMatchTableProps {
   /** true = ระบบหยุดค้นหาก่อนครบเพราะหมดงบประมาณการค้นหา (ดู lib/bankReconcileCombinationMatch.ts) */
   budgetExhausted: boolean;
   skippedAnchorCount: number;
+  /** คำนวณข้อเสนอใหม่จากรายการที่ยังไม่สำเร็จ ณ ขณะนั้น โดยไม่แตะการจับคู่ที่ทำไว้แล้ว (2026-10-19) */
+  onRefresh?: () => void;
   onAccept: (suggestion: CombinationSuggestion) => void;
   onDismiss: (suggestion: CombinationSuggestion) => void;
 }
@@ -50,6 +52,7 @@ export default function BankReconcileSuggestedMatchTable({
   suggestions,
   budgetExhausted,
   skippedAnchorCount,
+  onRefresh,
   onAccept,
   onDismiss,
 }: BankReconcileSuggestedMatchTableProps) {
@@ -90,7 +93,8 @@ export default function BankReconcileSuggestedMatchTable({
 
   return (
     <section className="mb-8" data-testid="suggested-section">
-      <div className="mb-3">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
         <h2 className="flex items-center gap-1.5 text-base font-bold text-text">
           <Sparkles size={16} className="text-primary" aria-hidden="true" />
           จับคู่อัตโนมัติ (รอยืนยัน)
@@ -104,6 +108,21 @@ export default function BankReconcileSuggestedMatchTable({
           {MIN_COMBINATION_MEMBER_AMOUNT.toLocaleString('th-TH')} บาทมารวม — ทุกรายการรอให้คุณกด &quot;ยอมรับ&quot;
           เองเท่านั้น ระบบไม่จับคู่ให้เองโดยพลการ
         </p>
+        </div>
+        {/* ปุ่มคำนวณใหม่ (2026-10-19) — ต่างจาก "ตรวจสอบข้อมูล" ตรงที่ **ไม่ล้างการจับคู่ที่ทำไว้แล้ว**
+            คำนวณเฉพาะข้อเสนอจากแถวที่ยังค้างอยู่เท่านั้น ใบที่เคยกด "ไม่ใช่" ยังไม่กลับมา */}
+        {onRefresh && (
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="btn-press inline-flex shrink-0 items-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-xs font-medium text-text-sub hover:bg-card-bg"
+            data-testid="suggested-refresh"
+            title="คำนวณข้อเสนอใหม่จากรายการที่ยังไม่สำเร็จ โดยไม่ล้างการจับคู่ที่ทำไว้แล้ว"
+          >
+            <RefreshCw size={14} aria-hidden="true" />
+            หาข้อเสนอใหม่
+          </button>
+        )}
       </div>
 
       {/* แจ้งตรงๆ เมื่อระบบค้นไม่ครบ — การหาคู่ผสมเป็นปัญหาที่ใหญ่แบบ exponential จึงมีเพดานเวลาไว้กันหน้าค้าง

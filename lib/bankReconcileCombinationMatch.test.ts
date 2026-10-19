@@ -340,3 +340,62 @@ describe('dropSuggestionsUsingRows', () => {
     expect(dropSuggestionsUsingRows(result.suggestions, new Set(), new Set())).toHaveLength(2);
   });
 });
+
+/* ========================================================================================
+   เคสจริงที่ผู้ใช้แจ้ง 2026-10-19: Bank 144,185.00 ตรงกับ GL 13 แถวรวมกันพอดี แต่ระบบไม่เสนอให้
+
+   สาเหตุไม่ใช่ "สมาชิกเยอะเกินไป" (หาเจอตั้งแต่หลักมิลลิวินาที) แต่เป็นกติกาแก้การชนกัน: ข้อเสนอที่ใช้แถว
+   น้อยกว่าชนะเสมอ ใบ 13 แถวจึงถูกใบ 2 แถวที่ใช้แถวร่วมกันเพียงแถวเดียวเบียดตกไปทั้งใบ
+
+   กติกานั้นถูกแล้ว (เสนอสองใบที่ใช้แถวซ้ำกันพร้อมกันไม่ได้) ทางแก้คือ "คำนวณใหม่หลังผู้ใช้ลงมือ" ซึ่ง
+   BankReconcileWorkspace ทำให้แล้ว — เทสต์ชุดนี้ล็อกพฤติกรรมฝั่ง lib ที่ทำให้ทางแก้นั้นได้ผลจริง
+   ======================================================================================== */
+
+describe('ข้อเสนอที่ถูกเบียดตก กลับมาได้เมื่อแถวที่แย่งกันถูกใช้ไปแล้ว', () => {
+  const D = '2026-09-30';
+  // 13 ยอดที่รวมกันได้ 144,185.00 พอดี (5 ตัวแรกเป็นยอดจริงจากหน้าจอที่ผู้ใช้ส่งมา)
+  const thirteen = [1436, 2775, 2740, 8619, 10000, 12000, 15000, 9800, 11500, 13400, 20000, 18000, 18915];
+  const glRows = thirteen.map((amount, i) => gl(`g${i + 1}`, `PV${i + 1}`, D, 'payment', amount));
+  const bigAnchor = bank('b-big', D, 'payment', 144185);
+  // ยอดนี้จับได้ด้วย GL แค่ 2 แถว (1436 + 2775) ซึ่งเป็นสมาชิกของชุด 13 แถวด้วย
+  const shortAnchor = bank('b-short', D, 'payment', 4211);
+
+  it('มี anchor เดี่ยว — เสนอชุด 13 แถวได้ตามปกติ', () => {
+    const result = findCombinationSuggestions([bigAnchor], glRows, 1);
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0].glRows).toHaveLength(13);
+    expect(result.budgetExhausted).toBe(false);
+  });
+
+  it('มี anchor สั้นกว่าที่ใช้แถวร่วมกัน — ชุด 13 แถวถูกเบียดตกทั้งใบ (ต้นเหตุที่ผู้ใช้เจอ)', () => {
+    const result = findCombinationSuggestions([bigAnchor, shortAnchor], glRows, 1);
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0].bankRows[0].id).toBe('b-short');
+    expect(result.suggestions[0].glRows).toHaveLength(2);
+  });
+
+  it('พอยอมรับใบสั้นไปแล้ว คำนวณใหม่จากแถวที่เหลือ ชุด 13 แถวกลับมาเสนอใหม่', () => {
+    const accepted = findCombinationSuggestions([bigAnchor, shortAnchor], glRows, 1).suggestions[0];
+    const usedGl = new Set(accepted.glRows.map((row) => row.id));
+    const usedBank = new Set(accepted.bankRows.map((row) => row.id));
+
+    const after = findCombinationSuggestions(
+      [bigAnchor, shortAnchor].filter((row) => !usedBank.has(row.id)),
+      glRows.filter((row) => !usedGl.has(row.id)),
+      1
+    );
+    // เหลือ 11 แถว รวมกันได้ 144,185 - 4,211 = 139,974 ไม่เท่ากับ anchor แล้ว จึงไม่ควรเสนอชุดนี้อีก
+    expect(after.suggestions).toHaveLength(0);
+  });
+
+  it('ยกเลิกจับคู่แล้วคำนวณใหม่ ได้ข้อเสนอกลับมาเหมือนเดิมเป๊ะ (id เดิม ไม่ใช่เลขสุ่ม)', () => {
+    const first = findCombinationSuggestions([bigAnchor], glRows, 1);
+    const second = findCombinationSuggestions([bigAnchor], glRows, 1);
+    expect(second.suggestions[0].suggestionId).toBe(first.suggestions[0].suggestionId);
+  });
+
+  it('สมาชิกแถวหนึ่งวันที่ห่างเกิน tolerance — ไม่เสนอทั้งชุด', () => {
+    const shifted = glRows.map((row, i) => (i === 3 ? { ...row, date: '2026-09-20' } : row));
+    expect(findCombinationSuggestions([bigAnchor], shifted, 1).suggestions).toHaveLength(0);
+  });
+});
