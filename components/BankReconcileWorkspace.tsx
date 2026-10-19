@@ -252,8 +252,13 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
     nextGlUnmatched: GLTransaction[],
     dismissed: Set<string>
   ) {
-    const combos = findCombinationSuggestions(nextBankUnmatched, nextGlUnmatched, tolerance);
-    setSuggestions(combos.suggestions.filter((item) => !dismissed.has(item.suggestionId)));
+    // ส่งใบที่ผู้ใช้ปฏิเสธเข้าไปใน lib ตรงๆ (ไม่ใช่กรองทิ้งตอนรับผลกลับมา) — ความต่างคือ lib จะข้ามใบพวกนั้น
+    // ตั้งแต่ตอนตัดสินว่าใครได้แถวไหน แถวที่ใบนั้นเคยจองไว้จึงว่างให้ใบรองลงมาใช้ได้จริง ดูคอมเมนต์
+    // rejectedSuggestionIds ใน lib/bankReconcileCombinationMatch.ts สำหรับเคสที่ทำให้ต้องแก้แบบนี้
+    const combos = findCombinationSuggestions(nextBankUnmatched, nextGlUnmatched, tolerance, {
+      rejectedSuggestionIds: dismissed,
+    });
+    setSuggestions(combos.suggestions);
     setSuggestionBudget({ exhausted: combos.budgetExhausted, skipped: combos.skippedAnchorCount });
   }
 
@@ -378,7 +383,9 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
     // จำไว้ถาวรตลอดรอบนี้ ไม่งั้นการคำนวณใหม่ครั้งถัดไปจะเสนอใบเดิมกลับมาทันที
     const nextDismissed = new Set(dismissedSuggestionIds).add(suggestion.suggestionId);
     setDismissedSuggestionIds(nextDismissed);
-    setSuggestions((prev) => prev.filter((item) => item.suggestionId !== suggestion.suggestionId));
+    // คำนวณใหม่ทันที ไม่ใช่แค่ซ่อนใบนี้ออกจากรายการ — เพราะแถวที่ใบนี้เคยจองไว้เพิ่งว่างลง ใบที่เคยแพ้การ
+    // แย่งแถวจะได้โผล่ขึ้นมาแทนที่ในวินาทีเดียวกัน (นี่คือทั้งหมดของเคส 125,786.25 ที่ผู้ใช้แจ้ง)
+    refreshSuggestions(bankUnmatched, glUnmatched, nextDismissed);
   }
 
   /** ผู้ใช้กด "ยกเลิกจับคู่" ที่แถวใดแถวหนึ่งในหมวด "กระทบยอดสำเร็จ" (2026-10-19 ตามคำขอผู้ใช้)

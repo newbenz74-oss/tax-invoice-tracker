@@ -399,3 +399,64 @@ describe('ข้อเสนอที่ถูกเบียดตก กลั
     expect(findCombinationSuggestions([bigAnchor], shifted, 1).suggestions).toHaveLength(0);
   });
 });
+
+/* ========================================================================================
+   เคสจริงที่ผู้ใช้แจ้ง 2026-10-19 (ใบที่สอง): Bank 125,786.25 ตรงกับ GL 16 แถวรวมกันพอดี
+   ยอด GL: 3,880 × 11 + 2,910 + 49,920 + 4,676.25 + 600 + 25,000 — วันที่ 30/09/2569 ทั้งหมด
+
+   ผ่านทุกกฎ (แถวต่ำสุด 600 เกิน 100 / วันที่ตรงกันหมด / Bank แถวเดียว) และอัลกอริทึมหาเจอใน 1 มิลลิวินาที
+   แต่หายไปทั้งใบเพราะมี 3,880 ซ้ำกันถึง 11 แถว ยอด Bank อื่นที่เป็นพหุคูณของ 3,880 จึงสร้างข้อเสนอสั้นๆ
+   มาแย่งแถวได้ง่ายมาก — rejectedSuggestionIds มีไว้แก้ตรงนี้: ปฏิเสธใบสั้นแล้วใบ 16 แถวต้องเข้ามาแทนได้
+   ======================================================================================== */
+
+describe('ปฏิเสธข้อเสนอแล้ว ใบที่เคยแพ้การแย่งแถวต้องเข้ามาแทนที่', () => {
+  const D = '2026-09-30';
+  const SIXTEEN = [3880, 3880, 3880, 3880, 3880, 3880, 3880, 3880, 3880, 3880, 3880, 2910, 49920, 4676.25, 600, 25000];
+  const glRows = SIXTEEN.map((amount, i) => gl(`g${i + 1}`, `PV${i + 1}`, D, 'payment', amount));
+  const big = bank('b-big', D, 'payment', 125786.25);
+  const rival = bank('b-rival', D, 'payment', 7760); // = 3,880 × 2
+
+  it('ยอด GL ทั้ง 16 แถวรวมกันได้เท่ากับยอด Bank พอดี และทุกแถวเกินเพดานขั้นต่ำ', () => {
+    expect(SIXTEEN.reduce((a, b) => a + b, 0)).toBe(125786.25);
+    expect(Math.min(...SIXTEEN)).toBeGreaterThanOrEqual(MIN_COMBINATION_MEMBER_AMOUNT);
+  });
+
+  it('มี anchor เดี่ยว — เสนอครบ 16 แถว ไม่ติดเพดานเวลา', () => {
+    const result = findCombinationSuggestions([big], glRows, 1);
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0].glRows).toHaveLength(16);
+    expect(result.budgetExhausted).toBe(false);
+  });
+
+  it('มียอด 7,760 แย่งไปแค่ 2 แถว — ชุด 16 แถวหายทั้งใบ (อาการที่ผู้ใช้เจอ)', () => {
+    const result = findCombinationSuggestions([big, rival], glRows, 1);
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0].bankRows[0].id).toBe('b-rival');
+    expect(result.suggestions.some((item) => item.bankRows[0].id === 'b-big')).toBe(false);
+  });
+
+  it('ปฏิเสธใบ 7,760 → ชุด 16 แถวเข้ามาแทนที่ทันที', () => {
+    const before = findCombinationSuggestions([big, rival], glRows, 1);
+    const rejected = new Set([before.suggestions[0].suggestionId]);
+
+    const after = findCombinationSuggestions([big, rival], glRows, 1, { rejectedSuggestionIds: rejected });
+    expect(after.suggestions).toHaveLength(1);
+    expect(after.suggestions[0].bankRows[0].id).toBe('b-big');
+    expect(after.suggestions[0].glRows).toHaveLength(16);
+  });
+
+  it('ใบที่ถูกปฏิเสธไม่กลับมาเอง แม้คำนวณใหม่กี่รอบ', () => {
+    const before = findCombinationSuggestions([big, rival], glRows, 1);
+    const rejected = new Set([before.suggestions[0].suggestionId]);
+    for (let round = 0; round < 3; round++) {
+      const again = findCombinationSuggestions([big, rival], glRows, 1, { rejectedSuggestionIds: rejected });
+      expect(again.suggestions.some((item) => rejected.has(item.suggestionId))).toBe(false);
+    }
+  });
+
+  it('ไม่ส่ง rejectedSuggestionIds = พฤติกรรมเดิมทุกประการ (ไม่กระทบของเดิม)', () => {
+    const withoutOption = findCombinationSuggestions([big, rival], glRows, 1);
+    const withEmptySet = findCombinationSuggestions([big, rival], glRows, 1, { rejectedSuggestionIds: new Set() });
+    expect(shape(withEmptySet)).toEqual(shape(withoutOption));
+  });
+});

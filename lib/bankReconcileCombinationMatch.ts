@@ -133,6 +133,18 @@ export interface FindCombinationOptions {
   /** เปลี่ยนเพดานขั้นต่ำของสมาชิกได้ (หน่วยบาท) — มีไว้ให้เทสต์พิสูจน์ว่ากติกานี้เป็นตัวตัดสินจริง ไม่ใช่
    * ให้ UI เอาไปทำเป็นตัวเลือกให้ผู้ใช้ปรับ (ผู้ใช้ระบุ 100 มาเป็นค่าตายตัว) */
   minMemberAmount?: number;
+  /**
+   * suggestionId ของข้อเสนอที่ผู้ใช้กด "ไม่ใช่" ไปแล้ว — ข้ามตั้งแต่ **ขั้นตอนตัดสินการชนกัน** ไม่ใช่กรองทิ้ง
+   * ตอนท้าย (2026-10-19)
+   *
+   * ความต่างนี้สำคัญมาก: ข้อเสนอที่ถูกข้ามจะ "ไม่จองแถว" ของมันไว้ แถวเหล่านั้นจึงว่างให้ข้อเสนอรองลงมาใช้ได้
+   * ถ้าแค่กรองทิ้งตอนท้าย แถวจะยังถูกจองค้างอยู่ ข้อเสนอรองลงมาก็ยังตายอยู่ดี และผู้ใช้จะกด "ไม่ใช่" แล้ว
+   * ไม่มีอะไรเกิดขึ้นเลย
+   *
+   * เคสจริงที่ผู้ใช้แจ้ง 2026-10-19: Bank 125,786.25 ตรงกับ GL 16 แถวรวมกันพอดี (มี 3,880 ซ้ำกัน 11 แถว)
+   * แต่ถูกข้อเสนอ 2 แถวของยอดอื่น (เช่น 7,760 = 3,880 × 2) แย่งแถวไปแค่ 2 แถว ทำให้ชุด 16 แถวขาดและหายทั้งใบ
+   */
+  rejectedSuggestionIds?: ReadonlySet<string>;
 }
 
 /** แปลงจำนวนเงินเป็นจำนวนสตางค์ integer — สูตรเดียวกับที่ amountsEqual ใช้เป๊ะ (ดูเหตุผลที่ต้องเทียบเป็น
@@ -373,6 +385,7 @@ export function findCombinationSuggestions(
   options: FindCombinationOptions = {}
 ): CombinationSuggestionResult {
   const stepBudget = options.stepBudget ?? DEFAULT_COMBINATION_STEP_BUDGET;
+  const rejectedSuggestionIds = options.rejectedSuggestionIds ?? new Set<string>();
   // งบต่อแถวเดี่ยว: หารงบรวมให้ทุกแถวเท่าๆ กัน แต่ไม่ต่ำกว่าเพดานขั้นต่ำ — ตั้งใจให้ "ไฟล์เล็กค้นลึก ไฟล์ใหญ่
   // ค้นกว้าง" โดยอัตโนมัติ: ไฟล์ที่เหลือไม่สำเร็จ 20 แถว แต่ละแถวได้งบหลายแสนก้าว (ค้นได้ลึกมาก เจอคู่ผสม
   // แถวเยอะได้) ส่วนไฟล์ที่เหลือ 600 แถว แต่ละแถวได้เท่าเพดานขั้นต่ำ (ค้นตื้นกว่า แต่ได้ค้นครบทุกแถวมากขึ้น
@@ -447,23 +460,29 @@ export function findCombinationSuggestions(
 
     if (item.anchorSide === 'bank') {
       const anchorRow = bankUnmatched[item.anchorIndex];
-      if (usedBank.has(anchorRow.id)) continue;
       const memberRows = item.memberIndexes.map((idx) => glUnmatched[idx]);
-      if (memberRows.some((row) => usedGl.has(row.id))) continue;
       bankRows = [anchorRow];
       glRows = memberRows;
       anchorId = anchorRow.id;
       memberIds = memberRows.map((row) => row.id);
     } else {
       const anchorRow = glUnmatched[item.anchorIndex];
-      if (usedGl.has(anchorRow.id)) continue;
       const memberRows = item.memberIndexes.map((idx) => bankUnmatched[idx]);
-      if (memberRows.some((row) => usedBank.has(row.id))) continue;
       bankRows = memberRows;
       glRows = [anchorRow];
       anchorId = anchorRow.id;
       memberIds = memberRows.map((row) => row.id);
     }
+
+    const suggestionId = `${item.anchorSide}:${anchorId}=>${memberIds.join('+')}`;
+
+    // ผู้ใช้ปฏิเสธใบนี้ไปแล้ว → ข้ามไปเลยโดย **ไม่จองแถว** ปล่อยให้ใบรองลงมาเข้ามาใช้แถวเหล่านี้แทนได้
+    // (ต้องเช็คก่อนการจองแถวด้านล่างเสมอ ไม่งั้นจะไม่ต่างอะไรกับการกรองทิ้งตอนท้าย)
+    if (rejectedSuggestionIds.has(suggestionId)) continue;
+
+    // เช็คแถวชนกันหลังจากนั้น — ย้ายมารวมไว้ที่เดียวเพื่อให้ลำดับ "ปฏิเสธก่อน แล้วค่อยเช็คชน" ชัดเจน
+    if (bankRows.some((row) => usedBank.has(row.id))) continue;
+    if (glRows.some((row) => usedGl.has(row.id))) continue;
 
     // ตรวจซ้ำด้วยเครื่องมือชุดเดียวกับที่การจับคู่เองใช้ (sumAmounts + amountsEqual) — การค้นหาทำบน integer
     // สตางค์อยู่แล้วจึงไม่ควรมีทางพลาด แต่ถ้าพลาดขึ้นมาจริงเราเลือก "ไม่เสนอ" ดีกว่าเสนอคู่ที่ยอดไม่ตรง
@@ -477,7 +496,7 @@ export function findCombinationSuggestions(
     accepted.push({
       anchorOrder: item.anchorOrder,
       suggestion: {
-        suggestionId: `${item.anchorSide}:${anchorId}=>${memberIds.join('+')}`,
+        suggestionId,
         type: item.type,
         anchorSide: item.anchorSide,
         bankRows,
