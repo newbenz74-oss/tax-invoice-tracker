@@ -107,7 +107,7 @@ function readStoredFilters(companyId: string | null): StoredWhtHistoryFilters {
  * ปุ่ม "แก้ไข"/"ลบ" (เพิ่มเข้ามาภายหลัง 2026-08-11 ตามที่ผู้ใช้ขอ) ทั้งคู่ใช้กลไกเดียวกันคือ "ยกเลิก" ใบเดิม
  * ผ่าน voidWhtCertificate() (soft delete — เปลี่ยนสถานะเป็น 'voided' เก็บประวัติไว้ ไม่ลบแถวจริง ตามที่ผู้ใช้
  * ยืนยัน ไม่ใช้ hard delete เพราะเอกสารทางการต้องมีเลขที่ต่อเนื่องตรวจสอบย้อนหลังได้) ต่างกันแค่ "แก้ไข" จะ
- * เปิด IssueWhtCertificateModal ต่อทันที (mode="reissue" พรีฟิลข้อมูลเดิม) ให้ออกใบใหม่แทน ส่วน "ลบ" จบแค่
+ * เปิด IssueWhtCertificateModal (mode="edit" พรีฟิลข้อมูลเดิม) แก้ใบเดิมในที่เดิม ส่วน "ลบ" จบแค่
  * ยกเลิกเฉยๆ ไม่เปิดฟอร์มต่อ — ดู supabase/migration_016_void_wht_certificate.sql สำหรับเหตุผลเต็มว่าทำไม
  * ไม่ให้แก้ไขข้อมูลในใบเดิมตรงๆ
  *
@@ -210,13 +210,17 @@ export default function WhtCertificateHistoryPage() {
 
   // dialog ยืนยัน "แก้ไข"/"ลบ" ใช้ UI ร่วมกัน (ทั้งคู่เรียก voidWhtCertificate เหมือนกัน ต่างกันแค่ action
   // ต่อเนื่องหลังยกเลิกสำเร็จ — ดูคอมเมนต์หัวไฟล์)
-  const [actionTarget, setActionTarget] = useState<{ cert: WhtCertificate; kind: 'edit' | 'delete' } | null>(null);
+  // ใบที่กำลังถามยืนยัน "ลบ" — ตั้งแต่ 2026-10-19 เหลือแค่การลบอย่างเดียว ไม่มี kind ให้แยกอีกต่อไป
+  // เพราะ "แก้ไข" ไม่ต้องยกเลิกใบเดิมก่อนแล้ว
+  const [actionTarget, setActionTarget] = useState<{ cert: WhtCertificate } | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   // เปิดหลังยกเลิกสำเร็จตอนกด "แก้ไข" — เก็บทั้งใบเดิม (สำหรับพรีฟิลฟอร์ม/แสดงเลขที่เดิม) และรายการจ่ายเงิน
   // ที่เคยผูกไว้ (capture ก่อนยกเลิก เพราะหลังยกเลิก invoices cache จะอัปเดตเป็น wht_certificate_id = null)
-  const [reissue, setReissue] = useState<{ cert: WhtCertificate; certInvoices: PendingTaxInvoice[] } | null>(null);
+  // ใบที่กำลังเปิดฟอร์มแก้ไขอยู่ (2026-10-19) — เดิมชื่อ reissue และต้องยกเลิกใบเดิมก่อนถึงจะเปิดฟอร์มได้
+  // ตอนนี้เปิดฟอร์มได้เลยเพราะการแก้ไขแก้ใบเดิมในที่เดิม ไม่มีอะไรถูกทำลายจนกว่าจะกดบันทึก
+  const [editingCert, setEditingCert] = useState<WhtCertificate | null>(null);
 
   const periodFilteredCertificates = useMemo(() => {
     if (!filtersComplete) return [];
@@ -305,22 +309,16 @@ export default function WhtCertificateHistoryPage() {
     }
   }
 
+  /** ยืนยัน "ลบ" (= ยกเลิกใบ) — ตั้งแต่ 2026-10-19 เหลือแค่กรณีเดียว เพราะ "แก้ไข" ไม่ต้องยกเลิกใบเดิม
+   * อีกต่อไปแล้ว (เปิดฟอร์มแก้ใบเดิมในที่เดิมได้เลย ดู setEditingCert) */
   async function handleConfirmAction() {
     if (!actionTarget) return;
     setActionBusy(true);
     setActionError(null);
     try {
-      const { cert, kind } = actionTarget;
-      // capture รายการที่ผูกกับใบนี้ไว้ก่อนยกเลิก — ใช้พรีฟิลตอน "แก้ไข" เท่านั้น (หลังยกเลิกแล้ว
-      // wht_certificate_id ของรายการเหล่านี้จะกลายเป็น null ทันที)
-      const certInvoices = invoices.filter((inv) => inv.wht_certificate_id === cert.id);
-      const reason = kind === 'delete' ? 'ลบโดยผู้ใช้' : 'แก้ไขข้อมูล (ออกใบใหม่แทน)';
-      await voidWhtCertificate(cert.id, reason);
+      await voidWhtCertificate(actionTarget.cert.id, 'ลบโดยผู้ใช้');
       setActionTarget(null);
       await Promise.all([mutateCertificates(), mutateInvoices()]);
-      if (kind === 'edit') {
-        setReissue({ cert, certInvoices });
-      }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'ดำเนินการไม่สำเร็จ กรุณาลองใหม่');
     } finally {
@@ -334,19 +332,19 @@ export default function WhtCertificateHistoryPage() {
    * ส่วนใหญ่เป็นการแก้ข้อมูลเล็กน้อย (ชื่อ/คำนำหน้า) ที่ยังไม่ได้จะพิมพ์หรือส่งทันที การยัดไฟล์ลงเครื่องให้
    * ทุกครั้งเลยกลายเป็นขยะในโฟลเดอร์ดาวน์โหลดแทน — ต้องการไฟล์เมื่อไรกดปุ่ม "PDF ผู้ถูกหัก"/"PDF บัญชี"
    * ในตารางได้ตลอด */
-  async function handleReissued() {
-    setReissue(null);
+  async function handleEdited() {
+    setEditingCert(null);
     await Promise.all([mutateCertificates(), mutateInvoices()]);
   }
 
-  const reissuePrefill: WhtCertificateFormPrefill | undefined = reissue
+  const editPrefill: WhtCertificateFormPrefill | undefined = editingCert
     ? {
-        incomeTypeCode: reissue.cert.income_type_code,
-        incomeTypeLabel: reissue.cert.income_type_label ?? '',
-        deductionType: reissue.cert.deduction_type,
-        deductionTypeNote: reissue.cert.deduction_type_note ?? '',
-        signerName: reissue.cert.signer_name ?? '',
-        issuedDate: reissue.cert.issued_date,
+        incomeTypeCode: editingCert.income_type_code,
+        incomeTypeLabel: editingCert.income_type_label ?? '',
+        deductionType: editingCert.deduction_type,
+        deductionTypeNote: editingCert.deduction_type_note ?? '',
+        signerName: editingCert.signer_name ?? '',
+        issuedDate: editingCert.issued_date,
       }
     : undefined;
 
@@ -595,7 +593,7 @@ export default function WhtCertificateHistoryPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setActionTarget({ cert, kind: 'edit' })}
+                              onClick={() => setEditingCert(cert)}
                               className="btn-press rounded-[10px] border border-border px-2 py-1 text-xs font-medium text-text-sub hover:bg-page-bg"
                               data-testid={`wht-cert-edit-${cert.id}`}
                             >
@@ -603,7 +601,7 @@ export default function WhtCertificateHistoryPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setActionTarget({ cert, kind: 'delete' })}
+                              onClick={() => setActionTarget({ cert })}
                               className="btn-press rounded-[10px] border border-danger/30 px-2 py-1 text-xs font-medium text-danger hover:bg-danger/10"
                               data-testid={`wht-cert-delete-${cert.id}`}
                             >
@@ -630,17 +628,13 @@ export default function WhtCertificateHistoryPage() {
           onClick={() => (actionBusy ? null : setActionTarget(null))}
           role="dialog"
           aria-modal="true"
-          aria-label={actionTarget.kind === 'edit' ? 'ยืนยันแก้ไขใบหัก ณ ที่จ่าย' : 'ยืนยันลบใบหัก ณ ที่จ่าย'}
+          aria-label="ยืนยันลบใบหัก ณ ที่จ่าย"
           data-testid="wht-cert-action-confirm-dialog"
         >
           <div className="card-surface card-surface-modal w-full max-w-sm rounded-2xl bg-card-bg p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-text">
-              {actionTarget.kind === 'edit' ? 'ยืนยันแก้ไขใบหัก ณ ที่จ่าย' : 'ยืนยันลบใบหัก ณ ที่จ่าย'}
-            </h3>
+            <h3 className="text-base font-bold text-text">ยืนยันลบใบหัก ณ ที่จ่าย</h3>
             <p className="mt-2 text-sm text-text-sub">
-              {actionTarget.kind === 'edit'
-                ? `ใบเลขที่ ${actionTarget.cert.cert_number} จะถูกยกเลิก แล้วเปิดฟอร์มออกใบใหม่แทนโดยพรีฟิลเลขที่เดิมไว้ให้ (แก้เป็นเลขอื่นได้) รายการจ่ายเงินที่ผูกไว้ไม่ถูกลบ ต้องการดำเนินการต่อหรือไม่?`
-                : `ใบเลขที่ ${actionTarget.cert.cert_number} จะถูกยกเลิก (เก็บประวัติไว้ ไม่ลบถาวร) และเลขที่นี้จะว่างให้นำกลับมาใช้ใหม่ได้ — รายการจ่ายเงินที่ผูกไว้ไม่ถูกลบ แค่กลับไปอยู่ในรายการที่ยังไม่ได้ออกใบ ต้องการดำเนินการต่อหรือไม่?`}
+              {`ใบเลขที่ ${actionTarget.cert.cert_number} จะถูกยกเลิก (เก็บประวัติไว้ ไม่ลบถาวร) และเลขที่นี้จะว่างให้นำกลับมาใช้ใหม่ได้ — รายการจ่ายเงินที่ผูกไว้ไม่ถูกลบ แค่กลับไปอยู่ในรายการที่ยังไม่ได้ออกใบ ต้องการดำเนินการต่อหรือไม่?`}
             </p>
             {actionError && (
               <p role="alert" className="mt-3 rounded-[10px] border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -663,7 +657,7 @@ export default function WhtCertificateHistoryPage() {
                 className="btn-press rounded-[10px] bg-danger px-4 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-danger/90 disabled:opacity-60"
                 data-testid="confirm-wht-cert-action"
               >
-                {actionBusy ? 'กำลังดำเนินการ...' : actionTarget.kind === 'edit' ? 'ยกเลิกใบเดิม' : 'ยืนยันลบ'}
+                {actionBusy ? 'กำลังดำเนินการ...' : 'ยืนยันลบ'}
               </button>
             </div>
           </div>
@@ -694,18 +688,21 @@ export default function WhtCertificateHistoryPage() {
           );
         })()}
 
-      {reissue && selectedCompany && (
+      {editingCert && selectedCompany && (
         <IssueWhtCertificateModal
-          invoices={reissue.certInvoices}
+          /* รายการจ่ายเงินที่ผูกกับใบนี้ "ตอนนี้" — ใบยังไม่ถูกแตะต้องเลย รายการจึงยังผูกอยู่ครบ
+             (ต่างจากของเดิมที่ต้องแอบเก็บไว้ก่อนยกเลิกใบ เพราะพอยกเลิกแล้วรายการจะถูกปลดทันที) */
+          invoices={invoices.filter((inv) => inv.wht_certificate_id === editingCert.id)}
           contacts={contacts}
           company={selectedCompany}
           companyId={selectedCompanyId!}
           createdByEmail={session?.user?.email ?? null}
-          onClose={() => setReissue(null)}
-          onIssued={handleReissued}
-          mode="reissue"
-          voidedCertNumber={reissue.cert.cert_number}
-          prefill={reissuePrefill}
+          onClose={() => setEditingCert(null)}
+          onIssued={handleEdited}
+          mode="edit"
+          editingCertId={editingCert.id}
+          editingCertNumber={editingCert.cert_number}
+          prefill={editPrefill}
         />
       )}
     </main>

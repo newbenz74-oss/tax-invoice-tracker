@@ -15,8 +15,8 @@ import {
   formatWhtCertNumber,
   formTypeForEntityType,
 } from '@/lib/whtCertificateLogic';
-import { createWhtCertificate, peekNextWhtCertNumber } from '@/lib/whtCertificateApi';
-import { getContactDisplayName } from '@/lib/contactLogic';
+import { createWhtCertificate, peekNextWhtCertNumber, updateWhtCertificate } from '@/lib/whtCertificateApi';
+import { compareContactsByCode, getContactDisplayName } from '@/lib/contactLogic';
 import { calcNetPayment } from '@/lib/invoiceLogic';
 import BuddhistDateInput from '@/components/BuddhistDateInput';
 
@@ -45,7 +45,7 @@ function latestTransactionDate(invoices: PendingTaxInvoice[]): string {
   return invoices.reduce((latest, inv) => (inv.transaction_date > latest ? inv.transaction_date : latest), invoices[0].transaction_date);
 }
 
-/** ค่าเริ่มต้นของฟอร์ม ใช้ตอนแก้ไขใบเดิม (mode="reissue") — พรีฟิลด้วยข้อมูลจากใบที่ถูกยกเลิกไปแล้ว เพื่อให้
+/** ค่าเริ่มต้นของฟอร์ม ใช้ตอนแก้ไขใบเดิม (mode="edit") — พรีฟิลด้วยข้อมูลของใบนั้น เพื่อให้
  * ผู้ใช้แก้เฉพาะจุดที่ผิดแล้วออกใบใหม่ ไม่ต้องกรอกซ้ำทั้งหมด */
 export interface WhtCertificateFormPrefill {
   incomeTypeCode: WhtIncomeTypeCode;
@@ -65,11 +65,15 @@ interface IssueWhtCertificateModalProps {
   onClose: () => void;
   onIssued: (cert: WhtCertificate) => void;
   onGoToContacts?: () => void; // ไปหน้าสมุดรายชื่อ — ใช้ตอนหาผู้ขายไม่เจอ (ไม่บังคับส่งมา)
-  // เพิ่มเข้ามาพร้อมปุ่ม "แก้ไข" ในหน้าประวัติ (2026-08-11) — mode="reissue" หมายถึงใบเดิมถูกยกเลิก
-  // (void_wht_certificate) ไปแล้วก่อนเปิด modal นี้ กำลังจะออกใบใหม่แทนที่ ไม่ใช่การแก้ไขใบเดิมตรงๆ
-  // (เอกสารทางการต้องมีเลขที่ต่อเนื่อง ไม่ย้อนกลับไปแก้ใบที่ออกไปแล้ว — ดู migration_016 สำหรับเหตุผลเต็ม)
-  mode?: 'issue' | 'reissue';
-  voidedCertNumber?: string; // เลขที่ใบเดิมที่ถูกยกเลิกไป — แสดงเป็นข้อความแจ้งเตือนตอน mode="reissue"
+  // ปุ่ม "แก้ไข" ในหน้าประวัติ (2026-08-11, เปลี่ยนวิธีทำงาน 2026-10-19)
+  // mode="edit" (2026-10-19) — แก้ไขใบเดิมในที่เดิมผ่าน updateWhtCertificate() ใบไม่เปลี่ยน id ประวัติการส่ง
+  // อีเมลและทุกอย่างที่ผูกกับ id จึงอยู่ครบ แทนที่ mode="reissue" เดิมซึ่งยกเลิกใบเดิมแล้วสร้างใบใหม่
+  // (ดูเหตุผลเต็มที่ updateWhtCertificate ใน lib/whtCertificateApi.ts)
+  mode?: 'issue' | 'edit';
+  /** id ของใบที่กำลังแก้ไข — บังคับเมื่อ mode="edit" */
+  editingCertId?: string;
+  /** เลขที่ใบที่กำลังแก้ไข — ใช้พรีฟิลช่องเลขที่และแสดงบนหัวเรื่อง */
+  editingCertNumber?: string;
   prefill?: WhtCertificateFormPrefill;
 }
 
@@ -91,7 +95,7 @@ interface IssueWhtCertificateModalProps {
  * override.sql) periodYear/periodMonth ที่ใช้กำหนด "ชุดตัวนับ" มาจาก issuedDate เสมอ (เดือน/ปีที่ออกใบจริง
  * ไม่ใช่เดือนที่ทำรายการจ่ายเงิน) ส่วน formType มาจากประเภทนิติบุคคล/บุคคลธรรมดาของผู้ถูกหักที่เลือก
  *
- * mode="reissue" (เพิ่มเข้ามาพร้อมปุ่ม "แก้ไข" ในหน้าประวัติ, 2026-08-11) ใช้ modal เดียวกันนี้ทุกประการ
+ * mode="edit" (ปุ่ม "แก้ไข" ในหน้าประวัติ) ใช้ modal เดียวกันนี้ทุกประการ
  * เพียงพรีฟิลค่าฟอร์มด้วย prefill (จากใบเดิมที่ผู้เรียกยกเลิกไปแล้วผ่าน voidWhtCertificate() ก่อนเปิด modal
  * นี้) ยังคงเรียก createWhtCertificate() ตัวเดิมตอนกดยืนยัน (ได้เลขที่ใหม่ต่อเนื่อง ไม่มีการ "แก้ไข" ใบเดิม
  * ตรงๆ ในฐานข้อมูล — ดู supabase/migration_016_void_wht_certificate.sql สำหรับเหตุผลเต็ม)
@@ -106,19 +110,20 @@ export default function IssueWhtCertificateModal({
   onIssued,
   onGoToContacts,
   mode = 'issue',
-  voidedCertNumber,
+  editingCertId,
+  editingCertNumber,
   prefill,
 }: IssueWhtCertificateModalProps) {
   const vendorName = invoices[0]?.vendor_name.trim() ?? '';
   const vendorNameMismatch = invoices.some((inv) => inv.vendor_name.trim() !== vendorName);
 
   // ตัวเลือกทั้งหมดที่เลือกออกใบให้ได้ — ผู้ขายที่ active ทุกคนในสมุดรายชื่อ ไม่จำกัดแค่ชื่อที่ตรงกับ
-  // vendor_name อีกต่อไป (2026-08-12) เรียงตามชื่อที่แสดงผลให้หาง่าย
+  // vendor_name อีกต่อไป (2026-08-12)
+  //
+  // เรียงตาม "รหัสที่ผู้ใช้ตั้งเอง" (2026-10-19 ตามที่ผู้ใช้ระบุ) ให้ตรงกับลำดับในหน้าสมุดรายชื่อเป๊ะๆ
+  // ดูเหตุผลเต็มที่ compareContactsByCode ใน lib/contactLogic.ts
   const vendorContacts = useMemo(
-    () =>
-      contacts
-        .filter((c) => c.partner_type === 'vendor' && c.status === 'active')
-        .sort((a, b) => getContactDisplayName(a).localeCompare(getContactDisplayName(b), 'th')),
+    () => contacts.filter((c) => c.partner_type === 'vendor' && c.status === 'active').sort(compareContactsByCode),
     [contacts]
   );
   // ยังคงหาชื่อที่ตรงกับ vendor_name เป๊ะๆ ไว้ใช้ auto-select ค่าเริ่มต้นให้สะดวก (กรณีปกติส่วนใหญ่ที่ชื่อตรงกัน)
@@ -127,7 +132,7 @@ export default function IssueWhtCertificateModal({
   const selectedContact = vendorContacts.find((c) => c.id === selectedContactId) ?? null;
 
   // ค่าเริ่มต้น "6. อื่นๆ" (2026-08-17 ตามคำขอผู้ใช้ — ส่วนใหญ่เลือกตัวนี้อยู่แล้ว ไม่อยากต้องกดเลือกเองทุกครั้ง)
-  // ยังแก้ไขเป็นตัวเลือกอื่นได้ตามปกติผ่าน <select> ด้านล่าง — โหมด reissue ยังคง prefill จากใบเดิมก่อนเสมอ
+  // ยังแก้ไขเป็นตัวเลือกอื่นได้ตามปกติผ่าน <select> ด้านล่าง — โหมดแก้ไขยังคง prefill จากใบเดิมก่อนเสมอ
   // (ไม่ทับด้วยค่าเริ่มต้นนี้ถ้ามี prefill.incomeTypeCode อยู่แล้ว)
   const [incomeTypeCode, setIncomeTypeCode] = useState<WhtIncomeTypeCode | ''>(prefill?.incomeTypeCode ?? '6');
   const [incomeTypeLabel, setIncomeTypeLabel] = useState(prefill?.incomeTypeLabel ?? '');
@@ -186,15 +191,13 @@ export default function IssueWhtCertificateModal({
       };
     }
 
-    // mode="reissue" — พรีฟิล "เลขที่ใบเดิม" แทนเลขถัดไป (2026-10-16 ตามคำขอผู้ใช้ "พอลบเลข 03-6910015 ออก
-    // และกลับไปใช้เลขนี้ใหม่ไม่ได้ ฉันอยากให้กลับมาใช้ได้") — ตั้งแต่ migration_034 เลขของใบที่ยกเลิกแล้ว
-    // ว่างให้ใช้ซ้ำได้จริง การแก้ไขใบจึงควรได้เลขเดิมกลับมาโดยไม่ต้องพิมพ์เอง
+    // mode="edit" — พรีฟิล "เลขที่ใบเดิม" แทนเลขถัดไป เพราะการแก้ไขไม่ควรเปลี่ยนเลขที่เอกสารเอง
     //
     // ใส่เงื่อนไขว่า prefix ต้องตรงกับ bucket ปัจจุบันด้วย เพราะถ้าผู้ใช้เปลี่ยนผู้รับหรือวันที่ออกใบจนข้าม
     // เดือน/ปี/ประเภทไป เลขเดิมจะไม่มีความหมายในชุดใหม่อีกต่อไป กรณีนั้นต้องกลับไปใช้เลขถัดไปตามปกติ
-    const reissuePrefix = `${previewFormType}-${String(previewPeriodYear % 100).padStart(2, '0')}${String(previewPeriodMonth).padStart(2, '0')}`;
-    if (mode === 'reissue' && voidedCertNumber?.startsWith(reissuePrefix)) {
-      const original = voidedCertNumber;
+    const editPrefix = `${previewFormType}-${String(previewPeriodYear % 100).padStart(2, '0')}${String(previewPeriodMonth).padStart(2, '0')}`;
+    if (mode === 'edit' && editingCertNumber?.startsWith(editPrefix)) {
+      const original = editingCertNumber;
       Promise.resolve().then(() => {
         if (cancelled) return;
         setSequenceLoadError(null);
@@ -227,7 +230,7 @@ export default function IssueWhtCertificateModal({
     return () => {
       cancelled = true;
     };
-  }, [companyId, previewFormType, previewPeriodYear, previewPeriodMonth, mode, voidedCertNumber]);
+  }, [companyId, previewFormType, previewPeriodYear, previewPeriodMonth, mode, editingCertNumber]);
 
   // บั๊กเดิม (พบ 2026-08-17 จากรายงานผู้ใช้ "ออกใบหัก ณ ที่จ่ายไม่สำเร็จ"): ใช้ regex /(\d+)\s*$/ ตัดกลุ่ม
   // ตัวเลขท้ายสุดของข้อความทั้งก้อน — แต่รูปแบบเลขที่จริงคือ {formType}-{YY}{MM}{NNN} ซึ่ง YY, MM, NNN แปะติด
@@ -316,10 +319,20 @@ export default function IssueWhtCertificateModal({
 
       const payer = buildPayerSnapshot(company);
       const payee = buildPayeeSnapshot(selectedContact);
-      const cert = await createWhtCertificate(input, payer, payee, createdByEmail);
+      // โหมดแก้ไขแก้ใบเดิมในที่เดิม (id ไม่เปลี่ยน) โหมดปกติสร้างใบใหม่ — ข้อมูลที่ส่งเหมือนกันทุกช่อง
+      const cert =
+        mode === 'edit' && editingCertId
+          ? await updateWhtCertificate(editingCertId, input, payer, payee)
+          : await createWhtCertificate(input, payer, payee, createdByEmail);
       onIssued(cert);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ออกใบหัก ณ ที่จ่ายไม่สำเร็จ กรุณาลองใหม่');
+      setError(
+        err instanceof Error
+          ? err.message
+          : mode === 'edit'
+            ? 'แก้ไขใบหัก ณ ที่จ่ายไม่สำเร็จ กรุณาลองใหม่'
+            : 'ออกใบหัก ณ ที่จ่ายไม่สำเร็จ กรุณาลองใหม่'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -351,7 +364,7 @@ export default function IssueWhtCertificateModal({
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border/60 p-6 pb-4">
           <div>
             <h3 className="text-base font-bold text-text">
-              {mode === 'reissue' ? 'แก้ไขใบหัก ณ ที่จ่าย (ออกใบใหม่แทน)' : 'ออกใบหัก ณ ที่จ่าย'}
+              {mode === 'edit' ? `แก้ไขใบหัก ณ ที่จ่าย ${editingCertNumber ?? ''}`.trim() : 'ออกใบหัก ณ ที่จ่าย'}
             </h3>
             <p className="mt-0.5 text-sm text-text-sub">
               {vendorName} · {invoices.length} รายการ
@@ -369,10 +382,10 @@ export default function IssueWhtCertificateModal({
         </div>
 
         <div className="overflow-y-auto p-6 py-4">
-        {mode === 'reissue' && (
+        {mode === 'edit' && (
           <p className="mb-4 rounded-[10px] border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
-            ใบเดิม{voidedCertNumber ? ` เลขที่ ${voidedCertNumber}` : ''} ถูกยกเลิกแล้ว แก้ไขข้อมูลด้านล่างแล้วกด &quot;ยืนยันออกใบใหม่&quot;
-            — ช่องเลขที่ใบพรีฟิลเลขเดิมไว้ให้แล้ว กดยืนยันได้เลยถ้าต้องการใช้เลขเดิม หรือพิมพ์ทับเป็นเลขอื่นที่ยังว่างอยู่ก็ได้
+            แก้ไขใบเดิมในที่เดิม — เลขที่ใบ ประวัติการส่งอีเมล และทุกอย่างที่ผูกกับใบนี้ยังอยู่ครบเหมือนเดิม
+            ถ้าใบนี้เคยส่งอีเมลไปแล้ว ผู้รับจะยังถือฉบับก่อนแก้ไขอยู่ ต้องกดส่งอีเมลซ้ำเองถ้าต้องการให้ได้ฉบับใหม่
           </p>
         )}
 
@@ -587,7 +600,13 @@ export default function IssueWhtCertificateModal({
               className="btn-press rounded-[10px] bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="confirm-issue-wht-cert"
             >
-              {submitting ? 'กำลังออกใบ...' : mode === 'reissue' ? 'ยืนยันออกใบใหม่' : 'ยืนยันออกใบ'}
+              {submitting
+                ? mode === 'edit'
+                  ? 'กำลังบันทึก...'
+                  : 'กำลังออกใบ...'
+                : mode === 'edit'
+                  ? 'บันทึกการแก้ไข'
+                  : 'ยืนยันออกใบ'}
             </button>
           )}
         </div>

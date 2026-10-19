@@ -188,14 +188,62 @@ export async function createWhtCertificate(
   return data as WhtCertificate;
 }
 
+/**
+ * แก้ไขใบหัก ณ ที่จ่าย "ใบเดิม" ผ่าน RPC update_wht_certificate() (ดู
+ * supabase/migration_036_update_wht_certificate.sql) — เพิ่มเข้ามา 2026-10-19
+ *
+ * ========================= ทำไมต้องมีฟังก์ชันนี้ =========================
+ * เดิมปุ่ม "แก้ไข" บนหน้าประวัติไม่ได้แก้ใบเดิมเลย แต่เรียก voidWhtCertificate() แล้วตามด้วย
+ * createWhtCertificate() ผลคือได้ id ใหม่ทุกครั้งที่แก้แม้แต่ตัวอักษรเดียว และทุกอย่างที่ผูกกับ id เดิม
+ * ก็ขาดไปด้วย — ที่เห็นผลชัดที่สุดคือประวัติการส่งอีเมล (wht_certificate_send_logs.certificate_id)
+ * ใบที่เพิ่งส่งไปเมื่อวานจะกลายเป็น "ยังไม่ได้ส่ง" หลังแก้ เสี่ยงกดส่งซ้ำโดยไม่รู้ตัว
+ *
+ * ผู้ใช้ชี้ตรงจุดเอง: "ถ้าการแก้ไขไม่ได้แก้ใบเดิม ควรเป็นการแก้ไขสิ ไม่ใช่ยกเลิกใบเดิมแล้วสร้างใหม่
+ * มันจะทำให้กลายเป็นคนละ ID กัน"
+ *
+ * ฟังก์ชันนี้แก้แถวเดิมในที่เดิม id จึงไม่เปลี่ยน ประวัติการส่งและทุกอย่างที่อ้าง id อยู่ยังอยู่ครบโดยไม่ต้อง
+ * ทำอะไรเพิ่มเลย ส่วน "ใครแก้อะไรเมื่อไร" ตาราง audit_logs บันทึกให้อัตโนมัติอยู่แล้ว (migration_026)
+ *
+ * ไม่มีพารามิเตอร์ createdByEmail เพราะคนที่ออกใบครั้งแรกยังเป็นคนเดิมเสมอ การแก้ไขไม่เปลี่ยนผู้ออกใบ
+ */
+export async function updateWhtCertificate(
+  certId: string,
+  input: CreateWhtCertificateInput,
+  payer: WhtPartySnapshot,
+  payee: WhtPayeeSnapshot
+): Promise<WhtCertificate> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('update_wht_certificate', {
+    p_cert_id: certId,
+    p_form_type: input.formType,
+    p_period_year: input.periodYear,
+    p_period_month: input.periodMonth,
+    p_business_partner_id: input.businessPartnerId,
+    p_income_type_code: input.incomeTypeCode,
+    p_income_type_label: input.incomeTypeLabel.trim() || null,
+    p_deduction_type: input.deductionType,
+    p_deduction_type_note: input.deductionTypeNote.trim() || null,
+    p_signer_name: input.signerName.trim() || null,
+    p_issued_date: input.issuedDate,
+    p_payer: payer,
+    p_payee: payee,
+    p_invoice_ids: input.invoiceIds,
+    // ไม่ส่งเลขมา = เก็บเลขเดิมของใบไว้ (ต่างจากตอนสร้างใหม่ที่จะรันเลขถัดไปให้) — การแก้ไขไม่ควรเปลี่ยน
+    // เลขที่เอกสารเองโดยผู้ใช้ไม่ได้สั่ง
+    p_sequence_override: input.sequenceOverride ?? null,
+  });
+  if (error) throw error;
+  return data as WhtCertificate;
+}
+
 /** ยกเลิกใบหัก ณ ที่จ่าย ผ่าน RPC void_wht_certificate() (ดู
  * supabase/migration_016_void_wht_certificate.sql) — atomic: เปลี่ยนสถานะเป็น 'voided' + ปลดรายการจ่ายเงิน
  * ที่เคยผูกกับใบนี้ทั้งหมดกลับไปเป็น wht_certificate_id = null (กลับมาเลือกออกใบใหม่ได้อีกครั้ง)
  *
  * ใช้เป็น building block ของทั้ง 2 ปุ่มในหน้าประวัติ (ดู components/WhtCertificateHistoryPage.tsx):
  * - ปุ่ม "ลบ" เรียกฟังก์ชันนี้ตรงๆ แล้วจบ (soft delete — เก็บประวัติไว้ ไม่ลบแถวจริง)
- * - ปุ่ม "แก้ไข" เรียกฟังก์ชันนี้ก่อน แล้วเปิด IssueWhtCertificateModal (mode="reissue") พร้อมข้อมูลเดิม
- *   ให้ผู้ใช้แก้ไขแล้วออกใบใหม่ผ่าน createWhtCertificate() ตามปกติ (ได้เลขที่ใหม่ต่อเนื่อง ไม่ใช้เลขเดิมซ้ำ)
+ * - ปุ่ม "แก้ไข" ไม่เรียกฟังก์ชันนี้แล้วตั้งแต่ 2026-10-19 — ใช้ updateWhtCertificate() แก้ใบเดิมในที่เดิมแทน
+ *   (ดูเหตุผลที่ฟังก์ชันนั้น) เหลือแค่ปุ่ม "ลบ" ที่ยังเรียกฟังก์ชันนี้
  * reason ไม่บังคับกรอก (ส่ง null ได้ถ้าไม่มีเหตุผลเฉพาะเจาะจง) */
 export async function voidWhtCertificate(certId: string, reason: string | null): Promise<WhtCertificate> {
   const supabase = getSupabaseClient();

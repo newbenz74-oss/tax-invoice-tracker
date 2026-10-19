@@ -7,6 +7,7 @@ import {
   filterContacts,
   formatBranchLabel,
   generateNextContactCode,
+  compareContactsByCode,
   getContactDisplayName,
   JURISTIC_TITLES,
   PERSON_TITLES,
@@ -568,5 +569,39 @@ describe('รายการคำนำหน้า', () => {
     expect(titleOptionsFor('company')).toContain('บริษัท');
     expect(titleOptionsFor('company')).not.toContain('นาย');
     expect(titleOptionsFor('')).toEqual([]);
+  });
+});
+
+/* ========================================================================================
+   เรียงรายชื่อตามรหัสที่ผู้ใช้ตั้งเอง (2026-10-19)
+
+   ผู้ใช้แจ้งว่าช่องเลือกผู้ถูกหักภาษี "ชื่อไม่เรียง มันควรเรียงจาก ก" แล้วระบุต่อว่า "เรียงจากรหัสพนักงาน
+   หรือรหัสบริษัทสิที่ฉันตั้ง ไม่ควรเรียงจากชื่อ"
+   ======================================================================================== */
+
+describe('compareContactsByCode', () => {
+  const c = (code: string) => ({ contact_code: code });
+
+  it('เรียงรหัสอักษรไทย ก→ฮ', () => {
+    const list = [c('ม-มุธิตา'), c('ก-กนกพร'), c('ธ-ธีรวุฒิ'), c('ฉ-ฉัตรชัย')];
+    expect([...list].sort(compareContactsByCode).map((x) => x.contact_code)).toEqual([
+      'ก-กนกพร',
+      'ฉ-ฉัตรชัย',
+      'ธ-ธีรวุฒิ',
+      'ม-มุธิตา',
+    ]);
+  });
+
+  it('รหัสอักษรอังกฤษมาก่อนอักษรไทย — ตรงกับลำดับที่หน้าสมุดรายชื่อแสดงอยู่', () => {
+    const list = [c('ก-กนกพร'), c('LINEPAY'), c('BM')];
+    expect([...list].sort(compareContactsByCode).map((x) => x.contact_code)).toEqual(['BM', 'LINEPAY', 'ก-กนกพร']);
+  });
+
+  it('คำนำหน้าไม่มีผลกับลำดับเลย เพราะไม่เคยอยู่ในรหัส', () => {
+    const list = [
+      { contact_code: 'ก-กฤศกร', title: 'นาย' },
+      { contact_code: 'ก-กนกพร', title: 'นางสาว' },
+    ];
+    expect([...list].sort(compareContactsByCode).map((x) => x.contact_code)).toEqual(['ก-กนกพร', 'ก-กฤศกร']);
   });
 });

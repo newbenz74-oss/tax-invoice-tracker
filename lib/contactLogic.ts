@@ -119,6 +119,44 @@ export function getContactDisplayName(
   return name ? joinTitle(contact.title, name, 'individual') : '-';
 }
 
+/**
+ * เปรียบเทียบรายชื่อสองรายเพื่อเรียงลำดับ — เรียงตาม **รหัสที่ผู้ใช้ตั้งเอง** (contact_code)
+ *
+ * ========================= ทำไมเรียงด้วยรหัส ไม่ใช่ชื่อ =========================
+ * ผู้ใช้ระบุเอง 2026-10-19: "เรียงจากรหัสพนักงานหรือรหัสบริษัทสิที่ฉันตั้ง ไม่ควรเรียงจากชื่อ" — รหัสที่ตั้งไว้
+ * เป็นระบบของผู้ใช้เอง (เช่น 'ก-กนกพร', 'BM', 'LINEPAY') และหน้าสมุดรายชื่อก็เรียงตามรหัสอยู่แล้ว
+ * (lib/contactApi.ts order('contact_code')) การเรียงให้เหมือนกันทุกที่ทำให้ไล่หาชื่อจากความเคยชินเดิมได้
+ *
+ * เคยลองเรียงตามชื่อแล้วมีปัญหา: ตอนแรกเรียงด้วยชื่อที่แสดงผลซึ่งรวมคำนำหน้า ทำให้ "นางสาว..." มารวมกัน
+ * ทั้งพวงแล้วตามด้วย "นาย..." ทั้งพวง (ผลข้างเคียงของ migration_035 ที่แยกคำนำหน้าออกมา) — การเรียงด้วย
+ * รหัสไม่มีปัญหานี้เลยเพราะคำนำหน้าไม่เคยอยู่ในรหัส
+ *
+ * ========================= ทำไมต้องจัดกลุ่มอักษรก่อนแล้วค่อยเทียบ =========================
+ * หน้าสมุดรายชื่อเรียงมาจากฐานข้อมูล (order('contact_code')) ซึ่งเรียงรหัสอักษรอังกฤษ (BM, EST, LINEPAY)
+ * มาก่อนรหัสอักษรไทย (ก-กนกพร) เสมอ — แต่ localeCompare ภาษาไทยทำกลับกัน (เอาไทยขึ้นก่อน) ถ้าใช้ตรงๆ
+ * ลำดับในช่องเลือกจะไม่ตรงกับที่ผู้ใช้เห็นในสมุดรายชื่อ ซึ่งผิดจุดประสงค์ของการเรียงด้วยรหัสตั้งแต่ต้น
+ *
+ * จึงจัดกลุ่มตามชนิดอักษรของตัวแรกก่อน (อังกฤษ/ตัวเลข → ไทย → อื่นๆ) แล้วค่อยเทียบด้วย localeCompare
+ * ภาษาไทยภายในกลุ่มเดียวกัน — ได้ทั้งลำดับกลุ่มที่ตรงกับสมุดรายชื่อ และลำดับไทยที่ถูกต้องตามพจนานุกรม
+ * (localeCompare จัดการสระหน้าอย่าง เ แ ไ ให้ถูกต้อง ซึ่งการเทียบรหัสอักขระดิบๆ ทำไม่ได้)
+ */
+function codeScriptRank(code: string): number {
+  const first = code.trim().charAt(0);
+  if (!first) return 3;
+  if (/[0-9A-Za-z]/.test(first)) return 0;
+  if (first >= '\u0E00' && first <= '\u0E7F') return 1;
+  return 2;
+}
+
+export function compareContactsByCode(
+  a: Pick<BusinessPartner, 'contact_code'>,
+  b: Pick<BusinessPartner, 'contact_code'>
+): number {
+  const rankDiff = codeScriptRank(a.contact_code) - codeScriptRank(b.contact_code);
+  if (rankDiff !== 0) return rankDiff;
+  return a.contact_code.localeCompare(b.contact_code, 'th');
+}
+
 /** ป้ายสาขาที่แสดงในตาราง — "สำนักงานใหญ่" หรือ "สาขาที่ 00001" */
 export function formatBranchLabel(contact: Pick<BusinessPartner, 'branch_type' | 'branch_number'>): string {
   if (contact.branch_type === 'head_office') return BRANCH_TYPE_LABELS.head_office;

@@ -1,5 +1,11 @@
 import type { BusinessPartner, EntityType } from '@/types/contact';
-import type { WhtDeductionType, WhtFormType, WhtIncomeTypeCode, WhtPartySnapshot, WhtPayeeSnapshot } from '@/types/whtCertificate';
+import type {
+  WhtDeductionType,
+  WhtFormType,
+  WhtIncomeTypeCode,
+  WhtPartySnapshot,
+  WhtPayeeSnapshot,
+} from '@/types/whtCertificate';
 import type { Company } from './companyApi';
 import { getContactDisplayName } from './contactLogic';
 
