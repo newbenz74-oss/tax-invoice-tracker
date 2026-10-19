@@ -16,14 +16,31 @@ function sumOf(rows: Array<{ amount: number }>): number {
   return rows.reduce((total, row) => total + row.amount, 0);
 }
 
+/** กลุ่มนี้เป็นการจับคู่แบบ "ยอดสุทธิ" หรือไม่ — ดูจากว่ามีทั้งรายการรับและรายการจ่ายปนกันในกลุ่มหรือเปล่า
+ * (2026-10-19) กลุ่มปกติทุกแถวเป็นประเภทเดียวกันเสมอ จึงแยกได้จากข้อมูลตรงๆ ไม่ต้องเก็บธงเพิ่มในฐานข้อมูล */
+function isNetGroup(group: MatchGroup): boolean {
+  const types = new Set([...group.bankRows, ...group.glRows].map((row) => row.type));
+  return types.size > 1;
+}
+
+/** ยอดที่ต้องแสดงของฝั่งหนึ่ง — กลุ่มสุทธิใช้ |จ่าย − รับ| ส่วนกลุ่มปกติใช้ผลรวมดิบเหมือนเดิม
+ *
+ * ถ้ากลุ่มสุทธิใช้ผลรวมดิบ ตัวเลขบนหน้าจอจะผิด เช่นเคสจริงของผู้ใช้ (จ่าย 233,500 + รับคืน 839.10 คู่กับ GL
+ * 232,660.90) จะโชว์ 234,339.10 ซึ่งไม่ตรงกับฝั่ง GL และไม่ตรงกับเงินที่จ่ายจริงด้วย */
+function sideTotal(rows: Array<{ type: 'receive' | 'payment'; amount: number }>, net: boolean): number {
+  if (!net) return sumOf(rows);
+  return Math.abs(rows.reduce((total, row) => total + (row.type === 'payment' ? row.amount : -row.amount), 0));
+}
+
 function sumGroups(list: MatchGroup[]): { bankReceive: number; bankPayment: number; glReceive: number; glPayment: number } {
   let bankReceive = 0;
   let bankPayment = 0;
   let glReceive = 0;
   let glPayment = 0;
   for (const group of list) {
-    const bankTotal = sumOf(group.bankRows);
-    const glTotal = sumOf(group.glRows);
+    const net = isNetGroup(group);
+    const bankTotal = sideTotal(group.bankRows, net);
+    const glTotal = sideTotal(group.glRows, net);
     if (group.type === 'receive') {
       bankReceive += bankTotal;
       glReceive += glTotal;
@@ -141,8 +158,9 @@ export default function BankReconcileMatchedTable({ groups, onUnmatch }: BankRec
                 {paged.map((group) => {
                   const isMulti = group.bankRows.length > 1 || group.glRows.length > 1;
                   const isExpanded = isMulti && expandedGroupIds.has(group.groupId);
-                  const bankTotal = sumOf(group.bankRows);
-                  const glTotal = sumOf(group.glRows);
+                  const net = isNetGroup(group);
+                  const bankTotal = sideTotal(group.bankRows, net);
+                  const glTotal = sideTotal(group.glRows, net);
                   const singleBank = group.bankRows.length === 1 ? group.bankRows[0] : null;
                   const singleGl = group.glRows.length === 1 ? group.glRows[0] : null;
 
@@ -199,6 +217,17 @@ export default function BankReconcileMatchedTable({ groups, onUnmatch }: BankRec
                           >
                             {group.matchType === 'auto' ? 'จับคู่อัตโนมัติ' : 'จับคู่เอง'}
                           </span>
+                          {/* ป้าย "สุทธิ" (2026-10-19) — บอกว่าตัวเลขในแถวนี้เป็นยอดหลังหักกลบรับกับจ่าย
+                              ไม่ใช่ผลรวมดิบ ถ้าไม่บอก ยอดจะดูไม่ตรงกับรายการย่อยที่กางออกมาดู */}
+                          {net && (
+                            <span
+                              className="ml-1 rounded-full bg-warning/20 px-2 py-1 text-xs font-medium text-text"
+                              data-testid={`matched-row-net-${group.groupId}`}
+                              title="ยอดสุทธิหลังหักกลบรายการรับกับรายการจ่ายในกลุ่มเดียวกัน"
+                            >
+                              สุทธิ
+                            </span>
+                          )}
                         </td>
                         {onUnmatch && (
                           <td className="px-3.5 py-2.5 text-right">
@@ -229,7 +258,12 @@ export default function BankReconcileMatchedTable({ groups, onUnmatch }: BankRec
                                         {formatDateDisplay(row.date)}
                                         {row.description ? ` · ${row.description}` : ''}
                                       </span>
-                                      <span className="font-numeric shrink-0 text-text">{row.amount.toLocaleString('th-TH', THB2)}</span>
+                                      <span className="font-numeric shrink-0 text-text">
+                                        {/* กลุ่มสุทธิมีทั้งรับและจ่ายปนกัน ต้องบอกทิศทางรายแถว ไม่งั้นอ่านไม่ออก
+                                            ว่ายอดสุทธิมาจากไหน */}
+                                        {net && <span className="mr-1 text-xs text-text-sub">{row.type === 'payment' ? 'จ่าย' : 'รับ'}</span>}
+                                        {row.amount.toLocaleString('th-TH', THB2)}
+                                      </span>
                                     </li>
                                   ))}
                                 </ul>
@@ -244,7 +278,10 @@ export default function BankReconcileMatchedTable({ groups, onUnmatch }: BankRec
                                       <span>
                                         {row.documentNo || '-'} · {formatDateDisplay(row.date)}
                                       </span>
-                                      <span className="font-numeric text-text">{row.amount.toLocaleString('th-TH', THB2)}</span>
+                                      <span className="font-numeric text-text">
+                                        {net && <span className="mr-1 text-xs text-text-sub">{row.type === 'payment' ? 'จ่าย' : 'รับ'}</span>}
+                                        {row.amount.toLocaleString('th-TH', THB2)}
+                                      </span>
                                     </li>
                                   ))}
                                 </ul>

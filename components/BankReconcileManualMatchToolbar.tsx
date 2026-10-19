@@ -15,14 +15,22 @@ const HINT_TEXT: Record<ManualMatchReason, string> = {
   ok: 'ยอดรวมทั้งสองฝั่งเท่ากันแล้ว พร้อมยืนยันจับคู่',
   'empty-bank': 'เลือกอย่างน้อย 1 รายการฝั่ง Bank Statement',
   'empty-gl': 'เลือกอย่างน้อย 1 รายการฝั่ง GL',
-  'type-mismatch': 'เลือกได้เฉพาะรายการรับกับรับ หรือจ่ายกับจ่ายเท่านั้น ห้ามผสมกัน',
+  'type-mismatch': 'เลือกได้เฉพาะรายการรับกับรับ หรือจ่ายกับจ่ายเท่านั้น — ถ้าตั้งใจหักกลบ ให้ติ๊ก "จับคู่แบบยอดสุทธิ"',
   'amount-mismatch': 'ยอดรวมสองฝั่งยังไม่เท่ากัน',
+  'net-zero': 'ยอดสุทธิหักกลบกันหมดพอดีเป็นศูนย์ ไม่มีอะไรให้กระทบยอด กรุณาตรวจรายการที่เลือก',
 };
+
+/** ข้อความหัวข้อยอดรวม เปลี่ยนตามโหมด — ในโหมดสุทธิตัวเลขที่โชว์คือ "จ่าย − รับ" ไม่ใช่ผลรวมดิบ
+ * ถ้าไม่เปลี่ยนคำผู้ใช้จะอ่านตัวเลขผิดความหมายทันที */
+const TOTAL_LABEL = { normal: 'ยอดรวม', net: 'ยอดสุทธิ' } as const;
 
 interface BankReconcileManualMatchToolbarProps {
   bankSelection: BankTransaction[];
   glSelection: GLTransaction[];
   onConfirm: () => void;
+  /** โหมด "จับคู่แบบยอดสุทธิ" — ผสมรับ/จ่ายในกลุ่มเดียวได้ แล้วเทียบสุทธิแทนผลรวมดิบ (2026-10-19) */
+  netMode: boolean;
+  onNetModeChange: (next: boolean) => void;
 }
 
 /** แถบเครื่องมือ "จับคู่เอง" — อยู่ระหว่างตาราง Bank ไม่สำเร็จ กับตาราง GL ไม่สำเร็จ แสดงยอดรวมของแถวที่ติ๊ก
@@ -33,11 +41,14 @@ export default function BankReconcileManualMatchToolbar({
   bankSelection,
   glSelection,
   onConfirm,
+  netMode,
+  onNetModeChange,
 }: BankReconcileManualMatchToolbarProps) {
   const validation = useMemo(
-    () => validateManualMatch({ bankRows: bankSelection, glRows: glSelection }),
-    [bankSelection, glSelection]
+    () => validateManualMatch({ bankRows: bankSelection, glRows: glSelection, netMode }),
+    [bankSelection, glSelection, netMode]
   );
+  const totalLabel = netMode ? TOTAL_LABEL.net : TOTAL_LABEL.normal;
 
   return (
     <div
@@ -48,13 +59,13 @@ export default function BankReconcileManualMatchToolbar({
         <div>
           <span className="text-text-sub">เลือกจาก Bank Statement </span>
           <span className="font-numeric font-semibold text-text" data-testid="manual-match-bank-total">
-            {bankSelection.length} รายการ ({formatTHB(validation.bankTotal)} บาท)
+            {bankSelection.length} รายการ ({totalLabel} {formatTHB(validation.bankTotal)} บาท)
           </span>
         </div>
         <div>
           <span className="text-text-sub">เลือกจาก GL </span>
           <span className="font-numeric font-semibold text-text" data-testid="manual-match-gl-total">
-            {glSelection.length} รายการ ({formatTHB(validation.glTotal)} บาท)
+            {glSelection.length} รายการ ({totalLabel} {formatTHB(validation.glTotal)} บาท)
           </span>
         </div>
         <div>
@@ -69,6 +80,18 @@ export default function BankReconcileManualMatchToolbar({
       </div>
 
       <div className="flex items-center gap-3">
+        {/* ติ๊กเปิดโหมดสุทธิเอง (2026-10-19) — ค่าเริ่มต้นปิดเสมอ เพื่อให้การใช้งานปกติยังมีด่านกัน "ติ๊กผสม
+            รับกับจ่ายโดยไม่ตั้งใจ" เหมือนเดิม ดูคอมเมนต์ netMode ใน lib/bankReconcileManualMatch.ts */}
+        <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-text-sub" title="ใช้เมื่อรายการหนึ่งมีเงินคืนกลับมาบางส่วน เช่น โอนออก 233,500 แล้วได้คืน 839.10 ซึ่ง GL ลงเป็นยอดสุทธิรายการเดียว">
+          <input
+            type="checkbox"
+            checked={netMode}
+            onChange={(e) => onNetModeChange(e.target.checked)}
+            className="h-4 w-4 accent-primary"
+            data-testid="manual-match-net-mode"
+          />
+          จับคู่แบบยอดสุทธิ
+        </label>
         <p
           className={`text-sm ${validation.canConfirm ? 'text-success' : 'text-text-sub'}`}
           data-testid="manual-match-hint"

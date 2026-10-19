@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   amountsEqual,
   createManualMatchGroup,
+  netAmount,
   removeMatchGroup,
   sumAmounts,
   validateManualMatch,
@@ -238,5 +239,123 @@ describe('removeMatchGroup', () => {
     expect(afterSecond.groups).toEqual([]);
     expect(afterSecond.bankUnmatched).toHaveLength(allBank.length);
     expect(afterSecond.glUnmatched).toHaveLength(allGl.length);
+  });
+});
+
+/* ========================================================================================
+   จับคู่แบบยอดสุทธิ (2026-10-19)
+
+   เคสจริงที่ผู้ใช้เจอ: Bank โอนออก 233,500.00 แล้วมีเงินคืนกลับมา 839.10 ในวันเดียวกัน ส่วน GL ลงเป็น
+   รายการเดียวที่ยอดสุทธิ 232,660.90 — ทั้งสองฝั่งถูกต้อง แต่กติกาเดิม "รับคู่รับ จ่ายคู่จ่าย" ทำให้จับคู่ไม่ได้
+   ======================================================================================== */
+
+describe('netAmount', () => {
+  it('จ่ายเป็นบวก รับเป็นลบ', () => {
+    expect(netAmount([bank('b1', '2026-09-29', 'payment', 233500), bank('b2', '2026-09-29', 'receive', 839.1)])).toBe(
+      232660.9
+    );
+  });
+
+  it('รับล้วนได้ค่าติดลบ', () => {
+    expect(netAmount([bank('b1', '2026-09-29', 'receive', 500)])).toBe(-500);
+  });
+
+  it('หักกลบกันพอดีได้ศูนย์', () => {
+    expect(netAmount([bank('b1', '2026-09-29', 'payment', 500), bank('b2', '2026-09-29', 'receive', 500)])).toBe(0);
+  });
+
+  it('ไม่มีความคลาดเคลื่อนแบบ floating point', () => {
+    expect(netAmount([bank('b1', '2026-09-29', 'payment', 0.3), bank('b2', '2026-09-29', 'receive', 0.1)])).toBe(0.2);
+  });
+});
+
+describe('validateManualMatch — โหมดสุทธิ', () => {
+  const bankRows = [
+    bank('b-out', '2026-09-29', 'payment', 233500),
+    bank('b-back', '2026-09-29', 'receive', 839.1),
+  ];
+  const glRows = [gl('g1', 'PV690929001', '2026-09-29', 'payment', 232660.9)];
+
+  it('โหมดปกติ: ผสมรับกับจ่ายไม่ได้ (พฤติกรรมเดิม ไม่เปลี่ยน)', () => {
+    const result = validateManualMatch({ bankRows, glRows });
+    expect(result.canConfirm).toBe(false);
+    expect(result.reason).toBe('type-mismatch');
+  });
+
+  it('โหมดสุทธิ: เคสจริงของผู้ใช้ผ่าน — 233,500 จ่าย หัก 839.10 รับ = 232,660.90 ตรงกับ GL', () => {
+    const result = validateManualMatch({ bankRows, glRows, netMode: true });
+    expect(result.canConfirm).toBe(true);
+    expect(result.reason).toBe('ok');
+    expect(result.bankTotal).toBe(232660.9);
+    expect(result.glTotal).toBe(232660.9);
+    expect(result.difference).toBe(0);
+  });
+
+  it('โหมดสุทธิ: ยอดสุทธิไม่เท่ากันก็ยังไม่ผ่าน', () => {
+    const result = validateManualMatch({
+      bankRows,
+      glRows: [gl('g1', 'PV1', '2026-09-29', 'payment', 232000)],
+      netMode: true,
+    });
+    expect(result.canConfirm).toBe(false);
+    expect(result.reason).toBe('amount-mismatch');
+    expect(result.difference).toBe(660.9);
+  });
+
+  it('โหมดสุทธิ: หักกลบกันหมดเป็นศูนย์ ไม่ให้ยืนยัน (กันติ๊กมั่วแล้วบังเอิญหักล้างกัน)', () => {
+    const result = validateManualMatch({
+      bankRows: [bank('b1', '2026-09-29', 'payment', 500), bank('b2', '2026-09-29', 'receive', 500)],
+      glRows: [gl('g1', 'PV1', '2026-09-29', 'payment', 500), gl('g2', 'PV2', '2026-09-29', 'receive', 500)],
+      netMode: true,
+    });
+    expect(result.canConfirm).toBe(false);
+    expect(result.reason).toBe('net-zero');
+  });
+
+  it('โหมดสุทธิ: ยังบังคับว่าต้องเลือกอย่างน้อยฝั่งละ 1 แถวเหมือนเดิม', () => {
+    expect(validateManualMatch({ bankRows, glRows: [], netMode: true }).reason).toBe('empty-gl');
+    expect(validateManualMatch({ bankRows: [], glRows, netMode: true }).reason).toBe('empty-bank');
+  });
+
+  it('โหมดสุทธิกับรายการประเภทเดียวล้วน ยังให้ผลเหมือนโหมดปกติ (ไม่ทำให้ของเดิมพัง)', () => {
+    const same = {
+      bankRows: [bank('b1', '2026-09-29', 'payment', 1000), bank('b2', '2026-09-29', 'payment', 500)],
+      glRows: [gl('g1', 'PV1', '2026-09-29', 'payment', 1500)],
+    };
+    expect(validateManualMatch({ ...same }).canConfirm).toBe(true);
+    expect(validateManualMatch({ ...same, netMode: true }).canConfirm).toBe(true);
+  });
+});
+
+describe('createManualMatchGroup — โหมดสุทธิ', () => {
+  it('ทิศทางของกลุ่มมาจากทิศทางของยอดสุทธิ (จ่ายออกสุทธิ = payment)', () => {
+    const group = createManualMatchGroup({
+      bankRows: [bank('b-out', '2026-09-29', 'payment', 233500), bank('b-back', '2026-09-29', 'receive', 839.1)],
+      glRows: [gl('g1', 'PV690929001', '2026-09-29', 'payment', 232660.9)],
+      netMode: true,
+    });
+    expect(group.type).toBe('payment');
+    expect(group.matchType).toBe('manual');
+    expect(group.bankRows).toHaveLength(2);
+    expect(group.glRows).toHaveLength(1);
+  });
+
+  it('รับเข้าสุทธิได้ทิศทาง receive', () => {
+    const group = createManualMatchGroup({
+      bankRows: [bank('b1', '2026-09-29', 'receive', 1000), bank('b2', '2026-09-29', 'payment', 200)],
+      glRows: [gl('g1', 'PV1', '2026-09-29', 'receive', 800)],
+      netMode: true,
+    });
+    expect(group.type).toBe('receive');
+  });
+
+  it('ยังปฏิเสธการสร้างกลุ่มที่ไม่ผ่านเงื่อนไข', () => {
+    expect(() =>
+      createManualMatchGroup({
+        bankRows: [bank('b1', '2026-09-29', 'payment', 100)],
+        glRows: [gl('g1', 'PV1', '2026-09-29', 'receive', 100)],
+        netMode: true,
+      })
+    ).toThrow(/net-zero|amount-mismatch/);
   });
 });

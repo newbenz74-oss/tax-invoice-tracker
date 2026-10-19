@@ -122,6 +122,10 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
 
   const [selectedBankIds, setSelectedBankIds] = useState<Set<string>>(new Set());
   const [selectedGlIds, setSelectedGlIds] = useState<Set<string>>(new Set());
+  // โหมด "จับคู่แบบยอดสุทธิ" (2026-10-19) — ผู้ใช้เปิดเองเมื่อจะหักกลบรายการจ่ายกับเงินที่ได้คืนจากรายการ
+  // เดียวกัน (ดู netMode ใน lib/bankReconcileManualMatch.ts) ปิดกลับทุกครั้งหลังยืนยันจับคู่สำเร็จ เพื่อให้
+  // การจับคู่ครั้งถัดไปกลับมาอยู่ในโหมดปลอดภัยเสมอ ไม่ค้างเปิดไว้โดยผู้ใช้ลืมตัว
+  const [netMode, setNetMode] = useState(false);
 
   // หมวดที่ 4 "จับคู่อัตโนมัติ (รอยืนยัน)" (เพิ่มเข้ามา 2026-10-10) — ข้อเสนอคู่ผสมที่ระบบคาดเดาให้ แต่ยัง
   // ไม่ลงมือจับคู่จนกว่าผู้ใช้จะกดยอมรับเอง (ดู lib/bankReconcileCombinationMatch.ts)
@@ -342,7 +346,7 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
   function handleConfirmManualMatch() {
     // createManualMatchGroup ตรวจเงื่อนไขซ้ำเองอีกครั้งภายใน (throw ถ้าไม่ผ่าน) — ในทางปฏิบัติจะไม่มีทาง throw
     // ตรงนี้เพราะปุ่มยืนยันใน BankReconcileManualMatchToolbar ถูก disable ไว้แล้วเมื่อเงื่อนไขไม่ผ่าน
-    const group = createManualMatchGroup({ bankRows: bankSelection, glRows: glSelection });
+    const group = createManualMatchGroup({ bankRows: bankSelection, glRows: glSelection, netMode });
     setMatchGroups((prev) => [...prev, group]);
     const nextBank = bankUnmatched.filter((row) => !selectedBankIds.has(row.id));
     const nextGl = glUnmatched.filter((row) => !selectedGlIds.has(row.id));
@@ -354,6 +358,8 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
     refreshSuggestions(nextBank, nextGl, dismissedSuggestionIds);
     setSelectedBankIds(new Set());
     setSelectedGlIds(new Set());
+    // ปิดโหมดสุทธิกลับเสมอหลังยืนยันสำเร็จ — เป็นโหมดสำหรับ "เคสพิเศษครั้งนี้" ไม่ใช่การตั้งค่าค้างไว้
+    setNetMode(false);
   }
 
   /** ผู้ใช้กด "ยอมรับ" ข้อเสนอ 1 ใบ — กลายเป็นกลุ่มที่กระทบยอดสำเร็จจริง (เด้งขึ้นไปหมวด "กระทบยอดสำเร็จ")
@@ -635,6 +641,8 @@ export default function BankReconcileWorkspace({ initialData = null }: BankRecon
               bankSelection={bankSelection}
               glSelection={glSelection}
               onConfirm={handleConfirmManualMatch}
+              netMode={netMode}
+              onNetModeChange={setNetMode}
             />
           )}
           <BankReconcileUnmatchedTable
